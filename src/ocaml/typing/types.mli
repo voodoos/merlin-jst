@@ -772,6 +772,8 @@ module type Wrap = sig
   type 'a t
 end
 
+type discourse = Path.t list
+type 'a with_discourse = { item: 'a; discourse: discourse}
 module type Wrapped = sig
   type 'a wrapped
 
@@ -800,7 +802,9 @@ module type Wrapped = sig
 
   and signature = signature_item list wrapped
 
-  and signature_item =
+  and signature_item = signature_item_desc with_discourse
+
+  and signature_item_desc =
     Sig_value of Ident.t * value_description * visibility
   | Sig_type of Ident.t * type_declaration * rec_status * visibility
   | Sig_typext of Ident.t * extension_constructor * ext_status * visibility
@@ -851,7 +855,7 @@ end
 
 include Wrapped with type 'a wrapped = 'a
 
-val item_visibility : signature_item -> visibility
+val item_visibility : signature_item_desc -> visibility
 
 (* Constructor and record label descriptions inserted held in typing
    environments *)
@@ -951,7 +955,7 @@ val lbl_pos_void : int
     Note: manifest primitives do not correspond to a run-time value! *)
 val bound_value_identifiers: signature -> Ident.t list
 
-val signature_item_id : signature_item -> Ident.t
+val signature_item_id : signature_item_desc -> Ident.t
 
 type mixed_product_element =
   | Value_prefix

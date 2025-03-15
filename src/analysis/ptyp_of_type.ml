@@ -5,7 +5,7 @@ open Types
 let var_of_id id = Location.mknoloc @@ Ident.name id
 
 type signature_elt =
-  | Item of Types.signature_item
+  | Item of Types.signature_item_desc
   | Type of Asttypes.rec_flag * Parsetree.type_declaration list
 
 let rec module_type =
@@ -237,7 +237,7 @@ and type_declaration id
   Ast_helper.Type.mk ~attrs:type_attributes ~params ~kind ~priv:type_private
     ?manifest (var_of_id id)
 
-and signature_item (str_item : Types.signature_item) =
+and signature_item (str_item : Types.signature_item_desc) =
   let open Ast_helper in
   match str_item with
   | Sig_value (id, vd, _visibility) ->
@@ -286,7 +286,7 @@ and signature (items : Types.signature) =
       | Item item -> signature_item item
       | Type (rec_flag, type_decls) -> Ast_helper.Sig.type_ rec_flag type_decls))
 
-and group_items (items : Types.signature_item list) =
+and group_items (items : Types.signature) =
   let rec read_type type_acc items =
     match items with
     | Sig_type (id, type_decl, Trec_next, _) :: rest ->
@@ -307,4 +307,5 @@ and group_items (items : Types.signature_item list) =
     | item :: rest -> group (Item item :: acc) rest
     | [] -> List.rev acc
   in
+  let items = List.map ~f:(fun { item; _ } -> item) items in
   group [] items

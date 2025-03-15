@@ -707,45 +707,47 @@ let rename_bound_idents scoping s sg =
   in
   let rec rename_bound_idents s sg = function
     | [] -> sg, s
-    | Sig_type(id, td, rs, vis) :: rest ->
+    | { item = Sig_type(id, td, rs, vis); discourse } :: rest ->
         let id' = rename id in
         rename_bound_idents
           (add_type id (Pident id') s)
-          (Sig_type(id', td, rs, vis) :: sg)
+          ({ item = Sig_type(id', td, rs, vis); discourse } :: sg)
           rest
-    | Sig_module(id, pres, md, rs, vis) :: rest ->
+    | { item = Sig_module(id, pres, md, rs, vis); discourse } :: rest ->
         let id' = rename id in
         rename_bound_idents
           (add_module id (Pident id') s)
-          (Sig_module (id', pres, md, rs, vis) :: sg)
+          ({ item = Sig_module (id', pres, md, rs, vis); discourse } :: sg)
           rest
-    | Sig_modtype(id, mtd, vis) :: rest ->
+    | { item = Sig_modtype(id, mtd, vis); discourse } :: rest ->
         let id' = rename id in
         rename_bound_idents
           (add_modtype id (Types.Mty_ident(Pident id')) s)
-          (Sig_modtype(id', mtd, vis) :: sg)
+          ({ item = Sig_modtype(id', mtd, vis); discourse } :: sg)
           rest
-    | Sig_class(id, cd, rs, vis) :: rest ->
+    | { item = Sig_class(id, cd, rs, vis); discourse } :: rest ->
         (* cheat and pretend they are types cf. PR#6650 *)
         let id' = rename id in
         rename_bound_idents
           (add_type id (Pident id') s)
-          (Sig_class(id', cd, rs, vis) :: sg)
+          ({ item = Sig_class(id', cd, rs, vis); discourse } :: sg)
           rest
-    | Sig_class_type(id, ctd, rs, vis) :: rest ->
+    | { item = Sig_class_type(id, ctd, rs, vis); discourse } :: rest ->
         (* cheat and pretend they are types cf. PR#6650 *)
         let id' = rename id in
         rename_bound_idents
           (add_type id (Pident id') s)
-          (Sig_class_type(id', ctd, rs, vis) :: sg)
+          ({ item = Sig_class_type(id', ctd, rs, vis); discourse } :: sg)
           rest
-    | Sig_value(id, vd, vis) :: rest ->
+    | { item = Sig_value(id, vd, vis); discourse } :: rest ->
         (* scope doesn't matter for value identifiers. *)
         let id' = Ident.rename id in
-        rename_bound_idents s (Sig_value(id', vd, vis) :: sg) rest
-    | Sig_typext(id, ec, es, vis) :: rest ->
+        rename_bound_idents s
+          ({ item = Sig_value(id', vd, vis); discourse } :: sg) rest
+    | { item = Sig_typext(id, ec, es, vis); discourse } :: rest ->
         let id' = rename id in
-        rename_bound_idents s (Sig_typext(id',ec,es,vis) :: sg) rest
+        rename_bound_idents s
+          ({ item = Sig_typext(id',ec,es,vis); discourse } :: sg) rest
   in
   rename_bound_idents s [] sg
 
@@ -851,21 +853,24 @@ and force_signature_once' scoping s sg =
   )
 
 and subst_lazy_signature_item' copy_scope scoping s comp =
-  match comp with
-    Sig_value(id, d, vis) ->
-      Sig_value(id, subst_lazy_value_description s d, vis)
-  | Sig_type(id, d, rs, vis) ->
-      Sig_type(id, type_declaration' copy_scope s d, rs, vis)
-  | Sig_typext(id, ext, es, vis) ->
-      Sig_typext(id, extension_constructor' copy_scope s ext, es, vis)
-  | Sig_module(id, pres, d, rs, vis) ->
-      Sig_module(id, pres, subst_lazy_module_decl scoping s d, rs, vis)
-  | Sig_modtype(id, d, vis) ->
-      Sig_modtype(id, subst_lazy_modtype_decl scoping s d, vis)
-  | Sig_class(id, d, rs, vis) ->
-      Sig_class(id, class_declaration' copy_scope s d, rs, vis)
-  | Sig_class_type(id, d, rs, vis) ->
-      Sig_class_type(id, cltype_declaration' copy_scope s d, rs, vis)
+  let item =
+    match comp.item with
+      Sig_value(id, d, vis) ->
+        Sig_value(id, subst_lazy_value_description s d, vis)
+    | Sig_type(id, d, rs, vis) ->
+        Sig_type(id, type_declaration' copy_scope s d, rs, vis)
+    | Sig_typext(id, ext, es, vis) ->
+        Sig_typext(id, extension_constructor' copy_scope s ext, es, vis)
+    | Sig_module(id, pres, d, rs, vis) ->
+        Sig_module(id, pres, subst_lazy_module_decl scoping s d, rs, vis)
+    | Sig_modtype(id, d, vis) ->
+        Sig_modtype(id, subst_lazy_modtype_decl scoping s d, vis)
+    | Sig_class(id, d, rs, vis) ->
+        Sig_class(id, class_declaration' copy_scope s d, rs, vis)
+    | Sig_class_type(id, d, rs, vis) ->
+        Sig_class_type(id, cltype_declaration' copy_scope s d, rs, vis)
+  in
+  { item; discourse = comp.discourse}
 
 and modtype scoping s t =
   t |> lazy_modtype |> subst_lazy_modtype scoping s |> force_modtype

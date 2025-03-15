@@ -177,7 +177,7 @@ let rec mod_smallerthan n m =
         List.fold_left s ~init:(Some 0)
           ~f:
             begin
-              fun acc item ->
+              fun acc { item; _ } ->
                 let sub n1 m =
                   match mod_smallerthan (n - n1) m with
                   | Some n2 -> Some (n1 + n2)

@@ -240,9 +240,9 @@ module FieldMap = Map.Make(struct
     let compare = Stdlib.compare
   end)
 
-let item_ident_name =
+let item_ident_name { item; _ } =
   let open Subst.Lazy in
-  function
+  match item with
     Sig_value(id, d, _) -> (id, d.val_loc, field_desc Field_value id)
   | Sig_type(id, d, _, _) -> (id, d.type_loc, field_desc Field_type  id )
   | Sig_typext(id, d, _, _) ->
@@ -258,9 +258,9 @@ let item_ident_name =
   | Sig_class_type(id, d, _, _) ->
       (id, d.clty_loc, field_desc Field_classtype id)
 
-let is_runtime_component =
+let is_runtime_component { item; _ } =
   let open Subst.Lazy in
-  function
+  match item with
   | Sig_value(_,{val_kind = Val_prim _}, _)
   | Sig_type(_,_,_,_)
   | Sig_module(_,Mp_absent,_,_,_)
@@ -271,9 +271,9 @@ let is_runtime_component =
   | Sig_module(_,Mp_present,_,_,_)
   | Sig_class(_,_,_,_) -> true
 
-let item_visibility =
+let item_visibility { item; _ } =
   let open Subst.Lazy in
-  function
+  match item with
   | Sig_value (_, _, vis)
   | Sig_type (_, _, _, vis)
   | Sig_typext (_, _, _, vis)
@@ -374,10 +374,10 @@ let pair_components subst sig1_comps sig2 =
   let rec pair subst paired unpaired = function
     | [] ->
       paired, unpaired, subst
-  | item2 :: rem ->
+    | item2 :: rem ->
       let (id2, _loc, name2) = item_ident_name item2 in
       let name2, report =
-        match item2, name2 with
+        match item2.item, name2 with
           Sig_type (_, {type_manifest=None}, _, _), {name=s; kind=Field_type}
           when Btype.is_row_name s ->
             (* Do not report in case of failure,
@@ -389,7 +389,7 @@ let pair_components subst sig1_comps sig2 =
       begin match FieldMap.find name2 sig1_comps with
       | (id1, item1, pos1) ->
         let new_subst =
-          match item2 with
+          match item2.item with
             Sig_type _ ->
               Subst.add_type id2 (Path.Pident id1) subst
           | Sig_module _ ->
@@ -749,7 +749,7 @@ and signatures ~in_eq ~loc env ~mark subst ~modes sig1 sig2 mod_shape =
   let (id_pos_list,_) =
     List.fold_left
       (fun (l,pos) -> function
-          Sig_module (id, Mp_present, _, _, _) ->
+          { item = Sig_module (id, Mp_present, _, _, _); _ } ->
             ((id,pos,Tcoerce_none)::l , pos+1)
         | item -> (l, if is_runtime_component item then pos+1 else pos))
       ([], 0) sig1 in
@@ -796,7 +796,7 @@ and signature_components :
   let open Subst.Lazy in
   match paired with
   | [] -> Sign_diff.{ empty with shape_map }
-  | (sigi1, sigi2, pos) :: rem ->
+  | ({ item = sigi1; _ }, { item = sigi2; _ }, pos) :: rem ->
       let shape_modified = ref false in
       let id, item, shape_map, present_at_runtime =
         match sigi1, sigi2 with

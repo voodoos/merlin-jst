@@ -150,7 +150,7 @@ module Illegal_permutation = struct
     | Mty_signature s , [] -> List.rev ctx, s
     | Mty_signature s, Item k :: q ->
         begin match runtime_item k s with
-        | Sig_module (id, _, md,_,_) ->
+        | { item = Sig_module (id, _, md,_,_); _ } ->
             find env (Context.Module id :: ctx) q md.md_type
         | _ -> raise Not_found
         end

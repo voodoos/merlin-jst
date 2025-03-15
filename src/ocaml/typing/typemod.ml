@@ -424,7 +424,8 @@ let retype_applicative_functor_type ~loc env funct arg =
    This function would be called with M.N.t and N.t to check for these uses. *)
 let check_usage_of_path_of_substituted_item paths ~loc ~lid env super =
     { super with
-      Btype.it_signature_item = (fun self -> function
+      Btype.it_signature_item = (fun self ({ item; _ } as sig_item) ->
+      match item with
       | Sig_module (id, _, { md_type = Mty_alias aliased_path; _ }, _, _)
         when List.exists
                (fun path -> path_is_strict_prefix path ~prefix:aliased_path)
@@ -432,7 +433,7 @@ let check_usage_of_path_of_substituted_item paths ~loc ~lid env super =
         ->
          let e = With_changes_module_alias (lid.txt, id, aliased_path) in
          raise(Error(loc, Lazy.force !env, e))
-      | sig_item ->
+      | _ ->
          super.Btype.it_signature_item self sig_item
       );
       Btype.it_path = (fun referenced_path ->
@@ -497,7 +498,7 @@ let check_usage_after_substitution env ~loc ~lid paths unpackable_modtype sg =
 (* After substitution one also needs to re-check the well-foundedness
    of type declarations in recursive modules *)
 let rec extract_next_modules = function
-  | Sig_module (id, _, mty, Trec_next, _) :: rem ->
+  | { item = Sig_module (id, _, mty, Trec_next, _); _ } :: rem ->
       let (id_mty_l, rem) = extract_next_modules rem in
       ((id, mty) :: id_mty_l, rem)
   | sg -> ([], sg)
@@ -509,7 +510,7 @@ let check_well_formed_module env loc context mty =
   let iterator =
     let rec check_signature env = function
       | [] -> ()
-      | Sig_module (id, _, mty, Trec_first, _) :: rem ->
+      | { item = Sig_module (id, _, mty, Trec_first, _); _ } :: rem ->
           let (id_mty_l, rem) = extract_next_modules rem in
           begin try
             check_recmod_typedecls (Lazy.force env) ((id, mty) :: id_mty_l)
@@ -573,7 +574,7 @@ let params_are_constrained =
 
 let rec remove_modality_and_zero_alloc_variables_sg env ~zap_modality sg =
   let sg_item = function
-    | Sig_value (id, desc, vis) ->
+    | { item = Sig_value (id, desc, vis); discourse } ->
         let val_modalities =
           desc.val_modalities
           |> zap_modality |> Mode.Modality.Value.of_const
@@ -582,14 +583,14 @@ let rec remove_modality_and_zero_alloc_variables_sg env ~zap_modality sg =
           Zero_alloc.create_const (Zero_alloc.get desc.val_zero_alloc)
         in
         let desc = {desc with val_modalities; val_zero_alloc} in
-        Sig_value (id, desc, vis)
-    | Sig_module (id, pres, md, re, vis) ->
+        { item = Sig_value (id, desc, vis); discourse }
+    | { item = Sig_module (id, pres, md, re, vis); discourse } ->
         let md_type =
           remove_modality_and_zero_alloc_variables_mty env ~zap_modality
             md.md_type
         in
         let md = {md with md_type} in
-        Sig_module (id, pres, md, re, vis)
+        { item = Sig_module (id, pres, md, re, vis); discourse }
     | item -> item
   in
   List.map sg_item sg
@@ -653,7 +654,7 @@ let merge_constraint initial_env loc sg lid constr =
   let split_row_id s ghosts =
     let srow = s ^ "#row" in
     let rec split before = function
-        | Sig_type(id,_,_,_) :: rest when Ident.name id = srow ->
+        |{ item = Sig_type(id,_,_,_); _ } :: rest when Ident.name id = srow ->
             before, Some id, rest
         | a :: rest -> split (a::before) rest
         | [] -> before, None, []
@@ -664,7 +665,7 @@ let merge_constraint initial_env loc sg lid constr =
     let return ?(ghosts=ghosts) ~replace_by info =
       Some (info, {Signature_group.ghosts; replace_by})
     in
-    match item, namelist, constr with
+    match item.item, namelist, constr with
     | Sig_type(id, decl, rs, priv), [s],
        With_type ({ptype_kind = Ptype_abstract} as sdecl)
       when Ident.name id = s && Typedecl.is_fixed_type sdecl ->
@@ -717,12 +718,16 @@ let merge_constraint initial_env loc sg lid constr =
         let decl_row = {decl_row with type_params = newdecl.type_params} in
         let rs' = if rs = Trec_first then Trec_not else rs in
         let ghosts =
-          List.rev_append before_ghosts
-            (Sig_type(id_row, decl_row, rs', priv)::after_ghosts)
+          let item = {
+            item = Sig_type(id_row, decl_row, rs', priv);
+            discourse = [] }
+          in
+          List.rev_append before_ghosts (item::after_ghosts)
         in
-        return ~ghosts
-          ~replace_by:(Some (Sig_type(id, newdecl, rs, priv)))
-          (Pident id, lid, Some (Twith_type tdecl))
+        let replace_by =
+          Some { item = Sig_type(id, newdecl, rs, priv); discourse = [] }
+        in
+        return ~ghosts ~replace_by (Pident id, lid, Some (Twith_type tdecl))
     | Sig_type(id, sig_decl, rs, priv) , [s],
        (With_type sdecl | With_typesubst sdecl as constr)
       when Ident.name id = s ->
@@ -737,9 +742,10 @@ let merge_constraint initial_env loc sg lid constr =
           id row_id newdecl sig_decl;
         begin match constr with
           With_type _ ->
-            return ~ghosts
-              ~replace_by:(Some(Sig_type(id, newdecl, rs, priv)))
-              (Pident id, lid, Some (Twith_type tdecl))
+            let replace_by =
+              Some { item = Sig_type(id, newdecl, rs, priv); discourse = [] }
+            in
+            return ~ghosts ~replace_by (Pident id, lid, Some (Twith_type tdecl))
         | (* With_typesubst *) _ ->
             real_ids := [Pident id];
             return ~ghosts ~replace_by:None
@@ -778,8 +784,10 @@ let merge_constraint initial_env loc sg lid constr =
         end;
         check_type_decl outer_sig_env sg_for_env loc id None tdecl sig_decl;
         let tdecl = { tdecl with type_manifest = None } in
-        return ~ghosts ~replace_by:(Some(Sig_type(id, tdecl, rs, priv)))
-          (Pident id, lid, None)
+        let replace_by =
+          Some { item = Sig_type(id, tdecl, rs, priv); discourse = [] }
+        in
+        return ~ghosts ~replace_by (Pident id, lid, None)
     | Sig_modtype(id, mtd, priv), [s],
       (With_modtype mty | With_modtypesubst mty)
       when Ident.name id = s ->
@@ -799,9 +807,10 @@ let merge_constraint initial_env loc sg lid constr =
               mtd_loc = loc;
             }
           in
-          return
-            ~replace_by:(Some(Sig_modtype(id, mtd', priv)))
-            (Pident id, lid, Some (Twith_modtype mty))
+          let replace_by =
+            Some { item = Sig_modtype(id, mtd', priv); discourse = [] }
+          in
+          return ~replace_by (Pident id, lid, Some (Twith_modtype mty))
         else begin
           let path = Pident id in
           real_ids := [path];
@@ -826,9 +835,10 @@ let merge_constraint initial_env loc sg lid constr =
         let newmd = Mtype.strengthen_decl ~aliasable:false md'' path in
         ignore(Includemod.modtypes  ~mark:Mark_both ~loc sig_env
           ~modes:(Legacy None) newmd.md_type md.md_type);
-        return
-          ~replace_by:(Some(Sig_module(id, pres, newmd, rs, priv)))
-          (Pident id, lid, Some (Twith_module (path, lid')))
+        let replace_by =
+          Some { item = Sig_module(id, pres, newmd, rs, priv); discourse = [] }
+        in
+        return ~replace_by (Pident id, lid, Some (Twith_module (path, lid')))
     | Sig_module(id, _, md, _rs, _), [s], With_modsubst (lid',path,md')
       when Ident.name id = s ->
         let sig_env = Env.add_signature sg_for_env outer_sig_env in
@@ -863,7 +873,8 @@ let merge_constraint initial_env loc sg lid constr =
               let newmd = {md with md_type = Mty_signature newsg} in
               Sig_module(id, Mp_present, newmd, rs, priv)
         in
-        return ~replace_by:(Some item) (path, lid, tcstr)
+        let replace_by = Some { item; discourse = [] } in
+        return ~replace_by (path, lid, tcstr)
     | _ -> None
   and merge_signature env sg namelist =
     match
@@ -997,7 +1008,7 @@ let map_ext fn exts =
 let rec apply_modalities_signature ~recursive env modalities sg =
   let env = Env.add_signature sg env in
   List.map (function
-  | Sig_value (id, vd, vis) ->
+  | { item = Sig_value (id, vd, vis); discourse } ->
       let val_modalities =
         vd.val_modalities
         |> Mode.Modality.Value.to_const_exn
@@ -1005,11 +1016,11 @@ let rec apply_modalities_signature ~recursive env modalities sg =
         |> Mode.Modality.Value.of_const
       in
       let vd = {vd with val_modalities} in
-      Sig_value (id, vd, vis)
-  | Sig_module (id, pres, md, rec_, vis) when recursive ->
+      { item = Sig_value (id, vd, vis); discourse }
+  | { item = Sig_module (id, pres, md, rec_, vis); discourse } when recursive ->
       let md_type = apply_modalities_module_type env modalities md.md_type in
       let md = {md with md_type} in
-      Sig_module (id, pres, md, rec_, vis)
+      { item = Sig_module (id, pres, md, rec_, vis); discourse }
   | item -> item
   ) sg
 
@@ -1162,7 +1173,8 @@ and approx_module_declaration env pmd =
 
 and approx_sig env {psg_items; _} = approx_sig_items env psg_items
 
-and approx_sig_items env ssg=
+and approx_sig_items env ssg =
+  let no_discourse item = { item; discourse = [] } in
   match ssg with
     [] -> []
   | item :: srem ->
@@ -1171,7 +1183,8 @@ and approx_sig_items env ssg=
           let decls = Typedecl.approx_type_decl sdecls in
           let rem = approx_sig_items env srem in
           map_rec_type ~rec_flag
-            (fun rs (id, info) -> Sig_type(id, info, rs, Exported)) decls rem
+            (fun rs (id, info) -> Sig_type(id, info, rs, Exported) |> no_discourse)
+            decls rem
       | Psig_typesubst _ -> approx_sig_items env srem
       | Psig_module { pmd_name = { txt = None; _ }; _ } ->
           approx_sig_items env srem
@@ -1187,7 +1200,8 @@ and approx_sig_items env ssg=
             Env.enter_module_declaration ~scope (Option.get pmd.pmd_name.txt)
               pres md env
           in
-          Sig_module(id, pres, md, Trec_not, Exported) :: approx_sig_items newenv srem
+          (Sig_module(id, pres, md, Trec_not, Exported) |> no_discourse)
+          :: approx_sig_items newenv srem
       | Psig_modsubst pms ->
           let scope = Ctype.create_scope () in
           let _, md, _ =
@@ -1222,7 +1236,8 @@ and approx_sig_items env ssg=
               env decls
           in
           map_rec
-            (fun rs (id, md) -> Sig_module(id, Mp_present, md, rs, Exported))
+            (fun rs (id, md) ->
+              Sig_module(id, Mp_present, md, rs, Exported) |> no_discourse)
             decls
             (approx_sig_items newenv srem)
       | Psig_modtype d ->
@@ -1231,7 +1246,8 @@ and approx_sig_items env ssg=
           let (id, newenv) =
             Env.enter_modtype ~scope d.pmtd_name.txt info env
           in
-          Sig_modtype(id, info, Exported) :: approx_sig_items newenv srem
+          (Sig_modtype(id, info, Exported) |> no_discourse)
+          :: approx_sig_items newenv srem
       | Psig_modtypesubst d ->
           let info = approx_modtype_info env d in
           let scope = Ctype.create_scope () in
@@ -1275,7 +1291,7 @@ and approx_sig_items env ssg=
               Sig_class_type(decl.clsty_ty_id, decl.clsty_ty_decl, rs,
                              Exported);
               Sig_type(decl.clsty_obj_id, decl.clsty_obj_abbr, rs, Exported);
-            ]
+            ] |> List.map no_discourse
           ) decls [rem]
           |> List.flatten
       | Psig_kind_abbrev _ ->
@@ -1463,9 +1479,9 @@ end = struct
   let check_class_type ?(info=`Exported) t loc id =
     check Sig_component_kind.Class_type t loc id info
 
-  let classify =
+  let classify sig_item =
     let open Sig_component_kind in
-    function
+    match sig_item.item with
     | Sig_type(id, _, _, _) -> Type, id
     | Sig_module(id, _, _, _, _) -> Module, id
     | Sig_modtype(id, _, _) -> Module_type, id
@@ -1542,7 +1558,7 @@ end = struct
     let simplify_item (component: Types.signature_item) =
       let user_kind, user_id, user_loc =
         let open Sig_component_kind in
-        match component with
+        match component.item with
         | Sig_value(id, v, _) -> Value, id, v.val_loc
         | Sig_type (id, td, _, _) -> Type, id, td.type_loc
         | Sig_typext (id, te, _, _) -> Extension_constructor, id, te.ext_loc
@@ -1828,7 +1844,8 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
         in
         Signature_names.check_value names tdesc.val_loc tdesc.val_id;
         mksig (Tsig_value tdesc) env loc,
-        [Sig_value(tdesc.val_id, tdesc.val_val, Exported)],
+        [{ item = Sig_value(tdesc.val_id, tdesc.val_val, Exported);
+           discourse = [] }],
         newenv
     | Psig_type (rec_flag, sdecls) ->
         let (decls, newenv, _shapes) =
@@ -1840,7 +1857,9 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
         let newenv = Env.update_short_paths newenv in
         let sig_items =
           map_rec_type_with_row_types ~rec_flag
-            (fun rs td -> Sig_type(td.typ_id, td.typ_type, rs, Exported))
+            (fun rs td ->
+              { item = Sig_type(td.typ_id, td.typ_type, rs, Exported);
+                discourse = [] })
             decls
         in
         mksig (Tsig_type (rec_flag, decls)) env loc, sig_items, newenv
@@ -1881,7 +1900,8 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
           Signature_names.check_typext names ext.ext_loc ext.ext_id
         ) constructors;
         let tsg = map_ext (fun es ext ->
-            Sig_typext(ext.ext_id, ext.ext_type, es, Exported)
+            { item = Sig_typext(ext.ext_id, ext.ext_type, es, Exported);
+              discourse = [] }
           ) constructors
         in
         mksig (Tsig_typext tyext) env loc,
@@ -1893,8 +1913,9 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
         Signature_names.check_typext names constructor.ext_loc
           constructor.ext_id;
         let tsg =
-          Sig_typext(constructor.ext_id, constructor.ext_type,
-                     Text_exception, Exported)
+          { item = Sig_typext(constructor.ext_id, constructor.ext_type,
+                     Text_exception, Exported);
+            discourse = [] }
         in
         mksig (Tsig_exception ext) env loc, [tsg], newenv
     | Psig_module pmd ->
@@ -1941,7 +1962,8 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
         let tsg =
           match id with
           | None -> []
-          | Some id -> [Sig_module(id, pres, md, Trec_not, Exported)]
+          | Some id -> [{ item = Sig_module(id, pres, md, Trec_not, Exported);
+                          discourse = [] }]
         in
         sig_item, tsg, newenv
     | Psig_modsubst pms ->
@@ -2000,7 +2022,8 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
                      md_loc = md.md_loc;
                      md_uid = uid;
                     } in
-            Sig_module(id, Mp_present, d, rs, Exported))
+            { item = Sig_module(id, Mp_present, d, rs, Exported);
+              discourse = [] })
             decls []
         in
         mksig (Tsig_recmodule (List.map (fun (md, _, _) -> md) tdecls)) env loc,
@@ -2010,7 +2033,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
         let newenv, mtd, decl = transl_modtype_decl env pmtd in
         Signature_names.check_modtype names pmtd.pmtd_loc mtd.mtd_id;
         mksig (Tsig_modtype mtd) env loc,
-        [Sig_modtype (mtd.mtd_id, decl, Exported)],
+        [{ item = Sig_modtype (mtd.mtd_id, decl, Exported); discourse = [] }],
         newenv
     | Psig_modtypesubst pmtd ->
         let newenv, mtd, _decl = transl_modtype_decl env pmtd in
@@ -2047,9 +2070,13 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
         let tsg =
           map_rec (fun rs cls ->
             let open Typeclass in
-            [Sig_class(cls.cls_id, cls.cls_decl, rs, Exported);
-             Sig_class_type(cls.cls_ty_id, cls.cls_ty_decl, rs, Exported);
-             Sig_type(cls.cls_obj_id, cls.cls_obj_abbr, rs, Exported)]
+            [{ item = Sig_class(cls.cls_id, cls.cls_decl, rs, Exported);
+               discourse = [] };
+             { item =
+                 Sig_class_type(cls.cls_ty_id, cls.cls_ty_decl, rs, Exported);
+               discourse = [] };
+             { item = Sig_type(cls.cls_obj_id, cls.cls_obj_abbr, rs, Exported);
+               discourse = [] }]
           ) classes [] |> List.flatten
         in
         let typedtree =
@@ -2069,9 +2096,12 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
         let tsg =
           map_rec (fun rs decl ->
             let open Typeclass in
-            [Sig_class_type(decl.clsty_ty_id, decl.clsty_ty_decl, rs,
+            [{ item = Sig_class_type(decl.clsty_ty_id, decl.clsty_ty_decl, rs,
                             Exported);
-             Sig_type(decl.clsty_obj_id, decl.clsty_obj_abbr, rs, Exported)]
+               discourse = [] };
+             { item = Sig_type(decl.clsty_obj_id, decl.clsty_obj_abbr, rs,
+                            Exported);
+               discourse = [] }]
           ) classes []
           |> List.flatten
         in
@@ -2090,7 +2120,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
     | Psig_kind_abbrev _ ->
         Misc.fatal_error "kind_abbrev not supported!"
   in
-  let rec transl_sig env sig_items sig_type sig_type_include_functor = function
+  let rec transl_sig env sig_items (sig_type: Types.signature) sig_type_include_functor = function
     | [] -> List.rev sig_items, List.rev sig_type, env
     | item :: srem -> begin
         match transl_sig_item env sig_type_include_functor item with
@@ -2278,7 +2308,8 @@ let rec nongen_modtype env f = function
       nongen_modtype env f body
   | Mty_strengthen (mty,_ ,_) -> nongen_modtype env f mty
 
-and nongen_signature_item env f = function
+and nongen_signature_item env f sig_item =
+  match sig_item.item with
   | Sig_value(_id, desc, _) ->
       f env desc.val_type
       |> Option.map (fun vars -> (vars, desc))
@@ -2296,7 +2327,7 @@ let check_nongen_modtype env loc mty =
     )
 
 let check_nongen_signature_item env sig_item =
-  match sig_item with
+  match sig_item.item with
     Sig_value(_id, vd, _) ->
       Ctype.nongen_vars_in_schema env vd.val_type
       |> Option.iter (fun vars ->
@@ -2464,11 +2495,13 @@ let check_recmodule_inclusion env bindings =
 
 let rec package_constraints_sig env loc sg constrs =
   List.map
-    (function
+    (fun ({ item; _ } as si) ->
+      match item with
       | Sig_type (id, ({type_params=[]} as td), rs, priv)
         when List.mem_assoc [Ident.name id] constrs ->
           let ty = List.assoc [Ident.name id] constrs in
-          Sig_type (id, {td with type_manifest = Some ty}, rs, priv)
+          { si with
+            item = Sig_type (id, {td with type_manifest = Some ty}, rs, priv) }
       | Sig_module (id, pres, md, rs, priv) ->
           let rec aux = function
             | (m :: ((_ :: _) as l), t) :: rest when m = Ident.name id ->
@@ -2481,8 +2514,8 @@ let rec package_constraints_sig env loc sg constrs =
              md_type = package_constraints env loc md.md_type (aux constrs)
             }
           in
-          Sig_module (id, pres, md, rs, priv)
-      | item -> item
+          { si with item = Sig_module (id, pres, md, rs, priv) }
+      | _item -> si
     )
     sg
 
@@ -3070,16 +3103,19 @@ and type_open_decl_aux ?used_slot ?toplevel funct_body names env od =
     in
     Signature_group.iter (Signature_names.check_sig_item ?info names loc) sg;
     let sg =
-      List.map (function
-        | Sig_value(id, vd, _) -> Sig_value(id, vd, visibility)
-        | Sig_type(id, td, rs, _) -> Sig_type(id, td, rs, visibility)
-        | Sig_typext(id, ec, et, _) -> Sig_typext(id, ec, et, visibility)
-        | Sig_module(id, mp, md, rs, _) ->
-            Sig_module(id, mp, md, rs, visibility)
-        | Sig_modtype(id, mtd, _) -> Sig_modtype(id, mtd, visibility)
-        | Sig_class(id, cd, rs, _) -> Sig_class(id, cd, rs, visibility)
-        | Sig_class_type(id, ctd, rs, _) ->
-            Sig_class_type(id, ctd, rs, visibility)
+      List.map (fun ({ item; _ } as si) ->
+        { si with item =
+          match item with
+          | Sig_value(id, vd, _) -> Sig_value(id, vd, visibility)
+          | Sig_type(id, td, rs, _) -> Sig_type(id, td, rs, visibility)
+          | Sig_typext(id, ec, et, _) -> Sig_typext(id, ec, et, visibility)
+          | Sig_module(id, mp, md, rs, _) ->
+              Sig_module(id, mp, md, rs, visibility)
+          | Sig_modtype(id, mtd, _) -> Sig_modtype(id, mtd, visibility)
+          | Sig_class(id, cd, rs, _) -> Sig_class(id, cd, rs, visibility)
+          | Sig_class_type(id, ctd, rs, _) ->
+              Sig_class_type(id, ctd, rs, visibility)
+        }
       ) sg
     in
     let open_descr = {
@@ -3235,7 +3271,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
                   val_zero_alloc = zero_alloc;
                   val_modalities = modalities }
               in
-              Sig_value(id, vd, Exported) :: acc,
+              { item = Sig_value(id, vd, Exported); discourse = [] } :: acc,
               Shape.Map.add_value shape_map id vd.val_uid
             )
             ([], shape_map)
@@ -3249,7 +3285,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
         let (desc, newenv) = Typedecl.transl_value_decl env ~sig_modalities:Mode.Modality.Value.Const.id loc sdesc in
         Signature_names.check_value names desc.val_loc desc.val_id;
         Tstr_primitive desc,
-        [Sig_value(desc.val_id, desc.val_val, Exported)],
+        [{ item = Sig_value(desc.val_id, desc.val_val, Exported); discourse = [] }],
         Shape.Map.add_value shape_map desc.val_id desc.val_val.val_uid,
         newenv
     | Pstr_type (rec_flag, sdecls) ->
@@ -3261,7 +3297,9 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
           Signature_names.(fun td -> check_type names td.typ_loc td.typ_id)
           decls;
         let items = map_rec_type_with_row_types ~rec_flag
-          (fun rs info -> Sig_type(info.typ_id, info.typ_type, rs, Exported))
+          (fun rs info ->
+            { item = Sig_type(info.typ_id, info.typ_type, rs, Exported);
+              discourse = [] })
           decls
         in
         let shape_map = List.fold_left2
@@ -3287,7 +3325,9 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
         in
         (Tstr_typext tyext,
          map_ext
-           (fun es ext -> Sig_typext(ext.ext_id, ext.ext_type, es, Exported))
+           (fun es ext ->
+              { item = Sig_typext(ext.ext_id, ext.ext_type, es, Exported);
+                discourse = [] })
            constructors,
         shape_map,
          newenv)
@@ -3297,10 +3337,11 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
         Signature_names.check_typext names constructor.ext_loc
           constructor.ext_id;
         Tstr_exception ext,
-        [Sig_typext(constructor.ext_id,
+        [{ item = Sig_typext(constructor.ext_id,
                     constructor.ext_type,
                     Text_exception,
-                    Exported)],
+                    Exported);
+           discourse = [] }],
         Shape.Map.add_extcons shape_map
           constructor.ext_id
           shape,
@@ -3343,12 +3384,13 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
             let e = Env.update_short_paths e in
             Signature_names.check_module names pmb_loc id;
             Some id, e,
-            [Sig_module(id, pres,
+            [{ item = Sig_module(id, pres,
                         {md_type = modl.mod_type;
                          md_attributes = attrs;
                          md_loc = pmb_loc;
                          md_uid;
-                        }, Trec_not, Exported)]
+                        }, Trec_not, Exported);
+               discourse = [] }]
         in
         let shape_map = match id with
           | Some id -> Shape.Map.add_module shape_map id md_shape
@@ -3439,12 +3481,13 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
         in
         Tstr_recmodule (List.map (fun (mb, _, _) -> mb) bindings2),
         map_rec (fun rs (id, mb, uid, _shape) ->
-            Sig_module(id, Mp_present, {
-                md_type=mb.mb_expr.mod_type;
-                md_attributes=mb.mb_attributes;
-                md_loc=mb.mb_loc;
-                md_uid = uid;
-              }, rs, Exported))
+            { item = Sig_module(id, Mp_present, {
+                  md_type=mb.mb_expr.mod_type;
+                  md_attributes=mb.mb_attributes;
+                  md_loc=mb.mb_loc;
+                  md_uid = uid;
+                }, rs, Exported);
+              discourse = [] })
            mbs [],
         shape_map,
         newenv
@@ -3455,7 +3498,10 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
         Signature_names.check_modtype names pmtd.pmtd_loc mtd.mtd_id;
         let id = mtd.mtd_id in
         let map = Shape.Map.add_module_type shape_map id decl.mtd_uid in
-        Tstr_modtype mtd, [Sig_modtype (id, decl, Exported)], map, newenv
+        let sig_ =
+          [{ item = Sig_modtype (id, decl, Exported); discourse = [] }]
+        in
+        Tstr_modtype mtd, sig_, map, newenv
     | Pstr_open sod ->
         let toplevel = Option.is_some toplevel in
         let (od, sg, newenv) =
@@ -3487,9 +3533,13 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
           (map_rec
             (fun rs cls ->
               let open Typeclass in
-              [Sig_class(cls.cls_id, cls.cls_decl, rs, Exported);
-               Sig_class_type(cls.cls_ty_id, cls.cls_ty_decl, rs, Exported);
-               Sig_type(cls.cls_obj_id, cls.cls_obj_abbr, rs, Exported)
+              [{ item = Sig_class(cls.cls_id, cls.cls_decl, rs, Exported);
+                 discourse = [] };
+               { item =
+                   Sig_class_type(cls.cls_ty_id, cls.cls_ty_decl, rs, Exported);
+                 discourse = [] };
+               { item = Sig_type(cls.cls_obj_id, cls.cls_obj_abbr, rs, Exported);
+                 discourse = [] };
               ])
              classes []),
         shape_map,
@@ -3517,9 +3567,12 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
           (map_rec
              (fun rs decl ->
                 let open Typeclass in
-                [Sig_class_type(decl.clsty_ty_id, decl.clsty_ty_decl, rs,
+                [{ item = Sig_class_type(decl.clsty_ty_id, decl.clsty_ty_decl, rs,
                                 Exported);
-                 Sig_type(decl.clsty_obj_id, decl.clsty_obj_abbr, rs, Exported);
+                   discourse = [] };
+                 { item = Sig_type(decl.clsty_obj_id, decl.clsty_obj_abbr, rs,
+                                Exported);
+                   discourse = [] };
                 ])
              classes []),
         shape_map,
@@ -3626,7 +3679,8 @@ let rec normalize_modtype = function
 
 and normalize_signature sg = List.iter normalize_signature_item sg
 
-and normalize_signature_item = function
+and normalize_signature_item sig_item =
+  match sig_item.item with
     Sig_value(_id, desc, _) -> Ctype.normalize_type desc.val_type
   | Sig_module(_id, _, md, _, _) -> normalize_modtype md.md_type
   | _ -> ()
@@ -3673,7 +3727,7 @@ let rec extend_path path =
 let lookup_type_in_sig sg =
   let types, modules =
     List.fold_left
-      (fun acc item ->
+      (fun acc { item; _ } ->
          match item with
          | Sig_type(id, _, _, _) ->
              let types, modules = acc in
@@ -4098,7 +4152,8 @@ let package_signatures units =
           md_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
         }
       in
-      Sig_module(newid, Mp_present, md, Trec_not, Exported))
+      { item = Sig_module(newid, Mp_present, md, Trec_not, Exported);
+        discourse = [] })
     units_with_ids
 
 let package_units initial_env objfiles target_cmi modulename =
