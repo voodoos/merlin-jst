@@ -1972,46 +1972,46 @@ let prefix_idents root prefixing_sub sg =
   let rec prefix_idents root items_and_paths prefixing_sub =
     function
     | [] -> (List.rev items_and_paths, prefixing_sub)
-    | { item = Sig_value(id, _, _); _ } as item :: rem ->
+    | Sig_value(id, _, _) as item :: rem ->
       let p = Pdot(root, Ident.name id) in
       prefix_idents root
         ((item, p) :: items_and_paths) prefixing_sub rem
-    | { item = Sig_type(id, _td, _rs, _vis); _ } as item :: rem ->
+    | Sig_type(id, td, rs, vis) :: rem ->
       let p = Pdot(root, Ident.name id) in
       prefix_idents root
-        ((item, p) :: items_and_paths)
+        ((Sig_type(id, td, rs, vis), p) :: items_and_paths)
         (Subst.add_type id p prefixing_sub)
         rem
-    | { item = Sig_typext(id, _ec, _es, _vis); _ } as item :: rem ->
+    | Sig_typext(id, ec, es, vis) :: rem ->
       let p = Pdot(root, Ident.name id) in
       (* we extend the substitution in case of an inlined record *)
       prefix_idents root
-        ((item, p) :: items_and_paths)
+        ((Sig_typext(id, ec, es, vis), p) :: items_and_paths)
         (Subst.add_type id p prefixing_sub)
         rem
-    | { item = Sig_module(id, _pres, _md, _rs, _vis); _ } as item :: rem ->
+    | Sig_module(id, pres, md, rs, vis) :: rem ->
       let p = Pdot(root, Ident.name id) in
       prefix_idents root
-        ((item, p) :: items_and_paths)
+        ((Sig_module(id, pres, md, rs, vis), p) :: items_and_paths)
         (Subst.add_module id p prefixing_sub)
         rem
-    | { item = Sig_modtype(id, _mtd, _vis); _ } as item :: rem ->
+    | Sig_modtype(id, mtd, vis) :: rem ->
       let p = Pdot(root, Ident.name id) in
       prefix_idents root
-        ((item, p) :: items_and_paths)
+        ((Sig_modtype(id, mtd, vis), p) :: items_and_paths)
         (Subst.add_modtype id (Mty_ident p) prefixing_sub)
         rem
-    | { item = Sig_class(id, _cd, _rs, _vis); _ } as item :: rem ->
+    | Sig_class(id, cd, rs, vis) :: rem ->
       (* pretend this is a type, cf. PR#6650 *)
       let p = Pdot(root, Ident.name id) in
       prefix_idents root
-        ((item, p) :: items_and_paths)
+        ((Sig_class(id, cd, rs, vis), p) :: items_and_paths)
         (Subst.add_type id p prefixing_sub)
         rem
-    | { item = Sig_class_type(id, _ctd, _rs, _vis); _ } as item :: rem ->
+    | Sig_class_type(id, ctd, rs, vis) :: rem ->
       let p = Pdot(root, Ident.name id) in
       prefix_idents root
-        ((item, p) :: items_and_paths)
+        ((Sig_class_type(id, ctd, rs, vis), p) :: items_and_paths)
         (Subst.add_type id p prefixing_sub)
         rem
   in
@@ -2130,9 +2130,8 @@ let rec components_of_module_maker
         incr pos;
         Lazy_backtrack.create addr
       in
-      List.iter (fun ((sig_item : Subst.Lazy.signature_item), path) ->
-        (* todo discourse ? *)
-        match sig_item.item with
+      List.iter (fun ((item : Subst.Lazy.signature_item), path) ->
+        match item with
           Sig_value(id, decl, _) ->
             let decl' = Subst.Lazy.value_description sub decl in
             let addr =
@@ -2803,7 +2802,7 @@ end) = struct
   open T
 
   let add_item map mod_shape comp env =
-    match comp.item with
+    match comp with
     | Sig_value(id, decl, _) ->
         let map, shape = proj_shape map mod_shape (Shape.Item.value id) in
         map, M.add_value ?shape ~mode:Mode.Value.legacy id decl env

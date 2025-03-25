@@ -43,7 +43,7 @@ let next_group = function
   | [] -> None
   | src :: q ->
       let ghosts, q =
-        match src.Types.item with
+        match src with
         | Types.Sig_class _ ->
             (* a class declaration for [c] is followed by the ghost
                declarations of class type [c], and type [c] *)
@@ -81,7 +81,7 @@ let next x =
         assert (pre=[]);
         None
     | Some(elt, q)  ->
-        match recursive_sigitem elt.src.item with
+        match recursive_sigitem elt.src with
         | Some (id, _) when Btype.is_row_name (Ident.name id) ->
             not_in_group (elt.src::pre) q
         | None | Some (_, Types.Trec_not) ->
@@ -92,7 +92,7 @@ let next x =
   and in_group ~pre ~ids ~group rem = match next_group rem with
     | None -> cons_group pre group []
     | Some (elt,next) ->
-        match recursive_sigitem elt.src.item with
+        match recursive_sigitem elt.src with
         | Some (id, Types.Trec_next) ->
             in_group ~pre ~ids:(id::ids) ~group:(elt::group) next
         | None | Some (_, Types.(Trec_not|Trec_first)) ->
@@ -105,16 +105,14 @@ let iter f l = Seq.iter f (seq l)
 let fold f acc l = Seq.fold_left f acc (seq l)
 
 let update_rec_next rs rem =
-  let open Types in
   match rs with
-  | Trec_next -> rem
-  | (Trec_first | Trec_not) ->
+  | Types.Trec_next -> rem
+  | Types.(Trec_first | Trec_not) ->
       match rem with
-      | { item = Sig_type (id, decl, Trec_next, priv); discourse } :: rem ->
-        { item = Sig_type (id, decl, rs, priv); discourse } :: rem
-      | { item = Sig_module (id, pres, mty, Trec_next, priv);
-          discourse } :: rem ->
-          { item = Sig_module (id, pres, mty, rs, priv); discourse } :: rem
+      | Types.Sig_type (id, decl, Trec_next, priv) :: rem ->
+          Types.Sig_type (id, decl, rs, priv) :: rem
+      | Types.Sig_module (id, pres, mty, Trec_next, priv) :: rem ->
+          Types.Sig_module (id, pres, mty, rs, priv) :: rem
       | _ -> rem
 
 type in_place_patch = {
@@ -138,7 +136,7 @@ let replace_in_place f sg =
         match f ~ghosts a.src with
         | Some (info, {ghosts; replace_by}) ->
             let after = List.concat_map flatten q @ sg in
-            let after = match recursive_sigitem a.src.item, replace_by with
+            let after = match recursive_sigitem a.src, replace_by with
               | None, _ | _, Some _ -> after
               | Some (_,rs), None -> update_rec_next rs after
             in

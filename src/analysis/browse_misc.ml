@@ -101,7 +101,7 @@ let signature_of_env ?(ignore_extensions = true) env =
     | _ -> None
   in
   let sg = ref [] in
-  let append item = sg := { Types.item; discourse = [] } :: !sg in
+  let append item = sg := item :: !sg in
   let rec aux summary =
     match summary_module_ident_opt summary with
     | Some i when ignore_extensions && i = Extension.ident -> ()

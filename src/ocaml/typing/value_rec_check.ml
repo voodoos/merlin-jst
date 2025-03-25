@@ -1248,9 +1248,7 @@ and structure_item : Typedtree.structure_item -> bind_judg =
           (list class_declaration classes m)
           (Env.remove_list class_ids env)
     | Tstr_include { incl_mod = mexp; incl_type = mty; _ } ->
-      let included_ids =
-        List.map (fun { item; _ } -> Types.signature_item_id item) mty
-      in
+      let included_ids = List.map Types.signature_item_id mty in
       Env.join (modexp mexp m) (Env.remove_list included_ids env)
 
 (* G |- module M = E : m -| G *)
@@ -1274,9 +1272,7 @@ and module_binding : (Ident.t option * Typedtree.module_expr) -> bind_judg =
 and open_declaration : Typedtree.open_declaration -> bind_judg =
   fun { open_expr = mexp; open_bound_items = sg; _ } m env ->
       let judg_E = modexp mexp in
-      let bound_ids =
-        List.map (fun { item; _ } -> Types.signature_item_id item) sg
-      in
+      let bound_ids = List.map Types.signature_item_id sg in
       Env.join (judg_E m) (Env.remove_list bound_ids env)
 
 and recursive_module_bindings

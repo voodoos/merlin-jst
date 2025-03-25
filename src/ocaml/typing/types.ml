@@ -453,9 +453,6 @@ module type Wrap = sig
   type 'a t
 end
 
-type discourse = Path.t list
-type 'a with_discourse = { item: 'a; discourse: discourse}
-
 module type Wrapped = sig
   type 'a wrapped
 
@@ -484,9 +481,7 @@ module type Wrapped = sig
 
   and signature = signature_item list wrapped
 
-  and signature_item = signature_item_desc with_discourse
-
-  and signature_item_desc =
+  and signature_item =
     Sig_value of Ident.t * value_description * visibility
   | Sig_type of Ident.t * type_declaration * rec_status * visibility
   | Sig_typext of Ident.t * extension_constructor * ext_status * visibility
@@ -571,25 +566,21 @@ module Map_wrapped(From : Wrapped)(To : Wrapped) = struct
       mtd_uid;
     }
 
-  let signature_item m sig_item =
-    let item =
-      match sig_item.item with
-      | Sig_value (id,vd,vis) ->
-          To.Sig_value (id, value_description m vd, vis)
-      | Sig_type (id,td,rs,vis) ->
-          To.Sig_type (id,td,rs,vis)
-      | Sig_module (id,pres,md,rs,vis) ->
-          To.Sig_module (id, pres, module_declaration m md, rs, vis)
-      | Sig_modtype (id,mtd,vis) ->
-          To.Sig_modtype (id, modtype_declaration m mtd, vis)
-      | Sig_typext (id,ec,es,vis) ->
-          To.Sig_typext (id,ec,es,vis)
-      | Sig_class (id,cd,rs,vis) ->
-          To.Sig_class (id,cd,rs,vis)
-      | Sig_class_type (id,ctd,rs,vis) ->
-          To.Sig_class_type (id,ctd,rs,vis)
-    in
-    { item; discourse = sig_item.discourse }
+  let signature_item m = function
+    | Sig_value (id,vd,vis) ->
+        To.Sig_value (id, value_description m vd, vis)
+    | Sig_type (id,td,rs,vis) ->
+        To.Sig_type (id,td,rs,vis)
+    | Sig_module (id,pres,md,rs,vis) ->
+        To.Sig_module (id, pres, module_declaration m md, rs, vis)
+    | Sig_modtype (id,mtd,vis) ->
+        To.Sig_modtype (id, modtype_declaration m mtd, vis)
+    | Sig_typext (id,ec,es,vis) ->
+        To.Sig_typext (id,ec,es,vis)
+    | Sig_class (id,cd,rs,vis) ->
+        To.Sig_class (id,cd,rs,vis)
+    | Sig_class_type (id,ctd,rs,vis) ->
+        To.Sig_class_type (id,ctd,rs,vis)
 end
 
 include Make_wrapped(struct type 'a t = 'a end)
@@ -804,14 +795,12 @@ let lbl_pos_void = -1
 
 let rec bound_value_identifiers = function
     [] -> []
-  | { item = Sig_value(id, {val_kind = Val_reg}, _); _ } :: rem ->
+  | Sig_value(id, {val_kind = Val_reg}, _) :: rem ->
       id :: bound_value_identifiers rem
-  | { item = Sig_typext(id, _, _, _); _ } :: rem ->
+  | Sig_typext(id, _, _, _) :: rem -> id :: bound_value_identifiers rem
+  | Sig_module(id, Mp_present, _, _, _) :: rem ->
       id :: bound_value_identifiers rem
-  | { item = Sig_module(id, Mp_present, _, _, _); _ } :: rem ->
-      id :: bound_value_identifiers rem
-  | { item = Sig_class(id, _, _, _); _ } :: rem ->
-      id :: bound_value_identifiers rem
+  | Sig_class(id, _, _, _) :: rem -> id :: bound_value_identifiers rem
   | _ :: rem -> bound_value_identifiers rem
 
 let signature_item_id = function

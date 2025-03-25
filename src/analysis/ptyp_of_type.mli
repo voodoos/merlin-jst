@@ -1,5 +1,5 @@
 type signature_elt =
-  | Item of Types.signature_item_desc
+  | Item of Types.signature_item
   | Type of Asttypes.rec_flag * Parsetree.type_declaration list
 
 val module_type : Types.module_type -> Parsetree.module_type
@@ -12,7 +12,7 @@ val modtype_declaration :
 val module_declaration :
   Ident.t -> Types.module_declaration -> Parsetree.module_declaration
 
-val signature_item : Types.signature_item_desc -> Parsetree.signature_item
+val signature_item : Types.signature_item -> Parsetree.signature_item
 
 val extension_constructor :
   Ident.t -> Types.extension_constructor -> Parsetree.extension_constructor

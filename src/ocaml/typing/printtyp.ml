@@ -2559,12 +2559,11 @@ and trees_of_recursive_sigitem_group ?abbrev env
   match syntactic_group.group with
   | Not_rec x -> add_sigitem env x, [display x]
   | Rec_group items ->
-      let ids = List.map (fun x -> ident_sigitem x.Signature_group.src.item) items in
+      let ids = List.map (fun x -> ident_sigitem x.Signature_group.src) items in
       List.fold_left add_sigitem env items,
       with_hidden_items ids (fun () -> List.map display items)
 
-and tree_of_sigitem ?abbrev { item; _ } =
-  match item with
+and tree_of_sigitem ?abbrev = function
   | Sig_value(id, decl, _) ->
       tree_of_value_description id decl
   | Sig_type(id, decl, rs, _) ->
