@@ -37,7 +37,7 @@ let ast_impl_magic_number = "Caml1999M558"
 let ast_intf_magic_number = "Caml1999N558"
 let cmt_magic_number = "Caml1999T558"
 let cms_magic_number = "Caml1999S558"
-let index_magic_number = "Merl2023I558"
+let index_magic_number = "Merl2023I560"
 
 let interface_suffix = ref ".mli"
 
