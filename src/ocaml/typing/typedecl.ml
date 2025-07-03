@@ -306,6 +306,7 @@ in
       type_attributes = sdecl.ptype_attributes;
       type_unboxed_default = false;
       type_uid = uid;
+      type_discourse = Discourse.Paths.empty;
     }
   in
   add_type ~long_path:true ~check:true id decl env
@@ -977,6 +978,7 @@ let transl_declaration env sdecl (id, uid) =
         type_attributes = sdecl.ptype_attributes;
         type_unboxed_default = unboxed_default;
         type_uid = uid;
+        type_discourse = Discourse.Paths.empty (* todo paths appearing in the manifest ? *);
       } in
   (* Check constraints *)
     List.iter
@@ -2346,8 +2348,9 @@ let transl_type_decl env rec_flag sdecl_list =
   let scope = Ctype.create_scope () in
   let ids_list =
     List.map (fun sdecl ->
-      Ident.create_scoped ~scope sdecl.ptype_name.txt,
-      Uid.mk ~current_unit:(Env.get_unit_name ())
+      let ident = Ident.create_scoped ~scope sdecl.ptype_name.txt in
+      Discourse.add_type (Path.Pident ident);
+      ident, Uid.mk ~current_unit:(Env.get_unit_name ())
     ) sdecl_list
   in
   (* Translate declarations, using a temporary environment where abbreviations
@@ -3287,6 +3290,7 @@ let transl_value_decl env loc ~sig_modalities valdecl =
         val_attributes = valdecl.pval_attributes; val_modalities = modalities;
         val_zero_alloc = zero_alloc;
         val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+        val_discourse = exit 1;
       }
   | [] ->
       raise (Error(valdecl.pval_loc, Val_in_structure))
@@ -3329,6 +3333,7 @@ let transl_value_decl env loc ~sig_modalities valdecl =
         val_attributes = valdecl.pval_attributes; val_modalities = modalities;
         val_zero_alloc = Zero_alloc.default;
         val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+        val_discourse = exit 2;
       }
   in
   let (id, newenv) =
@@ -3454,6 +3459,7 @@ let transl_with_constraint id ?fixed_row_path ~sig_env ~sig_decl ~outer_env
       type_attributes = sdecl.ptype_attributes;
       type_unboxed_default;
       type_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+      type_discourse = assert false;
     }
   in
   Option.iter (fun p -> set_private_row env sdecl.ptype_loc p new_sig_decl)
@@ -3493,6 +3499,7 @@ let transl_with_constraint id ?fixed_row_path ~sig_env ~sig_decl ~outer_env
 
       type_variance = new_type_variance;
       type_separability = new_type_separability;
+      type_discourse = assert false;
     } in
   {
     typ_id = id;
@@ -3531,6 +3538,7 @@ let transl_package_constraint ~loc ty =
     type_attributes = [];
     type_unboxed_default = false;
     type_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+    type_discourse = assert false;
   }
 
 (* Approximate a type declaration: just make all types abstract *)
@@ -3553,6 +3561,7 @@ let abstract_type_decl ~injective ~jkind ~params =
       type_attributes = [];
       type_unboxed_default = false;
       type_uid = Uid.internal_not_actually_unique;
+      type_discourse = Discourse.Paths.empty;
     }
   end
 

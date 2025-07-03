@@ -1421,6 +1421,7 @@ let new_local_type ?(loc = Location.none) ?manifest_and_scope origin jkind =
     type_attributes = [];
     type_unboxed_default = false;
     type_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+    type_discourse = assert false;
   }
 
 let existential_name name_counter ty =
@@ -6849,6 +6850,7 @@ let nondep_type_decl env mid is_covariant decl =
       type_attributes = decl.type_attributes;
       type_unboxed_default = decl.type_unboxed_default;
       type_uid = decl.type_uid;
+      type_discourse = assert false;
     }
   with Nondep_cannot_erase _ as exn ->
     clear_hash ();

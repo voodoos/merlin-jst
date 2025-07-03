@@ -28,13 +28,15 @@ let builtin_idents = ref []
 
 let wrap create s =
   let id = create s in
+  (* Discourse.add (Pident id); (todo: uncomment) *)
   builtin_idents := (s, id) :: !builtin_idents;
   id
 
 let ident_create = wrap Ident.create_predef
 
 let ident_int = ident_create "int"
-and ident_char = ident_create "char"
+let () = Discourse.add_type (Pident ident_int) (* todo remove this special case*)
+let ident_char = ident_create "char"
 and ident_bytes = ident_create "bytes"
 and ident_float = ident_create "float"
 and ident_float32 = ident_create "float32"
@@ -255,6 +257,7 @@ let mk_add_type add_type
      type_attributes = [];
      type_unboxed_default = false;
      type_uid = Uid.of_predef_id type_ident;
+     type_discourse = Discourse.Paths.empty;
     }
   in
   add_type type_ident decl env
@@ -285,6 +288,7 @@ let mk_add_type1 add_type type_ident
       type_attributes = [];
       type_unboxed_default = false;
       type_uid = Uid.of_predef_id type_ident;
+      type_discourse = Discourse.Paths.empty;
     }
   in
   add_type type_ident decl env

@@ -541,6 +541,7 @@ type type_declaration =
     type_unboxed_default: bool;
     (* true if the unboxed-ness of this type was chosen by a compiler flag *)
     type_uid: Uid.t;
+    type_discourse: Discourse.Paths.t;
   }
 
 and type_decl_kind = (label_declaration, label_declaration, constructor_declaration) type_kind
@@ -783,6 +784,7 @@ module type Wrapped = sig
       val_zero_alloc: Zero_alloc.t;
       val_attributes: Parsetree.attributes;
       val_uid: Uid.t;
+      val_discourse: Discourse.Paths.t;
     }
 
   type module_type =

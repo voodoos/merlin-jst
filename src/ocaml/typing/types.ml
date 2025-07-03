@@ -268,6 +268,7 @@ type type_declaration =
     type_attributes: Parsetree.attributes;
     type_unboxed_default: bool;
     type_uid: Uid.t;
+    type_discourse: Discourse.Paths.t;
  }
 
 and type_decl_kind =
@@ -464,6 +465,7 @@ module type Wrapped = sig
       val_zero_alloc: Zero_alloc.t;
       val_attributes: Parsetree.attributes;
       val_uid: Uid.t;
+      val_discourse: Discourse.Paths.t;
     }
 
   type module_type =
@@ -539,7 +541,7 @@ module Map_wrapped(From : Wrapped)(To : Wrapped) = struct
       | Named (id,mty) -> To.Named (id, module_type m mty)
 
   let value_description m {val_type; val_modalities; val_kind; val_zero_alloc;
-                           val_attributes; val_loc; val_uid} =
+                           val_attributes; val_loc; val_uid; val_discourse} =
     To.{
       val_type = m.map_type_expr m val_type;
       val_modalities;
@@ -547,7 +549,8 @@ module Map_wrapped(From : Wrapped)(To : Wrapped) = struct
       val_zero_alloc;
       val_attributes;
       val_loc;
-      val_uid
+      val_uid;
+      val_discourse;
     }
 
   let module_declaration m {md_type; md_attributes; md_loc; md_uid} =
