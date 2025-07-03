@@ -8,8 +8,7 @@ module Paths = struct
 
     let rec length acc = function
       | Path.Pident _ -> acc + 1
-      | Pdot (p, _) |  Papply (p, _)
-      | Pextra_ty (p, _) -> length (acc + 1) ( p)
+      | Pdot (p, _) | Papply (p, _) | Pextra_ty (p, _) -> length (acc + 1) p
 
     let length (_, p) = length 0 p
 
