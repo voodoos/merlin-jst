@@ -393,6 +393,12 @@ let dispatch pipeline (type a) : a Query_protocol.t -> a = function
           match text with
           | Type_enclosing.String str -> ret (`String str)
           | Type_enclosing.Type (env, t) when print ->
+            (* (match Types.get_desc t with
+               | Tconstr (p, _, _) ->
+                 Format.eprintf "\nPath: %a\n%!" Path.print p;
+                 let p = Shorter_paths.shorten ~env p t in
+                 Format.eprintf "Short path: %a\n%!" Path.print p
+               | _ -> ()); *)
             Printtyp.wrap_printing_env env ~verbosity (fun () ->
                 Type_utils.print_type_with_decl ~verbosity env ppf t);
             ret (`String (Format.flush_str_formatter ()))
