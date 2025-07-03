@@ -1494,7 +1494,8 @@ let add_pattern_variables ?check ?check_as env pv =
          {val_type = pv_type; val_kind = pv_kind; Types.val_loc = pv_loc;
           val_attributes = pv_attributes; val_modalities = Modality.undefined;
           val_zero_alloc = Zero_alloc.default;
-          val_uid = pv_uid
+          val_uid = pv_uid;
+          val_discourse = Discourse.Paths.empty;
          } env
     )
     pv env
@@ -3674,6 +3675,7 @@ let type_class_arg_pattern cl_num val_env met_env l spat =
             ; val_modalities = Modality.undefined
             ; val_loc = pv_loc
             ; val_uid = pv_uid
+            ; val_discourse = failwith "discourse";
             }
             val_env
          in
@@ -3686,6 +3688,7 @@ let type_class_arg_pattern cl_num val_env met_env l spat =
             ; val_modalities = Modality.undefined
             ; val_loc = pv_loc
             ; val_uid = pv_uid
+            ; val_discourse = failwith "discourse";
             }
             met_env
          in
@@ -5913,6 +5916,7 @@ let create_merlin_type_error_node loc env ty_expected ~attributes =
               val_uid = Uid.internal_not_actually_unique;
               val_zero_alloc = Zero_alloc.default;
               val_modalities = Modality.of_const Modality.Const.id;
+              val_discourse = Discourse.Paths.empty;
             },
             Id_value,
             (Uniqueness.disallow_left Uniqueness.legacy,
@@ -9416,6 +9420,7 @@ and type_argument ?explanation ?recarg ~overwrite env (mode : expected_mode) sar
             val_modalities = Modality.undefined;
             val_loc = Location.none;
             val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+            val_discourse = failwith "discourse";
           }
         in
         let exp_env = Env.add_value ~mode id desc env in

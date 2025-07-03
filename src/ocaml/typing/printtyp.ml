@@ -823,7 +823,7 @@ let apply_nth n args =
 let best_type_path p =
   if !Clflags.real_paths || !printing_env == Env.empty
   then Path(None, p)
-  else Short_paths.find_type (Env.short_paths !printing_env) p
+  else Path(None, Shorter_paths.find_type_simple ~env:!printing_env p)
 
 let best_type_path_resolution p =
   if !Clflags.real_paths || !printing_env == Env.empty
@@ -833,7 +833,7 @@ let best_type_path_resolution p =
 let best_type_path_simple p =
   if !Clflags.real_paths || !printing_env == Env.empty
   then p
-  else Short_paths.find_type_simple (Env.short_paths !printing_env) p
+  else Shorter_paths.find_type_simple ~env:!printing_env p
 
 let best_module_type_path p =
   if !Clflags.real_paths || !printing_env == Env.empty
@@ -2500,6 +2500,7 @@ let dummy =
     type_unboxed_default = false;
     type_uid = Uid.internal_not_actually_unique;
     type_unboxed_version = None;
+    type_discourse = Discourse.Paths.empty;
   }
 
 (** we hide items being defined from short-path to avoid shortening
