@@ -903,6 +903,7 @@ module Merge = struct
               type_unboxed_default = false;
               type_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
               type_unboxed_version = None;
+              type_discourse = Discourse.Paths.empty;
             }
           and id_row = Ident.create_local (s^"#row") in
           let initial_env =
@@ -3667,6 +3668,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
             let id, e = Env.enter_module_declaration
               ~scope ~shape:md_shape name pres md ~mode:md_mode env
             in
+            Discourse.add_module (Pident id);
             let e = Env.update_short_paths e in
             Signature_names.check_module names pmb_loc id;
             Some id, e,

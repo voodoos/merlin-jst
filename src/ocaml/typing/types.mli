@@ -793,6 +793,7 @@ type type_declaration =
           itself has [type_unboxed_version = None].
        2. the Uid of the unboxed version is [Uid.unboxed_version <uid of boxed>]
     *)
+    type_discourse: Discourse.Paths.t;
   }
 
 and type_decl_kind = (label_declaration, label_declaration, constructor_declaration) type_kind
@@ -1045,6 +1046,7 @@ module type Wrapped = sig
       val_zero_alloc: Zero_alloc.t;
       val_attributes: Parsetree.attributes;
       val_uid: Uid.t;
+      val_discourse: Discourse.Paths.t;
     }
 
   type module_type =
