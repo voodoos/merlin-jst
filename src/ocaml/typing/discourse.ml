@@ -67,7 +67,41 @@ let empty = []
 
 let g = Local_store.s_ref Paths.empty
 
-let add kind path = g := Paths.add (kind, path) !g
+(* Add a path from U to the discourse*)
+let add_used_path env paths kind path =
+  let paths = Paths.add (kind, path) paths in
+  match kind with
+  | Module ->
+    (* D3. If a module path is in U then all the paths of its subcomponents
+       are in D *)
+    (* TODO This should probably be done lazily *)
+    let md = Env.find_module path env in
+    (* TODO Should we tap into Env.module_data instead ? *)
+    begin
+      match md.md_type with
+      | Mty_signature s ->
+        List.fold_left
+          (fun p -> function
+            | Types.Sig_value (id, _, _) ->
+              Paths.add (Value, Pdot (path, Ident.name id)) p
+            | _ (* TODO *) -> p)
+          paths s
+      | _ -> paths
+    end
+  | _ -> paths
+
+(** [add_used] adds all parts of a path to the Discourse (U1, D2) *)
+let add_used env kind path =
+  let rec loop acc kind path =
+    let acc = add_used_path env acc kind path in
+    match path with
+    | Path.Pident _ | Pextra_ty _ -> acc
+    | Pdot (path, _) -> loop acc Module path
+    | Papply (p1, p2) ->
+      let acc = loop acc Module p1 in
+      loop acc Module p2
+  in
+  g := loop !g kind path
 
 let add_type path =
   Format.eprintf "Add type %a\n%!" Path.print path;
