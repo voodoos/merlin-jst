@@ -52,7 +52,7 @@ let empty = []
 
 let g = Local_store.s_ref Paths.empty
 
-(* Add a path from U to the discourse*)
+(** [add_used_path] adds one path from U to the Discourse *)
 let add_used_path env paths kind path =
   let paths = Paths.add (kind, path) paths in
   match kind with
@@ -75,7 +75,7 @@ let add_used_path env paths kind path =
     end
   | _ -> paths
 
-(** [add_used] adds all parts of a path to the Discourse (U1, D2) *)
+(** [add_used] adds all parts of a used path to the Discourse (U1, D2) *)
 let add_used env kind path =
   let rec loop acc kind path =
     let acc = add_used_path env acc kind path in
