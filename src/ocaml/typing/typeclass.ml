@@ -496,7 +496,7 @@ let enter_ancestor_met ~loc name ~sign ~meths ~cl_num ~ty ~attrs met_env =
       val_zero_alloc = Zero_alloc.default;
       Types.val_loc = loc;
       val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
-      val_discourse = failwith "discourse"; }
+      val_discourse = Discourse_types.empty; }
   in
   Env.enter_value ~check ~mode:Mode.Value.legacy name desc met_env
 
@@ -513,7 +513,7 @@ let add_self_met loc id sign self_var_kind vars cl_num
       val_zero_alloc = Zero_alloc.default;
       Types.val_loc = loc;
       val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
-      val_discourse = failwith "discourse"; }
+      val_discourse = Discourse_types.empty; }
   in
   Env.add_value ~check ~mode:Mode.Value.legacy id desc met_env
 
@@ -530,7 +530,7 @@ let add_instance_var_met loc label id sign cl_num attrs met_env =
       Types.val_loc = loc;
       val_zero_alloc = Zero_alloc.default;
       val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
-      val_discourse = failwith "discourse"; }
+      val_discourse = Discourse_types.empty; }
   in
   Env.add_value ~mode:Mode.Value.legacy id desc met_env
 
@@ -1487,7 +1487,7 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
                 val_zero_alloc = Zero_alloc.default;
                 Types.val_loc = vd.val_loc;
                 val_uid = vd.val_uid;
-                val_discourse = failwith "discourse";
+                val_discourse = Discourse_types.empty;
                }
              in
              let id' = Ident.create_local (Ident.name id) in
@@ -1637,7 +1637,7 @@ let temp_abbrev loc id arity uid =
        type_unboxed_default = false;
        type_uid = uid;
        type_unboxed_version = None;
-       type_discourse = Discourse_types.Paths.empty;
+       type_discourse = Discourse_types.empty;
       }
   in
   (!params, ty, ty_td)
@@ -1869,7 +1869,7 @@ let class_infos define_class kind
      type_unboxed_default = false;
      type_uid = dummy_class.cty_uid;
      type_unboxed_version = None;
-     type_discourse = Discourse_types.Paths.empty;
+     type_discourse = Discourse_types.empty;
     }
   in
   let (cl_params, cl_ty) =

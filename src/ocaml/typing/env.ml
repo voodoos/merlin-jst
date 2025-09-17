@@ -1611,7 +1611,7 @@ and find_type_unboxed_version path env seen =
       type_unboxed_default = false;
       type_uid = Uid.unboxed_version decl.type_uid;
       type_unboxed_version = None;
-      type_discourse = Discourse_types.Paths.empty;
+      type_discourse = Discourse_types.empty;
     }
 (* CR layouts v7.2: this should be reworked to expand abbrevations, e.g.
    in [type 'a id = 'a and f = float id], [f] can have an unboxed type.

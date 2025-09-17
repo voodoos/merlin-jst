@@ -526,7 +526,7 @@ module Gen = struct
                   val_zero_alloc = Zero_alloc.default;
                   val_modalities = Mode.Modality.id;
                   val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
-                  val_discourse = Discourse_types.Paths.empty
+                  val_discourse = Discourse_types.empty
                 }
               in
               let env =
