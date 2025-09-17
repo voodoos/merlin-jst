@@ -540,7 +540,7 @@ type type_declaration =
     type_unboxed_default: bool;
     type_uid: Uid.t;
     type_unboxed_version : type_declaration option;
-    type_discourse: Discourse.Paths.t;
+    type_discourse: Discourse_types.Paths.t;
  }
 
 and type_decl_kind =
@@ -744,7 +744,7 @@ module type Wrapped = sig
       val_zero_alloc: Zero_alloc.t;
       val_attributes: Parsetree.attributes;
       val_uid: Uid.t;
-      val_discourse: Discourse.Paths.t;
+      val_discourse: Discourse_types.Paths.t;
     }
 
   type module_type =
