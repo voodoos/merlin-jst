@@ -3861,6 +3861,35 @@ let check_for_hidden_arrow env loc ty =
 type transl_value_decl_modal =
   | Str_primitive
   | Sig_value of Mode.Value.l * Mode.Modality.Const.t
+(* [discourse_of_core_type] gathers paths appearing in core_types. This is meant
+   to gather user-written paths associated to a value or type declaration. These
+   paths should be added to the domain of discourse when this value / type is
+   used. See the [Discourse] module. *)
+let discourse_of_core_type env (ty : Parsetree.core_type) =
+  let rec aux acc ct =
+    match ct.ptyp_desc with
+    | Ptyp_any _ -> acc
+    | Ptyp_arrow (_, ct1, ct2, _, _) ->
+        let acc = aux acc ct1 in
+        aux acc ct2
+    | Ptyp_tuple l | Ptyp_unboxed_tuple l ->
+        List.fold_left (fun acc (_, ct) -> aux acc ct) acc l
+    | Ptyp_constr ({ txt = lid}, params) ->
+        let path, _td = Env.find_type_by_name lid env in
+        let acc = Discourse_types.Paths.add (Type, path) acc in
+        List.fold_left aux acc params
+    | Ptyp_object _ -> (* TODO *) acc
+    | Ptyp_class _ -> (* TODO *) acc
+    | Ptyp_alias (ct, _, _) -> aux acc ct
+    | Ptyp_variant (_row, _, _) -> (* TODO *) acc
+    | Ptyp_poly (_, ct) -> aux acc ct
+    | Ptyp_package _ -> (* TODO *) acc
+    | Ptyp_open (_lid, ct) -> (* TODO *)  aux acc ct
+    | Ptyp_of_kind _ | Ptyp_var _ -> (* TODO ? *) acc
+    | Ptyp_extension _ -> acc
+  in
+  aux Discourse_types.empty ty
+
 
 (* Translate a value declaration *)
 let transl_value_decl env loc ~modal ~why valdecl =
@@ -3943,13 +3972,14 @@ let transl_value_decl env loc ~modal ~why valdecl =
         | Assume _ ->
           raise (Error(valdecl.pval_loc, Zero_alloc_attr_unsupported zero_alloc))
       in
+      let val_discourse = discourse_of_core_type env valdecl.pval_type in
       { val_type = ty;
         val_kind = Val_reg sort;
         Types.val_loc = loc;
         val_attributes = valdecl.pval_attributes; val_modalities;
         val_zero_alloc = zero_alloc;
         val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
-        val_discourse = Discourse_types.empty;
+        val_discourse;
       }
   | [] ->
       raise (Error(valdecl.pval_loc, Val_in_structure))
