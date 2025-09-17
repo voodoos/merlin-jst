@@ -73,6 +73,17 @@ let add_used_path env paths kind path =
           paths s
       | _ -> paths
     end
+  | Value ->
+    (* D4. If a value path is in U and its value description was written by a user -
+       as opposed to being inferred - then the paths used in that description are
+       in D. *)
+    let vd = Env.find_value path env in
+    Paths.union paths vd.val_discourse
+  | Type ->
+    (* D6. If a type path is in U then any paths used in its equation or
+       representation are in D. *)
+    let td = Env.find_type path env in
+    Paths.union paths td.type_discourse
   | _ -> paths
 
 (** [add_used] adds all parts of a used path to the Discourse (U1, D2) *)
