@@ -14,3 +14,5 @@ module Paths = struct
 
   include Set.Make (T)
 end
+
+let empty = Paths.empty
