@@ -29,7 +29,6 @@ let builtin_idents = ref []
 
 let wrap create s =
   let id = create s in
-  (* Discourse.add (Pident id); (todo: uncomment) *)
   builtin_idents := (s, id) :: !builtin_idents;
   id
 
@@ -40,7 +39,6 @@ let wrap create s =
 let ident_create = wrap Ident.create_predef
 
 let ident_int = ident_create "int"
-let () = Discourse.add_type (Pident ident_int) (* todo remove this special case*)
 let ident_char = ident_create "char"
 and ident_bytes = ident_create "bytes"
 and ident_float = ident_create "float"
@@ -394,7 +392,7 @@ let mk_add_type add_type =
           type_unboxed_default = false;
           type_uid = Uid.unboxed_version type_uid;
           type_unboxed_version = None;
-          type_discourse = Discourse.Paths.empty;
+          type_discourse = Discourse_types.Paths.empty;
         }
     in
     let decl =
@@ -413,7 +411,7 @@ let mk_add_type add_type =
       type_unboxed_default = false;
       type_uid;
       type_unboxed_version;
-      type_discourse = Discourse.Paths.empty;
+      type_discourse = Discourse_types.Paths.empty;
       }
     in
     add_type type_ident decl env
@@ -451,7 +449,7 @@ let mk_add_type1 add_type type_ident
       type_unboxed_default = false;
       type_uid = Uid.of_predef_id type_ident;
       type_unboxed_version = None;
-      type_discourse = Discourse.Paths.empty;
+      type_discourse = Discourse_types.Paths.empty;
     }
   in
   add_type type_ident decl env
@@ -476,7 +474,7 @@ let mk_add_type2 add_type type_ident ~jkind ~param1_jkind ~param2_jkind
       type_unboxed_default = false;
       type_uid = Uid.of_predef_id type_ident;
       type_unboxed_version = None;
-      type_discourse = Discourse.Paths.empty;
+      type_discourse = Discourse_types.Paths.empty;
     }
   in
   add_type type_ident decl env

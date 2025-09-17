@@ -88,7 +88,7 @@ end
 
 let shorten ~env ~canonical_path =
   let queue =
-    Discourse.Paths.fold
+    Discourse_types.Paths.fold
       (fun (kind, path) acc ->
         if kind = Type then (
           Format.eprintf "PQ %a (%i)\n%!" Path.print path

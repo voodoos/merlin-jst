@@ -1495,7 +1495,7 @@ let add_pattern_variables ?check ?check_as env pv =
           val_attributes = pv_attributes; val_modalities = Modality.undefined;
           val_zero_alloc = Zero_alloc.default;
           val_uid = pv_uid;
-          val_discourse = Discourse.Paths.empty;
+          val_discourse = Discourse_types.Paths.empty;
          } env
     )
     pv env

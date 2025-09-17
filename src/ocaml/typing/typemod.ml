@@ -954,7 +954,7 @@ module Merge = struct
               type_unboxed_default = false;
               type_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
               type_unboxed_version = None;
-              type_discourse = Discourse.Paths.empty;
+              type_discourse = Discourse_types.Paths.empty;
             }
           and id_row = Ident.create_local (s^"#row") in
           let initial_env =
