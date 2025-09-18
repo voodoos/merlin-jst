@@ -56,7 +56,7 @@ let g = Local_store.s_ref Paths.empty
    to gather user-written paths associated to a value or type declaration. These
    paths should be added to the domain of discourse when this value / type is
    used. *)
-let of_core_type env ty =
+let of_core_type env ?(acc = Discourse_types.empty) ty =
   let rec aux acc (ct : Parsetree.core_type) =
     match ct.ptyp_desc with
     | Ptyp_any _ -> acc
@@ -79,7 +79,7 @@ let of_core_type env ty =
     | Ptyp_of_kind _ | Ptyp_var _ -> (* TODO ? *) acc
     | Ptyp_extension _ -> acc
   in
-  aux Discourse_types.empty ty
+  aux acc ty
 
 (** [add_used_path] adds one path from U to the Discourse *)
 let add_used_path env paths kind path =
