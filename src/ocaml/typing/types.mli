@@ -1081,6 +1081,7 @@ module type Wrapped = sig
     md_attributes: Parsetree.attributes;
     md_loc: Location.t;
     md_uid: Uid.t;
+    md_discourse: Discourse_types.Paths.t;
   }
 
   and modtype_declaration =

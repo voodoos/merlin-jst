@@ -779,6 +779,7 @@ module type Wrapped = sig
     md_attributes: Parsetree.attributes;
     md_loc: Location.t;
     md_uid: Uid.t;
+    md_discourse: Discourse_types.Paths.t;
   }
 
   and modtype_declaration =
@@ -861,13 +862,14 @@ module Map_wrapped(From : Wrapped)(To : Wrapped) = struct
     }
 
   let module_declaration m {md_type; md_modalities; md_attributes;
-    md_loc; md_uid} =
+    md_loc; md_uid; md_discourse} =
     To.{
       md_type = module_type m md_type;
       md_modalities;
       md_attributes;
       md_loc;
       md_uid;
+      md_discourse;
     }
 
   let modtype_declaration m {mtd_type; mtd_attributes; mtd_loc; mtd_uid} =
