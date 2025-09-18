@@ -1090,6 +1090,24 @@ let transl_declaration env sdecl (id, uid) =
       | Type_open -> jkind
     in
     let arity = List.length params in
+    let type_discourse =
+      let acc =
+        (* Paths in constraints *)
+        List.fold_left (fun acc (ct, _) -> Discourse.of_core_type ~acc env ct)
+          Discourse_types.empty
+          sdecl.ptype_params
+      in
+      let acc =
+        (* Paths in constraints *)
+        List.fold_left (fun acc (ct1, ct2, _) ->
+          let acc = Discourse.of_core_type ~acc env ct1 in
+          Discourse.of_core_type ~acc env ct2)
+          acc
+          sdecl.ptype_cstrs
+      in
+      (* Paths in manifest *)
+      Option.fold ~none:acc ~some:(Discourse.of_core_type ~acc env) sdecl.ptype_manifest
+    in
     let decl =
       { type_params = params;
         type_arity = arity;
@@ -1108,7 +1126,7 @@ let transl_declaration env sdecl (id, uid) =
         type_unboxed_version = None;
         (* Unboxed versions are computed after all declarations have been
            translated, in [derive_unboxed_versions] *)
-        type_discourse = Discourse_types.empty (* todo paths appearing in the manifest ? *);
+        type_discourse;
       } in
   (* Check constraints *)
     List.iter
