@@ -1403,6 +1403,7 @@ and approx_module_declaration env pmd =
     md_attributes = pmd.pmd_attributes;
     md_loc = pmd.pmd_loc;
     md_uid = Uid.internal_not_actually_unique;
+    md_discourse = Discourse_types.empty;
   }
 
 and approx_sig env {psg_items; _} = approx_sig_items env psg_items
@@ -1938,6 +1939,7 @@ and transl_modtype_aux env smty =
                     md_attributes = [];
                     md_loc = param.loc;
                     md_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+                    md_discourse = Discourse_types.empty;
                   }
                 in
                 Env.enter_module_declaration ~scope ~arg:true name Mp_present
@@ -2212,6 +2214,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
           md_attributes=pmd.pmd_attributes;
           md_loc=pmd.pmd_loc;
           md_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+          md_discourse = Discourse_types.empty;
         }
         in
         let id, newenv =
@@ -2256,6 +2259,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
               md_attributes = pms.pms_attributes;
               md_loc = pms.pms_loc;
               md_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+              md_discourse = Discourse_types.empty;
             }
         in
         let pres =
@@ -2306,6 +2310,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
                      md_attributes = md.md_attributes;
                      md_loc = md.md_loc;
                      md_uid = uid;
+                     md_discourse = Discourse_types.empty;
                     } in
             Sig_module(id, Mp_present, d, rs, Exported))
             decls []
@@ -2533,7 +2538,8 @@ and transl_recmodule_modtypes env ~sig_modalities sdecls =
              md_modalities;
              md_loc = pmd.pmd_loc;
              md_attributes = pmd.pmd_attributes;
-             md_uid }
+             md_uid;
+             md_discourse = Discourse_types.empty; }
          in
          let id_shape =
            Option.map (fun id -> id, Shape.var md_uid id) id
@@ -3055,6 +3061,7 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
                   md_attributes = [];
                   md_loc = param.loc;
                   md_uid;
+                  md_discourse = Discourse_types.empty;
                 }
               in
               let id = Ident.create_scoped ~scope name in
@@ -3738,6 +3745,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
             md_attributes = attrs;
             md_loc = pmb_loc;
             md_uid;
+            md_discourse = Discourse_types.empty;
           }
         in
         let md_shape = Shape.set_uid_if_none md_shape md_uid in
@@ -3760,6 +3768,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
                          md_attributes = attrs;
                          md_loc = pmb_loc;
                          md_uid;
+                         md_discourse = Discourse_types.empty;
                         }, Trec_not, Exported)]
         in
         let shape_map = match id with
@@ -3831,6 +3840,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
                        md_attributes = attrs;
                        md_loc = loc;
                        md_uid = uid;
+                       md_discourse = Discourse_types.empty;
                      }
                    in
                    Env.add_module_declaration ~check:true ~shape
@@ -3863,6 +3873,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
                 md_attributes=mb.mb_attributes;
                 md_loc=mb.mb_loc;
                 md_uid = uid;
+                md_discourse = Discourse_types.empty;
               }, rs, Exported))
            mbs [],
         shape_map,
@@ -4565,6 +4576,7 @@ let package_signatures units =
           md_attributes=[];
           md_loc=Location.none;
           md_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+          md_discourse = Discourse_types.empty;
         }
       in
       Sig_module(newid, Mp_present, md, Trec_not, Exported))

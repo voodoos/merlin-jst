@@ -1532,7 +1532,8 @@ let add_module_variables env module_variables =
         { md_type = modl.mod_type; md_attributes = [];
           md_modalities = Mode.Modality.undefined;
           md_loc = mv_name.loc;
-          md_uid = mv_uid; }
+          md_uid = mv_uid;
+          md_discourse = Discourse_types.empty }
       in
       let mode = Typedtree.mode_without_locks_exn modl.mod_mode in
       Env.add_module_declaration ~shape:md_shape ~check:true mv_id pres md
@@ -7396,7 +7397,7 @@ and type_expect_
                 { md_type = modl.mod_type; md_attributes = [];
                   md_modalities = Modality.undefined;
                   md_loc = name.loc;
-                  md_uid; }
+                  md_uid; md_discourse = Discourse_types.empty}
               in
               let mode, locks = modl.mod_mode in
               let locks = Option.map (fun (a, _, _) -> a) locks in
