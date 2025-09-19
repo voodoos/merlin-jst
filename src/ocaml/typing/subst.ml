@@ -918,6 +918,10 @@ let rename_bound_idents scoping s sg =
   in
   rename_bound_idents s [] sg
 
+(* Forward reference to be filled by Discourse *)
+let discourse_of_module_type : (Types.module_type -> Discourse_types.Paths.t) ref
+= ref (fun _ -> Discourse_types.empty)
+
 module To_lazy = Types.Map_wrapped(Types)(Lazy_types)
 
 let to_lazy =
@@ -1105,7 +1109,9 @@ and from_lazy =
   From_lazy.{map_signature; map_type_expr}
 
 and force_value_description vd = From_lazy.value_description from_lazy vd
-and force_module_decl d = From_lazy.module_declaration from_lazy d
+and force_module_decl d =
+  let md = From_lazy.module_declaration from_lazy d in
+  { md with md_discourse = !discourse_of_module_type md.md_type}
 and force_functor_parameter x = From_lazy.functor_parameter from_lazy x
 and force_modtype x = From_lazy.module_type from_lazy x
 and force_modtype_decl x = From_lazy.modtype_declaration from_lazy x
