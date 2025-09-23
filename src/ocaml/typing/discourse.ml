@@ -50,9 +50,8 @@ type t
 open Shape.Sig_component_kind
 let empty = []
 
-let g = Local_store.s_ref Paths.empty;;
+let g = Local_store.s_ref Paths.empty
 
-Format.eprintf "totsso\n%!"
 let aggregate_discourse_of_signature sign =
   let open Discourse_types.Paths in
   List.fold_left
@@ -98,7 +97,8 @@ let of_core_type env ?(acc = Discourse_types.empty) ty =
   in
   aux acc ty
 
-(** [add_used_path] adds one path from U to the Discourse *)
+(** [add_used_path] adds one path from U to the Discourse, eventually adding the
+    discourse attached to its description. TODO this could be done lazily. *)
 let add_used_path env paths kind path =
   let paths = Paths.add (kind, path) paths in
   match kind with
@@ -145,9 +145,16 @@ let add_used env kind path =
   in
   g := loop !g kind path
 
-let add_type path =
+(* Rule U2: All paths for definitions in the current file are in U *)
+let define_type path =
   Format.eprintf "Add type %a\n%!" Path.print path;
   g := Paths.add (Type, path) !g
+
+(* Rule U1: Any path occurring in the file is in U *)
+let use_type _env path =
+  Format.eprintf "Use type %a\n%!" Path.print path;
+  add_used _env Type path
+
 let add_module path = g := Paths.add (Module, path) !g
 
 let canonical_paths : Paths.t Path.Map.t ref = Local_store.s_ref Path.Map.empty

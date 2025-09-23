@@ -16,63 +16,133 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
 
 
   $ $MERLIN single errors -filename foo.ml < foo.ml  
-  Add type int/1!
   Add type t/281[2]
-  Add type int/1!
+  Use type int/1!
   Add type u/284[4]
-  Add type Foo/283[3].t
-  Add type Foo/283[3].t
-  Add type Foo/283[3].t
-  Add type u/284[4]
-  Add type u/284[4]
+  Use type Foo/283[3].t
+  Use type Foo/283[3].t
+  Use type Foo/283[3].t
+  Use type u/284[4]
+  Use type u/284[4]
+  {
+    "class": "return",
+    "value": [],
+    "notifications": []
+  }
 
   $ echo "FLG -short-paths" > .merlin
 
   $ $MERLIN single type-enclosing -position 7:8 -filename foo.ml < foo.ml 
-  Add type int/1!
   Add type t/281[2]
-  Add type int/1!
+  Use type int/1!
   Add type u/284[4]
-  Add type Foo/283[3].t
-  Add type Foo/283[3].t
-  Add type Foo/283[3].t
-  Add type u/284[4]
-  Add type u/284[4]
+  Use type Foo/283[3].t
+  Use type Foo/283[3].t
+  Use type Foo/283[3].t
+  Use type u/284[4]
+  Use type u/284[4]
   Find type simple: Foo/283[3].t
   Find type simple canon: int/1!
   PQ int/1! (1)
+  PQ t/281[2] (1)
+  PQ u/284[4] (1)
   PQ Foo/283[3].t (2)
   Treating int/1!
   Find type simple short: int/1!
   Find type simple: Foo/283[3].t
   Find type simple canon: int/1!
   PQ int/1! (1)
+  PQ t/281[2] (1)
+  PQ u/284[4] (1)
   PQ Foo/283[3].t (2)
   Treating int/1!
   Find type simple short: int/1!
+  {
+    "class": "return",
+    "value": [
+      {
+        "start": {
+          "line": 7,
+          "col": 8
+        },
+        "end": {
+          "line": 7,
+          "col": 9
+        },
+        "type": "int",
+        "tail": "no"
+      },
+      {
+        "start": {
+          "line": 7,
+          "col": 8
+        },
+        "end": {
+          "line": 7,
+          "col": 9
+        },
+        "type": "int",
+        "tail": "no"
+      }
+    ],
+    "notifications": []
+  }
 
   $ $MERLIN single type-enclosing -position 9:9 -filename foo.ml < foo.ml 
-  Add type int/1!
   Add type t/281[2]
-  Add type int/1!
+  Use type int/1!
   Add type u/284[4]
-  Add type Foo/283[3].t
-  Add type Foo/283[3].t
-  Add type Foo/283[3].t
-  Add type u/284[4]
-  Add type u/284[4]
+  Use type Foo/283[3].t
+  Use type Foo/283[3].t
+  Use type Foo/283[3].t
+  Use type u/284[4]
+  Use type u/284[4]
   Find type simple: u/284[4]
   Find type simple canon: int/1!
   PQ int/1! (1)
+  PQ t/281[2] (1)
+  PQ u/284[4] (1)
   PQ Foo/283[3].t (2)
   Treating int/1!
   Find type simple short: int/1!
   Find type simple: u/284[4]
   Find type simple canon: int/1!
   PQ int/1! (1)
+  PQ t/281[2] (1)
+  PQ u/284[4] (1)
   PQ Foo/283[3].t (2)
   Treating int/1!
   Find type simple short: int/1!
+  {
+    "class": "return",
+    "value": [
+      {
+        "start": {
+          "line": 9,
+          "col": 8
+        },
+        "end": {
+          "line": 9,
+          "col": 10
+        },
+        "type": "int",
+        "tail": "no"
+      },
+      {
+        "start": {
+          "line": 9,
+          "col": 8
+        },
+        "end": {
+          "line": 9,
+          "col": 10
+        },
+        "type": "int",
+        "tail": "no"
+      }
+    ],
+    "notifications": []
+  }
 
 $ $MERLIN single type-enclosing -position 13:5 -filename foo.ml < foo.ml | jq .value[0].type -r
 Bar.Foo.t
