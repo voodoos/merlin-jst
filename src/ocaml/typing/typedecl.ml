@@ -2958,7 +2958,7 @@ let transl_type_decl env rec_flag sdecl_list =
   let ids_list =
     List.map (fun sdecl ->
       let ident = Ident.create_scoped ~scope sdecl.ptype_name.txt in
-      Discourse.add_type (Path.Pident ident);
+      Discourse.define_type (Path.Pident ident);
       ident, Uid.mk ~current_unit:(Env.get_unit_name ())
     ) sdecl_list
   in
