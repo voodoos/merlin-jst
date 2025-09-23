@@ -155,6 +155,11 @@ let use_type _env path =
   Format.eprintf "Use type %a\n%!" Path.print path;
   add_used _env Type path
 
+let use_constructor _env (constr : Types.constructor_description) =
+  Format.eprintf "Use constructor %s\n%!" constr.cstr_name;
+  (* If a constructor is in U then any paths used in its type are in D. *)
+  g := Paths.union !g constr.cstr_discourse
+
 let add_module path = g := Paths.add (Module, path) !g
 
 let canonical_paths : Paths.t Path.Map.t ref = Local_store.s_ref Path.Map.empty

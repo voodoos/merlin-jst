@@ -198,6 +198,7 @@ let constructor_descrs ~current_unit ty_path decl cstrs rep =
         cstr_attributes = cd_attributes;
         cstr_inlined;
         cstr_uid = cd_uid;
+        cstr_discourse = decl.type_discourse;
       } in
     (src_index+1, const_tag, nonconst_tag, (cd_id, cstr) :: acc)
   in
@@ -233,6 +234,7 @@ let extension_descr ~current_unit path_ext ext =
       cstr_attributes = ext.ext_attributes;
       cstr_inlined;
       cstr_uid = ext.ext_uid;
+      cstr_discourse = Discourse_types.empty;
     }
 
 let none =

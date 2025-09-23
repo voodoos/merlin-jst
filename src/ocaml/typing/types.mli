@@ -901,6 +901,7 @@ and constructor_declaration =
     cd_loc: Location.t;
     cd_attributes: Parsetree.attributes;
     cd_uid: Uid.t;
+    cd_discourse : Discourse_types.Paths.t;
   }
 
 and constructor_argument =
@@ -1121,6 +1122,7 @@ type constructor_description =
     cstr_inlined: type_declaration option;
       (* [Some decl] here iff the cstr has an inline record (which is decl) *)
     cstr_uid: Uid.t;
+    cstr_discourse: Discourse_types.Paths.t;
    }
 
 (* Constructors are the same *)

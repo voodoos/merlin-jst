@@ -454,6 +454,7 @@ and constructor_declaration =
     cd_loc: Location.t;
     cd_attributes: Parsetree.attributes;
     cd_uid: Uid.t;
+    cd_discourse: Discourse_types.Paths.t;
   }
 
 and constructor_argument =
@@ -743,6 +744,7 @@ type constructor_description =
     cstr_attributes: Parsetree.attributes;
     cstr_inlined: type_declaration option;
     cstr_uid: Uid.t;
+    cstr_discourse: Discourse_types.Paths.t;
   }
 
 let array_equal eq_elt l1 l2 =

@@ -972,13 +972,22 @@ let transl_declaration env sdecl (id, uid) =
               cd_loc = scstr.pcd_loc;
               cd_attributes = attributes }
           in
+          let cd_discourse =
+            match scstr.pcd_args with
+            | Pcstr_tuple args ->
+                List.fold_left (fun acc arg ->
+                  Discourse.of_core_type env ~acc arg.pca_type)
+                  Discourse_types.empty args
+            | _ ->  (* TODO *) Discourse_types.empty
+          in
           let cstr =
             { Types.cd_id = name;
               cd_args = args;
               cd_res = ret_type;
               cd_loc = scstr.pcd_loc;
               cd_attributes = attributes;
-              cd_uid = tcstr.cd_uid }
+              cd_uid = tcstr.cd_uid;
+              cd_discourse }
           in
             tcstr, cstr
         in
