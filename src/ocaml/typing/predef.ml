@@ -322,6 +322,7 @@ let cstr id args =
     cd_loc = Location.none;
     cd_attributes = [];
     cd_uid = Uid.of_predef_id id;
+    cd_discourse = Discourse_types.empty
   }
 
 let ident_false = ident_create "false"

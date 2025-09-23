@@ -9721,6 +9721,14 @@ and type_construct ~overwrite env (expected_mode : expected_mode) loc lid sarg
       ty_expected_explained
       (Constructor.disambiguate Env.Positive lid env expected_type) constrs
   in
+  let () =
+    match constrs with
+    | Ok (((constr1, _),_) :: _) when constr1 == constr ->
+        (* We only add constructors not used via type-based disambiguation to
+           the discourse. See the [Discourse] module. *)
+        Discourse.use_constructor env constr
+    | _ -> ()
+ in
   let sargs =
     match sarg with
     | None -> []
