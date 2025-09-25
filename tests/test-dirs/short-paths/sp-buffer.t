@@ -44,23 +44,25 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   Use type u/284[4]
   Find type simple: Foo/283[3].t
   Find type simple canon: int/1!
-  PQ int/1! (1)
-  PQ t/281[2] (1)
-  PQ u/284[4] (1)
-  PQ Foo/283[3].t (2)
-  Treating int/1!
-  Find type simple short: int/1!
+  PQ t/281[2] 
+  PQ u/284[4] 
+  PQ int/1! 
+  PQ Foo/283[3].t 
+  Treating t/281[2]
+  Treating u/284[4]
+  Find type simple short: u/284[4]
   # 0.01 discourse - discourse
-  int/1!; t/281[2]; Bar/282[1]; Foo/283[3]; u/284[4];
+  t/281[2]; u/284[4]; Bar/282[1]; Foo/283[3]; int/1!;
   Foo/283[3].t
   Find type simple: Foo/283[3].t
   Find type simple canon: int/1!
-  PQ int/1! (1)
-  PQ t/281[2] (1)
-  PQ u/284[4] (1)
-  PQ Foo/283[3].t (2)
-  Treating int/1!
-  Find type simple short: int/1!
+  PQ t/281[2] 
+  PQ u/284[4] 
+  PQ int/1! 
+  PQ Foo/283[3].t 
+  Treating t/281[2]
+  Treating u/284[4]
+  Find type simple short: u/284[4]
   {
     "class": "return",
     "value": [
@@ -73,7 +75,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
           "line": 7,
           "col": 9
         },
-        "type": "int",
+        "type": "u",
         "tail": "no"
       },
       {
@@ -85,7 +87,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
           "line": 7,
           "col": 9
         },
-        "type": "int",
+        "type": "u",
         "tail": "no"
       }
     ],
@@ -103,20 +105,22 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   Use type u/284[4]
   Find type simple: u/284[4]
   Find type simple canon: int/1!
-  PQ int/1! (1)
-  PQ t/281[2] (1)
-  PQ u/284[4] (1)
-  PQ Foo/283[3].t (2)
-  Treating int/1!
-  Find type simple short: int/1!
+  PQ t/281[2] 
+  PQ u/284[4] 
+  PQ int/1! 
+  PQ Foo/283[3].t 
+  Treating t/281[2]
+  Treating u/284[4]
+  Find type simple short: u/284[4]
   Find type simple: u/284[4]
   Find type simple canon: int/1!
-  PQ int/1! (1)
-  PQ t/281[2] (1)
-  PQ u/284[4] (1)
-  PQ Foo/283[3].t (2)
-  Treating int/1!
-  Find type simple short: int/1!
+  PQ t/281[2] 
+  PQ u/284[4] 
+  PQ int/1! 
+  PQ Foo/283[3].t 
+  Treating t/281[2]
+  Treating u/284[4]
+  Find type simple short: u/284[4]
   {
     "class": "return",
     "value": [
@@ -129,7 +133,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
           "line": 9,
           "col": 10
         },
-        "type": "int",
+        "type": "u",
         "tail": "no"
       },
       {
@@ -141,7 +145,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
           "line": 9,
           "col": 10
         },
-        "type": "int",
+        "type": "u",
         "tail": "no"
       }
     ],
