@@ -52,6 +52,8 @@ let empty = []
 
 let g = Local_store.s_ref Paths.empty
 
+let debug_print fmt = pp fmt !g
+
 let aggregate_discourse_of_signature sign =
   let open Discourse_types.Paths in
   List.fold_left
