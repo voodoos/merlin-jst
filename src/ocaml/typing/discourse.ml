@@ -165,6 +165,11 @@ let use_constructor _env (constr : Types.constructor_description) =
   (* If a constructor is in U then any paths used in its type are in D. *)
   g := Paths.union !g constr.cstr_discourse
 
+let use_label _env label =
+  log ~title:"use" "Use label %s\n%!" label.Types.lbl_name;
+  (* If a label is in U then any paths used in its type are in D. *)
+  g := Paths.union !g label.lbl_discourse
+
 let add_module path = g := Paths.add (Module, path) !g
 
 let canonical_paths : Paths.t Path.Map.t ref = Local_store.s_ref Path.Map.empty

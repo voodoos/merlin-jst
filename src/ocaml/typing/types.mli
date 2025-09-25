@@ -1187,6 +1187,7 @@ type 'a gen_label_description =
     lbl_loc: Location.t;
     lbl_attributes: Parsetree.attributes;
     lbl_uid: Uid.t;
+    lbl_discourse: Discourse_types.Paths.t;
   }
 
 type label_description = record_representation gen_label_description

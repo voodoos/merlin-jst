@@ -257,9 +257,10 @@ let dummy_label (type rep) (record_form : rep record_form)
     lbl_loc = Location.none;
     lbl_attributes = [];
     lbl_uid = Uid.internal_not_actually_unique;
+    lbl_discourse = Discourse_types.empty;
   }
 
-let label_descrs record_form ty_res lbls repres priv =
+let label_descrs record_form ty_res lbls repres decl =
   let all_labels = Array.make (List.length lbls) (dummy_label record_form) in
   let rec describe_labels pos = function
       [] -> []
@@ -274,10 +275,11 @@ let label_descrs record_form ty_res lbls repres priv =
             lbl_pos = pos;
             lbl_all = all_labels;
             lbl_repres = repres;
-            lbl_private = priv;
+            lbl_private = decl.type_private;
             lbl_loc = l.ld_loc;
             lbl_attributes = l.ld_attributes;
             lbl_uid = l.ld_uid;
+            lbl_discourse = decl.type_discourse;
           } in
         all_labels.(pos) <- lbl;
         (l.ld_id, lbl) :: describe_labels (pos+1) rest in
@@ -312,7 +314,7 @@ let labels_of_type ty_path decl =
   match decl.type_kind with
   | Type_record(labels, rep, _) ->
       label_descrs Legacy (newgenconstr ty_path decl.type_params)
-        labels rep decl.type_private
+        labels rep decl
   | Type_record_unboxed_product _
   | Type_variant _ | Type_abstract _ | Type_open -> []
 
@@ -320,6 +322,6 @@ let unboxed_labels_of_type ty_path decl =
   match decl.type_kind with
   | Type_record_unboxed_product(labels, rep, _) ->
       label_descrs Unboxed_product (newgenconstr ty_path decl.type_params)
-        labels rep decl.type_private
+        labels rep decl
   | Type_record _
   | Type_variant _ | Type_abstract _ | Type_open -> []
