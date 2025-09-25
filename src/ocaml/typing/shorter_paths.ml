@@ -2,11 +2,7 @@ module Priority_queue = struct
   module T = struct
     type t = Path.t
 
-    let rec length acc = function
-      | Path.Pident _ -> acc + 1
-      | Pdot (p, _) | Papply (p, _) | Pextra_ty (p, _) -> length (acc + 1) p
-
-    let compare p1 p2 = if p1 == p2 then 0 else length 0 p1 - length 0 p2
+    let compare = Discourse_types.Paths.T.compare_paths
   end
 
   include Set.Make (T)
