@@ -1,3 +1,5 @@
+let log_section = "short-paths"
+let { Logger.log } = Logger.for_section log_section
 module Priority_queue = struct
   module T = struct
     type t = Path.t
@@ -82,39 +84,48 @@ module Out_type = struct
     | Pextra_ty (p, _) -> path_size p
 end
 
+(* To shorten paths we will build a table that maps "canonical paths" - i.e. a
+   path which is not itself an alias - to a set of paths from D that are aliases
+   to it. We will build this table by putting the elements of D into a priority
+   queue ordered by their length. Then we "process" each element by looking up
+   its canonical path and then adding it to the map. We do this using whatever
+   environment we are currently trying to shorten paths with (ignoring any local
+   constraints). If an element of D is not available in that environment then we
+   skip it and leave it in the priority queue. *)
 let shorten ~env ~canonical_path =
   let queue =
     Discourse_types.Paths.fold
       (fun (kind, path) acc ->
-        if kind = Type then (
-          Format.eprintf "PQ %a (%i)\n%!" Path.print path
-            (Priority_queue.T.length 0 path);
-          Priority_queue.add path acc)
-        else acc)
+        if kind = Type then Priority_queue.add path acc else acc)
       !Discourse.g Priority_queue.empty
   in
-  let last_length = ref 1 in
 
+  (* Todo: actually fill a map one length at a time. This is just for ealry
+     testing. *)
   let rec fill_map next =
     match next () with
     | Seq.Nil -> raise Not_found
     | Cons (path, next) ->
-      Format.eprintf "Treating %a\n%!" Path.print path;
-      let canon, _ = Out_type.normalize_type_path ~cache:false env path in
-      if Path.compare canonical_path canon == 0 then path
-      else
-        let length = Priority_queue.T.length 0 path in
-        if length > !last_length then fill_map next else fill_map next
+      log ~title:"fill_map" "Treating %a\n%!" Logger.fmt (fun fmt ->
+          Path.print fmt path);
+      let canon, _ =
+        (* TODO this probably can raise *)
+        Out_type.normalize_type_path ~cache:false env path
+      in
+      if Path.compare canonical_path canon == 0 then path else fill_map next
   in
 
   fill_map (Priority_queue.to_seq queue)
 
 let find_type_simple ~env path =
-  Format.eprintf "Find type simple: %a\n%!" Path.print path;
+  log ~title:"find_type_simple" "Initial: %a\n%!" Logger.fmt (fun fmt ->
+      Path.print fmt path);
   let canonical_path, _subst =
     Out_type.normalize_type_path ~cache:false env path
   in
-  Format.eprintf "Find type simple canon: %a\n%!" Path.print canonical_path;
+  log ~title:"find_type_simple" "Canon: %a\n%!" Logger.fmt (fun fmt ->
+      Path.print fmt canonical_path);
   let short = shorten ~env ~canonical_path in
-  Format.eprintf "Find type simple short: %a\n%!" Path.print short;
+  log ~title:"find_type_simple" "Short: %a\n%!" Logger.fmt (fun fmt ->
+      Path.print fmt short);
   short

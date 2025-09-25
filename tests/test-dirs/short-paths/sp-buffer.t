@@ -14,16 +14,7 @@ We get a bad path for `hello`
 
 $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
 
-
   $ $MERLIN single errors -filename foo.ml < foo.ml  
-  Add type t/281[2]
-  Use type int/1!
-  Add type u/284[4]
-  Use type Foo/283[3].t
-  Use type Foo/283[3].t
-  Use type Foo/283[3].t
-  Use type u/284[4]
-  Use type u/284[4]
   {
     "class": "return",
     "value": [],
@@ -33,36 +24,46 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   $ echo "FLG -short-paths" > .merlin
 
   $ $MERLIN single type-enclosing -position 7:8 \
-  > -log-file - -log-section discourse -filename foo.ml < foo.ml 
+  > -log-file - -log-section discourse,short-paths -filename foo.ml < foo.ml 
+  # 0.01 discourse - def
   Add type t/281[2]
+  # 0.01 discourse - use
   Use type int/1!
+  # 0.01 discourse - def
   Add type u/284[4]
+  # 0.01 discourse - use
   Use type Foo/283[3].t
+  # 0.01 discourse - use
   Use type Foo/283[3].t
+  # 0.01 discourse - use
   Use type Foo/283[3].t
+  # 0.01 discourse - use
   Use type u/284[4]
+  # 0.01 discourse - use
   Use type u/284[4]
-  Find type simple: Foo/283[3].t
-  Find type simple canon: int/1!
-  PQ t/281[2] 
-  PQ u/284[4] 
-  PQ int/1! 
-  PQ Foo/283[3].t 
+  # 0.01 short-paths - find_type_simple
+  Initial: Foo/283[3].t
+  # 0.01 short-paths - find_type_simple
+  Canon: int/1!
+  # 0.01 short-paths - fill_map
   Treating t/281[2]
+  # 0.01 short-paths - fill_map
   Treating u/284[4]
-  Find type simple short: u/284[4]
+  # 0.01 short-paths - find_type_simple
+  Short: u/284[4]
   # 0.01 discourse - discourse
   t/281[2]; u/284[4]; Bar/282[1]; Foo/283[3]; int/1!;
   Foo/283[3].t
-  Find type simple: Foo/283[3].t
-  Find type simple canon: int/1!
-  PQ t/281[2] 
-  PQ u/284[4] 
-  PQ int/1! 
-  PQ Foo/283[3].t 
+  # 0.01 short-paths - find_type_simple
+  Initial: Foo/283[3].t
+  # 0.01 short-paths - find_type_simple
+  Canon: int/1!
+  # 0.01 short-paths - fill_map
   Treating t/281[2]
+  # 0.01 short-paths - fill_map
   Treating u/284[4]
-  Find type simple short: u/284[4]
+  # 0.01 short-paths - find_type_simple
+  Short: u/284[4]
   {
     "class": "return",
     "value": [
@@ -94,33 +95,47 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
     "notifications": []
   }
 
-  $ $MERLIN single type-enclosing -position 9:9 -filename foo.ml < foo.ml 
+  $ $MERLIN single type-enclosing -position 9:9 \
+  > -log-file - -log-section discourse,short-paths -filename foo.ml < foo.ml 
+  # 0.01 discourse - def
   Add type t/281[2]
+  # 0.01 discourse - use
   Use type int/1!
+  # 0.01 discourse - def
   Add type u/284[4]
+  # 0.01 discourse - use
   Use type Foo/283[3].t
+  # 0.01 discourse - use
   Use type Foo/283[3].t
+  # 0.01 discourse - use
   Use type Foo/283[3].t
+  # 0.01 discourse - use
   Use type u/284[4]
+  # 0.01 discourse - use
   Use type u/284[4]
-  Find type simple: u/284[4]
-  Find type simple canon: int/1!
-  PQ t/281[2] 
-  PQ u/284[4] 
-  PQ int/1! 
-  PQ Foo/283[3].t 
+  # 0.01 short-paths - find_type_simple
+  Initial: u/284[4]
+  # 0.01 short-paths - find_type_simple
+  Canon: int/1!
+  # 0.01 short-paths - fill_map
   Treating t/281[2]
+  # 0.01 short-paths - fill_map
   Treating u/284[4]
-  Find type simple short: u/284[4]
-  Find type simple: u/284[4]
-  Find type simple canon: int/1!
-  PQ t/281[2] 
-  PQ u/284[4] 
-  PQ int/1! 
-  PQ Foo/283[3].t 
+  # 0.01 short-paths - find_type_simple
+  Short: u/284[4]
+  # 0.01 discourse - discourse
+  t/281[2]; u/284[4]; Bar/282[1]; Foo/283[3]; int/1!;
+  Foo/283[3].t
+  # 0.01 short-paths - find_type_simple
+  Initial: u/284[4]
+  # 0.01 short-paths - find_type_simple
+  Canon: int/1!
+  # 0.01 short-paths - fill_map
   Treating t/281[2]
+  # 0.01 short-paths - fill_map
   Treating u/284[4]
-  Find type simple short: u/284[4]
+  # 0.01 short-paths - find_type_simple
+  Short: u/284[4]
   {
     "class": "return",
     "value": [

@@ -51,6 +51,8 @@ open Shape.Sig_component_kind
 let empty = []
 
 let g = Local_store.s_ref Paths.empty
+let log_section = "discourse"
+let { Logger.log } = Logger.for_section log_section
 
 let debug_print fmt = pp fmt !g
 
@@ -149,16 +151,16 @@ let add_used env kind path =
 
 (* Rule U2: All paths for definitions in the current file are in U *)
 let define_type path =
-  Format.eprintf "Add type %a\n%!" Path.print path;
+  log ~title:"def" "Add type %a\n%!" Logger.fmt (fun fmt -> Path.print fmt path);
   g := Paths.add (Type, path) !g
 
 (* Rule U1: Any path occurring in the file is in U *)
 let use_type _env path =
-  Format.eprintf "Use type %a\n%!" Path.print path;
+  log ~title:"use" "Use type %a\n%!" Logger.fmt (fun fmt -> Path.print fmt path);
   add_used _env Type path
 
 let use_constructor _env (constr : Types.constructor_description) =
-  Format.eprintf "Use constructor %s\n%!" constr.cstr_name;
+  log ~title:"use" "Use constructor %s\n%!" constr.cstr_name;
   (* If a constructor is in U then any paths used in its type are in D. *)
   g := Paths.union !g constr.cstr_discourse
 
