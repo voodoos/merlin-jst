@@ -26,11 +26,11 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   $ $MERLIN single type-enclosing -position 7:8 \
   > -log-file - -log-section discourse,short-paths -filename foo.ml < foo.ml 
   # 0.01 discourse - def
-  Add type t/281[2]
+  Define type t/281[2]
   # 0.01 discourse - use
   Use type int/1!
   # 0.01 discourse - def
-  Add type u/284[4]
+  Define type u/284[4]
   # 0.01 discourse - use
   Use type Foo/283[3].t
   # 0.01 discourse - use
@@ -98,11 +98,11 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   $ $MERLIN single type-enclosing -position 9:9 \
   > -log-file - -log-section discourse,short-paths -filename foo.ml < foo.ml 
   # 0.01 discourse - def
-  Add type t/281[2]
+  Define type t/281[2]
   # 0.01 discourse - use
   Use type int/1!
   # 0.01 discourse - def
-  Add type u/284[4]
+  Define type u/284[4]
   # 0.01 discourse - use
   Use type Foo/283[3].t
   # 0.01 discourse - use

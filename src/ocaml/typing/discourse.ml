@@ -151,7 +151,8 @@ let add_used env kind path =
 
 (* Rule U2: All paths for definitions in the current file are in U *)
 let define_type path =
-  log ~title:"def" "Add type %a\n%!" Logger.fmt (fun fmt -> Path.print fmt path);
+  log ~title:"def" "Define type %a\n%!" Logger.fmt (fun fmt ->
+      Path.print fmt path);
   g := Paths.add (Type, path) !g
 
 (* Rule U1: Any path occurring in the file is in U *)
