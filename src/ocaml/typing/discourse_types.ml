@@ -11,3 +11,9 @@ module Paths = struct
 end
 
 let empty = Paths.empty
+
+let pp ppf t =
+  let pp_sep ppf () = Format.fprintf ppf ";@;" in
+  let pp_v = Path.print in
+  let iter pp_v paths = Paths.iter (fun (_,p) -> pp_v p) paths in
+  Format.pp_print_iter ~pp_sep iter pp_v ppf t

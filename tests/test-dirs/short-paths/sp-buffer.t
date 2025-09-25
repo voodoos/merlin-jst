@@ -32,7 +32,8 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
 
   $ echo "FLG -short-paths" > .merlin
 
-  $ $MERLIN single type-enclosing -position 7:8 -filename foo.ml < foo.ml 
+  $ $MERLIN single type-enclosing -position 7:8 \
+  > -log-file - -log-section discourse -filename foo.ml < foo.ml 
   Add type t/281[2]
   Use type int/1!
   Add type u/284[4]
@@ -49,6 +50,9 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   PQ Foo/283[3].t (2)
   Treating int/1!
   Find type simple short: int/1!
+  # 0.01 discourse - discourse
+  int/1!; t/281[2]; Bar/282[1]; Foo/283[3]; u/284[4];
+  Foo/283[3].t
   Find type simple: Foo/283[3].t
   Find type simple canon: int/1!
   PQ int/1! (1)
