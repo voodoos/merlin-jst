@@ -1,5 +1,6 @@
 msupport.ml
 msupport.mli
 discourse.ml
+discourse_types.ml
 shorter_paths.ml
 
