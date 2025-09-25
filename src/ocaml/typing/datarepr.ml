@@ -197,6 +197,8 @@ let constructor_descrs ~current_unit ty_path decl cstrs rep =
         cstr_attributes = cd_attributes;
         cstr_inlined;
         cstr_uid = cd_uid;
+        (* A constructor's discourse is the one if its type.
+           See [Discourse] rule D7. *)
         cstr_discourse = decl.type_discourse;
       } in
     (src_index+1, const_tag, nonconst_tag, (cd_id, cstr) :: acc)

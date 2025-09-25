@@ -935,6 +935,8 @@ and constructor_declaration =
     cd_attributes: Parsetree.attributes;
     cd_uid: Uid.t;
     cd_discourse : Discourse_types.Paths.t;
+    (* TODO remove this, it seems sufficient to store the discourse in
+       constructor_representation. *)
   }
 
 and constructor_argument =
