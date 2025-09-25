@@ -975,10 +975,10 @@ let transl_declaration env sdecl (id, uid) =
           in
           let discourse =
             match scstr.pcd_args with
-            | Pcstr_tuple args ->
-                List.fold_left (fun acc arg ->
-                  Discourse.of_core_type env ~acc arg.pca_type)
-                  discourse args
+            | Pcstr_tuple pcas ->
+                List.fold_left (fun acc pca ->
+                  Discourse.of_core_type env ~acc pca.pca_type)
+                  discourse pcas
             | Pcstr_record plds ->
                 List.fold_left (fun acc pld ->
                   Discourse.of_core_type env ~acc pld.pld_type)
