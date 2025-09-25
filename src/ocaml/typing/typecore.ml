@@ -8912,6 +8912,14 @@ and type_label_access
   let label, ambiguity =
     wrap_disambiguate "This expression has" (mk_expected ty_exp)
       (label_disambiguate record_form usage lid env expected_type) labels in
+  let () =
+    match labels with
+    | Ok ((label1,_) :: _) when label1 == label ->
+        (* We only add labels not used via type-based disambiguation to
+          the discourse. See the [Discourse] module. *)
+        Discourse.use_label env label
+    | _ -> ()
+  in
   (record, record_sort, Mode.Value.disallow_right mode,
    label, expected_type, ambiguity)
   with exn ->
@@ -8937,6 +8945,7 @@ and type_label_access
         lbl_attributes = [];
         lbl_uid = Uid.internal_not_actually_unique;
         lbl_sort = Jkind.Sort.Const.value;
+        lbl_discourse = Discourse_types.empty;
       }
     in
     (record, record_sort, Mode.Value.disallow_right mode,
