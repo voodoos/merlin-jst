@@ -104,7 +104,7 @@ let shorten ~env ~canonical_path =
      testing. *)
   let rec fill_map next =
     match next () with
-    | Seq.Nil -> raise Not_found
+    | Seq.Nil -> canonical_path
     | Cons (path, next) ->
       log ~title:"fill_map" "Treating %a\n%!" Logger.fmt (fun fmt ->
           Path.print fmt path);
