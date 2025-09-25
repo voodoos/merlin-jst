@@ -906,7 +906,7 @@ let transl_declaration env sdecl (id, uid) =
      is no annotation and no manifest.
      See Note [Default jkinds in transl_declaration].
   *)
-  let (tkind, kind, jkind_default) =
+  let (tkind, kind, jkind_default, kind_discourse) =
     match sdecl.ptype_kind with
       (* CR layouts v3.5: this is a hack to allow re-exporting the definition
          of ['a or_null], including constructors, even if one can't define
@@ -928,14 +928,15 @@ let transl_declaration env sdecl (id, uid) =
           in
           let type_kind = Predef.or_null_kind param in
           let jkind = Predef.or_null_jkind param in
-          Ttype_abstract, type_kind, jkind
+          Ttype_abstract, type_kind, jkind, Discourse_types.empty
       | (Ptype_variant _ | Ptype_record _ | Ptype_record_unboxed_product _
         | Ptype_open)
         when Builtin_attributes.has_or_null_reexport sdecl.ptype_attributes ->
         raise (Error (sdecl.ptype_loc, Non_abstract_reexport path))
       | Ptype_abstract ->
         Ttype_abstract, Type_abstract Definition,
-          Jkind.Builtin.value ~why:Default_type_jkind
+          Jkind.Builtin.value ~why:Default_type_jkind,
+          Discourse_types.empty
       | Ptype_variant scstrs ->
         if List.exists (fun cstr -> cstr.pcd_res <> None) scstrs then begin
           match cstrs with
@@ -954,7 +955,7 @@ let transl_declaration env sdecl (id, uid) =
             (List.filter (fun cd -> cd.pcd_args <> Pcstr_tuple []) scstrs)
            > (Config.max_tag + 1) then
           raise(Error(sdecl.ptype_loc, Too_many_constructors));
-        let make_cstr scstr =
+        let make_cstr discourse scstr =
           let name = Ident.create_local scstr.pcd_name.txt in
           let attributes = scstr.pcd_attributes in
           let tvars, targs, tret_type, args, ret_type =
@@ -977,8 +978,8 @@ let transl_declaration env sdecl (id, uid) =
             | Pcstr_tuple args ->
                 List.fold_left (fun acc arg ->
                   Discourse.of_core_type env ~acc arg.pca_type)
-                  Discourse_types.empty args
-            | _ ->  (* TODO *) Discourse_types.empty
+                  discourse args
+            | _ ->  (* TODO *) discourse
           in
           let cstr =
             { Types.cd_id = name;
@@ -989,13 +990,16 @@ let transl_declaration env sdecl (id, uid) =
               cd_uid = tcstr.cd_uid;
               cd_discourse }
           in
-            tcstr, cstr
+          (cd_discourse, (tcstr, cstr))
         in
-        let make_cstr scstr =
+        let make_cstr acc scstr =
           Builtin_attributes.warning_scope scstr.pcd_attributes
-            (fun () -> make_cstr scstr)
+            (fun () -> make_cstr acc scstr)
         in
-        let tcstrs, cstrs = List.split (List.map make_cstr scstrs) in
+        let discourse, cstrs =
+          List.fold_left_map make_cstr Discourse_types.Paths.empty scstrs
+        in
+        let tcstrs, cstrs = List.split cstrs in
         let rep, jkind =
           if unbox then
             Variant_unboxed,
@@ -1021,7 +1025,8 @@ let transl_declaration env sdecl (id, uid) =
             ),
           Jkind.for_non_float ~why:Boxed_variant
         in
-          Ttype_variant tcstrs, Type_variant (cstrs, rep, None), jkind
+          Ttype_variant tcstrs, Type_variant (cstrs, rep, None),
+          jkind, discourse
       | Ptype_record lbls ->
           let lbls, lbls' =
             transl_labels ~record_form:Legacy ~new_var_jkind:Any
@@ -1040,7 +1045,8 @@ let transl_declaration env sdecl (id, uid) =
               Record_boxed (Array.make (List.length lbls) Jkind.Sort.Const.void),
               Jkind.for_non_float ~why:Boxed_record
           in
-          Ttype_record lbls, Type_record(lbls', rep, None), jkind
+          Ttype_record lbls, Type_record(lbls', rep, None), jkind,
+          Discourse_types.empty
       | Ptype_record_unboxed_product lbls ->
           Language_extension.assert_enabled ~loc:sdecl.ptype_loc Layouts
             Language_extension.Stable;
@@ -1057,10 +1063,12 @@ let transl_declaration env sdecl (id, uid) =
               (List.length lbls)
           in
           Ttype_record_unboxed_product lbls,
-          Type_record_unboxed_product(lbls', Record_unboxed_product, None), jkind
+          Type_record_unboxed_product(lbls', Record_unboxed_product, None),
+          jkind, Discourse_types.empty
       | Ptype_open ->
         Ttype_open, Type_open,
-        Jkind.for_non_float ~why:Extensible_variant
+        Jkind.for_non_float ~why:Extensible_variant,
+        Discourse_types.empty
       in
     let jkind =
     (* - If there's an annotation, we use that. It's checked against a kind in
@@ -1101,9 +1109,9 @@ let transl_declaration env sdecl (id, uid) =
     let arity = List.length params in
     let type_discourse =
       let acc =
-        (* Paths in constraints *)
+        (* Paths in params *)
         List.fold_left (fun acc (ct, _) -> Discourse.of_core_type ~acc env ct)
-          Discourse_types.empty
+          kind_discourse
           sdecl.ptype_params
       in
       let acc =
