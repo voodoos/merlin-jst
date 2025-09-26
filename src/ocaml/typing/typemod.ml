@@ -1897,36 +1897,39 @@ let rec transl_modtype env smty =
     (fun () -> transl_modtype_aux env smty)
 
 and transl_modtype_functor_arg env sarg =
-  let mty = transl_modtype env sarg in
-  {mty with mty_type = Mtype.scrape_for_functor_arg env mty.mty_type}
+  let mty, discourse = transl_modtype env sarg in
+  {mty with mty_type = Mtype.scrape_for_functor_arg env mty.mty_type}, discourse
 
 and transl_modtype_aux env smty =
   let loc = smty.pmty_loc in
+  let empty_discourse = Discourse_types.empty in
   match smty.pmty_desc with
     Pmty_ident lid ->
       let path = transl_modtype_longident loc env lid.txt in
       mkmty (Tmty_ident (path, lid)) (Mty_ident path) env loc
-        smty.pmty_attributes
+        smty.pmty_attributes,
+        Discourse_types.Paths.singleton (Module_type, path)
   | Pmty_alias lid ->
       let path = transl_module_alias loc env lid.txt in
       mkmty (Tmty_alias (path, lid)) (Mty_alias path) env loc
-        smty.pmty_attributes
+        smty.pmty_attributes, Discourse_types.Paths.singleton (Module, path)
   | Pmty_signature ssg ->
       Env.check_no_open_quotations loc env Env.Sig_qt;
       let sg = transl_signature env [] ssg in
       mkmty (Tmty_signature sg) (Mty_signature sg.sig_type) env loc
-        smty.pmty_attributes
+        smty.pmty_attributes,
+      empty_discourse
   | Pmty_functor(sarg_opt, sres, mres) ->
       let tmres = Typemode.transl_alloc_mode mres in
       let mres = tmres.mode_modes |> Alloc.of_const in
-      let t_arg, ty_arg, newenv =
+      let t_arg, ty_arg, newenv, arg_discourse =
         match sarg_opt with
-        | Unit -> Unit, Types.Unit, env
+        | Unit -> Unit, Types.Unit, env, empty_discourse
         | Named (param, sarg, marg) ->
           let tmarg = Typemode.transl_alloc_mode marg in
           let marg = Alloc.of_const tmarg.mode_modes in
           let mode = marg |> alloc_as_value in
-          let arg = transl_modtype_functor_arg env sarg in
+          let arg, md_discourse = transl_modtype_functor_arg env sarg in
           let (id, newenv) =
             match param.txt with
             | None -> None, env
@@ -1939,7 +1942,7 @@ and transl_modtype_aux env smty =
                     md_attributes = [];
                     md_loc = param.loc;
                     md_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
-                    md_discourse = Discourse_types.empty;
+                    md_discourse;
                   }
                 in
                 Env.enter_module_declaration ~scope ~arg:true name Mp_present
@@ -1948,14 +1951,15 @@ and transl_modtype_aux env smty =
               Some id, newenv
           in
           Named (id, param, arg, tmarg), Types.Named (id, arg.mty_type, marg),
-          newenv
+          newenv, md_discourse
       in
       let res = transl_modtype newenv sres in
       mkmty (Tmty_functor (t_arg, res, tmres))
         (Mty_functor(ty_arg, res.mty_type, mres)) env loc
-        smty.pmty_attributes
+        smty.pmty_attributes,
+      Discourse_types.Paths.union discourse arg_discourse
   | Pmty_with(sbody, constraints) ->
-      let body = transl_modtype env sbody in
+      let body, discourse = transl_modtype env sbody in
       let init_sg = extract_sig env sbody.pmty_loc body.mty_type in
       let remove_aliases = has_remove_aliases_attribute smty.pmty_attributes in
       let (rev_tcstrs, final_sg) =
@@ -1964,17 +1968,18 @@ and transl_modtype_aux env smty =
       let scope = Ctype.create_scope () in
       mkmty (Tmty_with ( body, List.rev rev_tcstrs))
         (Mtype.freshen ~scope (Mty_signature final_sg)) env loc
-        smty.pmty_attributes
+        smty.pmty_attributes, discourse (* TODO discourse from constraints *)
   | Pmty_typeof smod ->
       let env = Env.in_signature false env in
       let tmty, mty = !type_module_type_of_fwd env smod in
-      mkmty (Tmty_typeof tmty) mty env loc smty.pmty_attributes
+      mkmty (Tmty_typeof tmty) mty env loc smty.pmty_attributes,
+      empty_discourse (* TODO Discourse *)
   | Pmty_extension ext ->
       raise (Error_forward (Builtin_attributes.error_of_extension ext))
   | Pmty_strengthen (mty, mod_id) ->
       Language_extension.assert_enabled ~loc:smty.pmty_loc
         Module_strengthening ();
-      let tmty = transl_modtype_aux env mty in
+      let tmty, discourse = transl_modtype_aux env mty in
       let path, md, _ =
         Env.lookup_module ~use:false ~loc:mod_id.loc mod_id.txt env
       in
@@ -1989,7 +1994,8 @@ and transl_modtype_aux env smty =
             (tmty.mty_type, path, Aliasability.aliasable aliasable))
           env
           loc
-          []
+          [],
+        Discourse_types.Paths.add (Module, path) discourse
       with Includemod.Error explanation ->
         raise(Error(loc, env, Strengthening_mismatch(mod_id.txt, explanation)))
       ;
@@ -2022,7 +2028,7 @@ and transl_with ~loc env remove_aliases (rev_tcstrs, sg) constr =
 
     | Pwith_modtype (l,smty)
     | Pwith_modtypesubst (l,smty) ->
-        let tmty = transl_modtype env smty in
+        let tmty, _discourse = transl_modtype env smty in
         let constr = if destructive then
             (Twith_modtypesubst tmty)
           else
@@ -2052,10 +2058,11 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
 
   let transl_include ~loc env sig_acc sincl modalities =
     let smty = sincl.pincl_mod in
-    let tmty =
+    let tmty, _discourse =
       Builtin_attributes.warning_scope sincl.pincl_attributes
         (fun () -> transl_modtype env smty)
     in
+    (* TODO Discourse for include *)
     let mty = tmty.mty_type in
     let scope = Ctype.create_scope () in
     let incl_kind, sg =
@@ -2192,7 +2199,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
         mksig (Tsig_exception ext) env loc, [tsg], newenv
     | Psig_module pmd ->
         let scope = Ctype.create_scope () in
-        let tmty =
+        let tmty, md_discourse =
           Builtin_attributes.warning_scope pmd.pmd_attributes
             (fun () -> transl_modtype env pmd.pmd_type)
         in
@@ -2214,7 +2221,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
           md_attributes=pmd.pmd_attributes;
           md_loc=pmd.pmd_loc;
           md_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
-          md_discourse = Discourse_types.empty;
+          md_discourse;
         }
         in
         let id, newenv =
@@ -2226,6 +2233,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
                 ~mode:md_mode env
             in
             let newenv = Env.update_short_paths newenv in
+            Discourse.define_module (Pident id);
             Signature_names.check_module names pmd.pmd_name.loc id;
             Some id, newenv
         in
@@ -2254,12 +2262,13 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
           if not aliasable then
             md
           else
+            let md_discourse = Discourse_types.Paths.singleton (Module, path) in
             { md_type = Mty_alias path;
               md_modalities = Mode.Modality.(Const.id |> of_const);
               md_attributes = pms.pms_attributes;
               md_loc = pms.pms_loc;
               md_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
-              md_discourse = Discourse_types.empty;
+              md_discourse;
             }
         in
         let pres =
@@ -2310,7 +2319,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
                      md_attributes = md.md_attributes;
                      md_loc = md.md_loc;
                      md_uid = uid;
-                     md_discourse = Discourse_types.empty;
+                     md_discourse = Discourse_types.empty (*TODO*);
                     } in
             Sig_module(id, Mp_present, d, rs, Exported))
             decls []
@@ -2448,6 +2457,7 @@ and transl_modtype_decl_aux env
   let tmty =
     Option.map (transl_modtype (Env.in_signature true env)) pmtd_type
   in
+  let tmty = Option.map fst tmty in
   let decl =
     {
      Types.mtd_type=Option.map (fun t -> t.mty_type) tmty;
@@ -2483,7 +2493,7 @@ and transl_recmodule_modtypes env ~sig_modalities sdecls =
   let transition env_c curr =
     List.map2
       (fun (pmd, _) (id_shape, id_loc, md, mmode, _, _) ->
-        let tmty =
+        let tmty, _discourse =
           Builtin_attributes.warning_scope pmd.pmd_attributes
             (fun () -> transl_modtype env_c pmd.pmd_type)
         in
@@ -3048,7 +3058,7 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
           (* unspecified mode axes defaults to legacy *)
           let tmode = Typemode.transl_alloc_mode smode in
           let mode = Alloc.of_const tmode.mode_modes in
-          let mty = transl_modtype_functor_arg env smty in
+          let mty, md_discourse = transl_modtype_functor_arg env smty in
           let scope = Ctype.create_scope () in
           let (id, newenv, var) =
             match param.txt with
@@ -3061,7 +3071,7 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
                   md_attributes = [];
                   md_loc = param.loc;
                   md_uid;
-                  md_discourse = Discourse_types.empty;
+                  md_discourse;
                 }
               in
               let id = Ident.create_scoped ~scope name in
@@ -3125,7 +3135,7 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
               { arg with mod_mode = (Mode.Value.disallow_right mode.mode_modes, None)},
               arg_shape
           | Some smty ->
-              let mty = transl_modtype env smty in
+              let mty, _discourse = transl_modtype env smty in
               wrap_constraint_with_shape env true arg mty.mty_type mode.mode_modes
                 arg_shape (Tmodtype_explicit (mty, mode))
         in
@@ -3745,6 +3755,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
             md_attributes = attrs;
             md_loc = pmb_loc;
             md_uid;
+            (* TODO*)
             md_discourse = Discourse_types.empty;
           }
         in
@@ -3758,7 +3769,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
             let id, e = Env.enter_module_declaration
               ~scope ~shape:md_shape name pres md ~mode:md_mode env
             in
-            Discourse.add_module (Pident id);
+            Discourse.define_module (Pident id);
             let e = Env.update_short_paths e in
             Signature_names.check_module names pmb_loc id;
             Some id, e,
@@ -4224,6 +4235,8 @@ let type_open_descr ?used_slot env od =
 let type_open_ ?used_slot ?toplevel ovf env loc lid =
   let path, _, newenv = type_open_ ?used_slot ?toplevel ovf env loc lid in
   path, newenv
+
+let transl_modtype env pmt = transl_modtype env pmt |> fst
 
 let () =
   Typecore.type_module := type_module_alias;

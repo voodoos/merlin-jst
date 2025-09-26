@@ -102,17 +102,22 @@ let of_core_type env ?(acc = Discourse_types.empty) ty =
   aux acc ty
 
 (** [add_used_path] adds one path from U to the Discourse, eventually adding the
-    discourse attached to its description. TODO this could be done lazily. *)
+    additionnal paths described by the rules for D. TODO this could and probably
+    should be done lazily. *)
 let add_used_path env paths kind path =
   let paths = Paths.add (kind, path) paths in
   match kind with
   | Module ->
-    (* D3. If a module path is in U then all the paths of its subcomponents
-       are in D *)
     (* TODO This should probably be done lazily *)
     let md = Env.find_module path env in
-    (* TODO Should we tap into Env.module_data instead ? *)
+    (* D5. If a module path is in U and its module description was written then
+       the paths used in that description are in D *)
+    let paths = Paths.union paths md.md_discourse in
     begin
+      (* D3. If a module path is in U then all the paths of its subcomponents
+         are in D *)
+      (* TODO Should we tap into Env.module_data instead ? Or should this be
+         part of the module discourse in md_discourse ? *)
       match md.md_type with
       | Mty_signature s ->
         List.fold_left
@@ -155,6 +160,8 @@ let define_type path =
       Path.print fmt path);
   g := Paths.add (Type, path) !g
 
+let define_module path = g := Paths.add (Module, path) !g
+
 (* Rule U1: Any path occurring in the file is in U *)
 let use_type _env path =
   log ~title:"use" "Use type %a\n%!" Logger.fmt (fun fmt -> Path.print fmt path);
@@ -169,8 +176,6 @@ let use_label _env label =
   log ~title:"use" "Use label %s\n%!" label.Types.lbl_name;
   (* If a label is in U then any paths used in its type are in D. *)
   g := Paths.union !g label.lbl_discourse
-
-let add_module path = g := Paths.add (Module, path) !g
 
 let canonical_paths : Paths.t Path.Map.t ref = Local_store.s_ref Path.Map.empty
 
