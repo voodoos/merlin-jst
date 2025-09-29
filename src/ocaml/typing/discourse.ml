@@ -144,6 +144,11 @@ let add_used_path env paths kind path =
 (** [add_used] adds all parts of a used path to the Discourse (U1, D2) *)
 let add_used env kind path =
   let rec loop acc kind path =
+    log ~title:"use" "Use %a\n%!" Logger.fmt (fun fmt ->
+        Format.fprintf fmt "%s %a"
+          (Shape.Sig_component_kind.to_string kind)
+          Path.print path);
+
     let acc = add_used_path env acc kind path in
     match path with
     | Path.Pident _ | Pextra_ty _ -> acc
@@ -160,20 +165,19 @@ let define_type path =
       Path.print fmt path);
   g := Paths.add (Type, path) !g
 
-let define_module path = g := Paths.add (Module, path) !g
+let define_module path =
+  log ~title:"def" "Define module %a\n%!" Logger.fmt (fun fmt ->
+      Path.print fmt path);
+  g := Paths.add (Module, path) !g
 
 (* Rule U1: Any path occurring in the file is in U *)
-let use_type _env path =
-  log ~title:"use" "Use type %a\n%!" Logger.fmt (fun fmt -> Path.print fmt path);
-  add_used _env Type path
+let use_type env path = add_used env Type path
 
 let use_constructor _env (constr : Types.constructor_description) =
-  log ~title:"use" "Use constructor %s\n%!" constr.cstr_name;
   (* If a constructor is in U then any paths used in its type are in D. *)
   g := Paths.union !g constr.cstr_discourse
 
-let use_label _env label =
-  log ~title:"use" "Use label %s\n%!" label.Types.lbl_name;
+let use_label _env (label : _ Types.gen_label_description) =
   (* If a label is in U then any paths used in its type are in D. *)
   g := Paths.union !g label.lbl_discourse
 
