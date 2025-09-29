@@ -28,29 +28,31 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   # 0.01 discourse - def
   Define type t/281[2]
   # 0.01 discourse - use
-  Use type int/1!
+  Use type int/1! File "foo.ml", line 2, characters 11-14
   # 0.01 discourse - def
   Define module Bar/282[1]
+  # 0.01 discourse - use
+  Use module Bar/282[1] File "foo.ml", line 4, characters 13-16
   # 0.01 discourse - def
   Define module Foo/283[3]
   # 0.01 discourse - def
   Define type u/284[4]
   # 0.01 discourse - use
-  Use type Foo/283[3].t
+  Use type Foo/283[3].t File "foo.ml", line 5, characters 9-14
   # 0.01 discourse - use
-  Use module Foo/283[3]
+  Use module Foo/283[3] File "foo.ml", line 5, characters 9-14
   # 0.01 discourse - use
-  Use type Foo/283[3].t
+  Use type Foo/283[3].t File "foo.ml", line 6, characters 8-13
   # 0.01 discourse - use
-  Use module Foo/283[3]
+  Use module Foo/283[3] File "foo.ml", line 6, characters 8-13
   # 0.01 discourse - use
-  Use type Foo/283[3].t
+  Use type Foo/283[3].t File "foo.ml", line 6, characters 8-13
   # 0.01 discourse - use
-  Use module Foo/283[3]
+  Use module Foo/283[3] File "foo.ml", line 6, characters 8-13
   # 0.01 discourse - use
-  Use type u/284[4]
+  Use type u/284[4] File "foo.ml", line 8, characters 9-10
   # 0.01 discourse - use
-  Use type u/284[4]
+  Use type u/284[4] File "foo.ml", line 8, characters 9-10
   # 0.01 short-paths - find_type_simple
   Initial: Foo/283[3].t
   # 0.01 short-paths - find_type_simple
@@ -110,29 +112,31 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   # 0.01 discourse - def
   Define type t/281[2]
   # 0.01 discourse - use
-  Use type int/1!
+  Use type int/1! File "foo.ml", line 2, characters 11-14
   # 0.01 discourse - def
   Define module Bar/282[1]
+  # 0.01 discourse - use
+  Use module Bar/282[1] File "foo.ml", line 4, characters 13-16
   # 0.01 discourse - def
   Define module Foo/283[3]
   # 0.01 discourse - def
   Define type u/284[4]
   # 0.01 discourse - use
-  Use type Foo/283[3].t
+  Use type Foo/283[3].t File "foo.ml", line 5, characters 9-14
   # 0.01 discourse - use
-  Use module Foo/283[3]
+  Use module Foo/283[3] File "foo.ml", line 5, characters 9-14
   # 0.01 discourse - use
-  Use type Foo/283[3].t
+  Use type Foo/283[3].t File "foo.ml", line 6, characters 8-13
   # 0.01 discourse - use
-  Use module Foo/283[3]
+  Use module Foo/283[3] File "foo.ml", line 6, characters 8-13
   # 0.01 discourse - use
-  Use type Foo/283[3].t
+  Use type Foo/283[3].t File "foo.ml", line 6, characters 8-13
   # 0.01 discourse - use
-  Use module Foo/283[3]
+  Use module Foo/283[3] File "foo.ml", line 6, characters 8-13
   # 0.01 discourse - use
-  Use type u/284[4]
+  Use type u/284[4] File "foo.ml", line 8, characters 9-10
   # 0.01 discourse - use
-  Use type u/284[4]
+  Use type u/284[4] File "foo.ml", line 8, characters 9-10
   # 0.01 short-paths - find_type_simple
   Initial: u/284[4]
   # 0.01 short-paths - find_type_simple

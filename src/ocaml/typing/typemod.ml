@@ -2975,6 +2975,7 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
       let path, mode_with_locks =
         Env.lookup_module_path ~load:(not alias) ~loc:smod.pmod_loc lid.txt env
       in
+      Discourse.use_module ~loc:smod.pmod_loc env path;
       type_module_path_aux ~alias ~hold_locks sttn env path mode_with_locks lid
         smod
   | Pmod_structure sstr ->
