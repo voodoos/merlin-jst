@@ -174,8 +174,14 @@ let define_module path =
       Path.print fmt path);
   g := Paths.add (Module, path) !g
 
+let define_modtype path =
+  log ~title:"def" "Define modtype %a\n%!" Logger.fmt (fun fmt ->
+      Path.print fmt path);
+  g := Paths.add (Module_type, path) !g
+
 (* Rule U1: Any path occurring in the file is in U *)
 let use_module ~loc env path = add_used ~loc env Module path
+let use_modtype ~loc env path = add_used ~loc env Module_type path
 let use_type ~loc env path = add_used ~loc env Type path
 
 let use_constructor _env (constr : Types.constructor_description) =
