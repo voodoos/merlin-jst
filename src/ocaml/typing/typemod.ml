@@ -1134,7 +1134,8 @@ module Merge = struct
                 mtd_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
                 mtd_type = Some mty;
                 mtd_attributes = [];
-                mtd_loc = loc; }
+                mtd_loc = loc;
+                mtd_discourse = Discourse_types.empty }
               in Some(Sig_modtype(id, mtd', priv))
           in
           let path = Pident id in
@@ -1540,6 +1541,7 @@ and approx_modtype_info env sinfo =
    mtd_attributes = sinfo.pmtd_attributes;
    mtd_loc = sinfo.pmtd_loc;
    mtd_uid = Uid.internal_not_actually_unique;
+   mtd_discourse = Discourse_types.empty;
   }
 
 and approx_constraint env body constr =
@@ -2463,6 +2465,7 @@ and transl_modtype_decl_aux env
   let tmty =
     Option.map (transl_modtype (Env.in_signature true env)) pmtd_type
   in
+  let mtd_discourse = Option.fold ~none:Discourse_types.empty ~some:(snd) tmty in
   let tmty = Option.map fst tmty in
   let decl =
     {
@@ -2470,6 +2473,7 @@ and transl_modtype_decl_aux env
      mtd_attributes=pmtd_attributes;
      mtd_loc=pmtd_loc;
      mtd_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+     mtd_discourse;
     }
   in
   let scope = Ctype.create_scope () in

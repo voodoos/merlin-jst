@@ -136,6 +136,11 @@ let add_used_path env paths kind path =
           paths s
       | _ -> paths
     end
+  | Module_type ->
+    let mtd = Env.find_modtype path env in
+    (* D8. If a module type path is in U then any paths used in its definition
+       are in *)
+    Paths.union paths mtd.mtd_discourse
   | Value ->
     (* D4. If a value path is in U and its value description was written by a user -
        as opposed to being inferred - then the paths used in that description are

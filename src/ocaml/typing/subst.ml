@@ -1023,7 +1023,8 @@ and subst_lazy_modtype_decl scoping s mtd =
   { mtd_type = Option.map (subst_lazy_modtype scoping s) mtd.mtd_type;
     mtd_attributes = attrs s mtd.mtd_attributes;
     mtd_loc = loc s mtd.mtd_loc;
-    mtd_uid = mtd.mtd_uid }
+    mtd_uid = mtd.mtd_uid;
+    mtd_discourse = mtd.mtd_discourse }
 
 and subst_lazy_signature scoping s sg =
   Wrap.substitute ~compose scoping s sg

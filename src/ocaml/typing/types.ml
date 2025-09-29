@@ -609,6 +609,7 @@ module type Wrapped = sig
     mtd_attributes: Parsetree.attributes;
     mtd_loc: Location.t;
     mtd_uid: Uid.t;
+    mtd_discourse: Discourse_types.Paths.t;
   }
 
   val sort_of_signature_item :
@@ -693,12 +694,14 @@ module Map_wrapped(From : Wrapped)(To : Wrapped) = struct
       md_discourse;
     }
 
-  let modtype_declaration m {mtd_type; mtd_attributes; mtd_loc; mtd_uid} =
+  let modtype_declaration m
+    {mtd_type; mtd_attributes; mtd_loc; mtd_uid;mtd_discourse} =
     To.{
       mtd_type = Option.map (module_type m) mtd_type;
       mtd_attributes;
       mtd_loc;
       mtd_uid;
+      mtd_discourse;
     }
 
   let signature_item m = function
