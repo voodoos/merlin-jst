@@ -1906,11 +1906,13 @@ and transl_modtype_aux env smty =
   match smty.pmty_desc with
     Pmty_ident lid ->
       let path = transl_modtype_longident loc env lid.txt in
+      Discourse.use_modtype ~loc:lid.loc env path;
       mkmty (Tmty_ident (path, lid)) (Mty_ident path) env loc
         smty.pmty_attributes,
         Discourse_types.Paths.singleton (Module_type, path)
   | Pmty_alias lid ->
       let path = transl_module_alias loc env lid.txt in
+      Discourse.use_module ~loc:lid.loc env path;
       mkmty (Tmty_alias (path, lid)) (Mty_alias path) env loc
         smty.pmty_attributes, Discourse_types.Paths.singleton (Module, path)
   | Pmty_signature ssg ->
@@ -1948,6 +1950,7 @@ and transl_modtype_aux env smty =
                 Env.enter_module_declaration ~scope ~arg:true name Mp_present
                   arg_md ~mode env
               in
+              (* TODO should we add functor parameters to the discourse ? *)
               Some id, newenv
           in
           Named (id, param, arg, tmarg), Types.Named (id, arg.mty_type, marg),
@@ -2018,6 +2021,7 @@ and transl_with ~loc env remove_aliases (rev_tcstrs, sg) constr =
     | Pwith_module (l, l')
     | Pwith_modsubst (l,l') ->
         let path, md, _ = Env.lookup_module ~loc l'.txt env in
+        Discourse.use_module ~loc:l'.loc env path;
         let constr = if destructive then
             (Twith_modsubst (path, l'))
           else
@@ -2280,6 +2284,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
           Env.enter_module_declaration ~scope pms.pms_name.txt pres md
             ~mode:md_mode env
         in
+        Discourse.define_module (Pident id);
         let info =
           `Substituted_away (Subst.add_module id path Subst.identity)
         in
@@ -2309,6 +2314,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
           ) tdecls
         in
         List.iter (fun (id, md, _uid) ->
+          Discourse.define_module (Pident id);
           Signature_names.check_module names md.md_loc id;
         ) decls;
         let sig_items =
@@ -2468,6 +2474,7 @@ and transl_modtype_decl_aux env
   in
   let scope = Ctype.create_scope () in
   let (id, newenv) = Env.enter_modtype ~scope pmtd_name.txt decl env in
+  Discourse.define_modtype (Pident id);
   let mtd =
     {
      mtd_id=id;
