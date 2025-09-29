@@ -109,10 +109,14 @@ let of_core_type env ?(acc = Discourse_types.empty) ty =
   in
   aux acc ty
 
-(** [add_used_path] adds one path from U to the Discourse, eventually adding the
+(** [add_path_to_discourse] adds one path from U to the Discourse, eventually adding the
     additionnal paths described by the rules for D. TODO this could and probably
-    should be done lazily. *)
-let add_used_path env paths kind path =
+    should be done lazily.
+
+    TODO:Q what about rule D11 ? If a path is in D and it includes another module
+          path within it, then that module path is also in D. Should we consider
+          only [Papply] paths or all path components for addition to D ?  *)
+let add_path_to_discourse env paths kind path =
   let paths = Paths.add (kind, path) paths in
   match kind with
   | Module ->
@@ -158,7 +162,7 @@ let add_used_path env paths kind path =
 let add_used ?loc env kind path =
   let rec loop acc kind path =
     let () = log_usage ?loc kind path in
-    let acc = add_used_path env acc kind path in
+    let acc = add_path_to_discourse env acc kind path in
     match path with
     | Path.Pident _ | Pextra_ty _ -> acc
     | Pdot (path, _) -> loop acc Module path
