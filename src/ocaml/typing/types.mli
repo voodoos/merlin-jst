@@ -1093,6 +1093,7 @@ module type Wrapped = sig
     mtd_attributes: Parsetree.attributes;
     mtd_loc: Location.t;
     mtd_uid: Uid.t;
+    mtd_discourse: Discourse_types.Paths.t;
   }
 
   (* Returns [None] for items that have no runtime representation (see
