@@ -30,13 +30,23 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   # 0.01 discourse - use
   Use type int/1!
   # 0.01 discourse - def
+  Define module Bar/282[1]
+  # 0.01 discourse - def
+  Define module Foo/283[3]
+  # 0.01 discourse - def
   Define type u/284[4]
   # 0.01 discourse - use
   Use type Foo/283[3].t
   # 0.01 discourse - use
-  Use type Foo/283[3].t
+  Use module Foo/283[3]
   # 0.01 discourse - use
   Use type Foo/283[3].t
+  # 0.01 discourse - use
+  Use module Foo/283[3]
+  # 0.01 discourse - use
+  Use type Foo/283[3].t
+  # 0.01 discourse - use
+  Use module Foo/283[3]
   # 0.01 discourse - use
   Use type u/284[4]
   # 0.01 discourse - use
@@ -102,13 +112,23 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   # 0.01 discourse - use
   Use type int/1!
   # 0.01 discourse - def
+  Define module Bar/282[1]
+  # 0.01 discourse - def
+  Define module Foo/283[3]
+  # 0.01 discourse - def
   Define type u/284[4]
   # 0.01 discourse - use
   Use type Foo/283[3].t
   # 0.01 discourse - use
-  Use type Foo/283[3].t
+  Use module Foo/283[3]
   # 0.01 discourse - use
   Use type Foo/283[3].t
+  # 0.01 discourse - use
+  Use module Foo/283[3]
+  # 0.01 discourse - use
+  Use type Foo/283[3].t
+  # 0.01 discourse - use
+  Use module Foo/283[3]
   # 0.01 discourse - use
   Use type u/284[4]
   # 0.01 discourse - use
