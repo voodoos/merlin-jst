@@ -144,7 +144,7 @@ let shorten ~env ~canonical_path =
       in
       aux path
     in
-    let apply_subts acc path substs =
+    let apply_substs acc path substs =
       Path.Map.fold
         (fun target replacements acc ->
           let results = replace_first target ~in_:path ~by:replacements in
@@ -154,7 +154,7 @@ let shorten ~env ~canonical_path =
     let rec fix queue =
       let new_queue =
         Priority_queue.fold
-          (fun path acc -> apply_subts acc path !Discourse.g.substs)
+          (fun path acc -> apply_substs acc path !Discourse.g.substs)
           queue Priority_queue.empty
       in
       if Priority_queue.(cardinal new_queue > cardinal queue) then fix new_queue
