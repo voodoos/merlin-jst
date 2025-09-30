@@ -54,7 +54,20 @@ let g = Local_store.s_ref empty
 let log_section = "discourse"
 let { Logger.log } = Logger.for_section log_section
 
-let debug_print fmt = pp fmt !g.paths
+let pp_substs fmt substs =
+  let pp_sep ppf () = Format.fprintf ppf ";@;" in
+  let pp_v fmt (p, s) =
+    Format.fprintf fmt "%a -> [%a]" Path.print p
+      (Format.pp_print_list ~pp_sep Path.print)
+      s
+  in
+  let iter pp_v paths =
+    Path.Map.iter (fun p s -> pp_v (p, Path.Set.to_list s)) paths
+  in
+  Format.pp_print_iter ~pp_sep iter pp_v fmt substs
+
+let debug_print fmt =
+  Format.fprintf fmt "%a@;%a" pp !g.paths pp_substs !g.substs
 
 let log_usage ?loc kind path =
   log ~title:"use" "Use %a\n%!" Logger.fmt (fun fmt ->
@@ -198,10 +211,10 @@ let define_type path =
       Path.print fmt path);
   g := { !g with paths = Paths.add (Type, path) !g.paths }
 
-let define_module path =
+let define_module env path =
   log ~title:"def" "Define module %a\n%!" Logger.fmt (fun fmt ->
       Path.print fmt path);
-  g := { !g with paths = Paths.add (Module, path) !g.paths }
+  g := add_path_to_discourse env !g Module path
 
 let define_modtype path =
   log ~title:"def" "Define modtype %a\n%!" Logger.fmt (fun fmt ->
