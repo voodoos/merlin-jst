@@ -97,7 +97,7 @@ let shorten ~env ~canonical_path =
     Discourse_types.Paths.fold
       (fun (kind, path) acc ->
         if kind = Type then Priority_queue.add path acc else acc)
-      !Discourse.g Priority_queue.empty
+      !Discourse.g.paths Priority_queue.empty
   in
 
   (* Todo: actually fill a map one length at a time. This is just for ealry
