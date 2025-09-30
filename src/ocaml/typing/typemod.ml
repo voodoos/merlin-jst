@@ -2239,7 +2239,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
                 ~mode:md_mode env
             in
             let newenv = Env.update_short_paths newenv in
-            Discourse.define_module (Pident id);
+            Discourse.define_module newenv (Pident id);
             Signature_names.check_module names pmd.pmd_name.loc id;
             Some id, newenv
         in
@@ -2286,7 +2286,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
           Env.enter_module_declaration ~scope pms.pms_name.txt pres md
             ~mode:md_mode env
         in
-        Discourse.define_module (Pident id);
+        Discourse.define_module newenv (Pident id);
         let info =
           `Substituted_away (Subst.add_module id path Subst.identity)
         in
@@ -2316,7 +2316,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
           ) tdecls
         in
         List.iter (fun (id, md, _uid) ->
-          Discourse.define_module (Pident id);
+          Discourse.define_module newenv (Pident id);
           Signature_names.check_module names md.md_loc id;
         ) decls;
         let sig_items =
@@ -3781,7 +3781,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
             let id, e = Env.enter_module_declaration
               ~scope ~shape:md_shape name pres md ~mode:md_mode env
             in
-            Discourse.define_module (Pident id);
+            Discourse.define_module e (Pident id);
             let e = Env.update_short_paths e in
             Signature_names.check_module names pmb_loc id;
             Some id, e,
