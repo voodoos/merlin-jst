@@ -100,6 +100,69 @@ let shorten ~env ~canonical_path =
       !Discourse.g.paths Priority_queue.empty
   in
 
+  let queue =
+    (* TODO this is a bit brutal and innefficient. We should think of a better
+       algorithm for the real version. *)
+    let rec reroot ~root (path : Path.t) =
+      match path with
+      | Pident _ -> root
+      | Pdot (p, n) -> Path.Pdot (reroot ~root p, n)
+      | p -> (* Replacement paths cannot be Papply or Pextras *) p
+    in
+    let replace_first target_path ~in_:path ~by:replacement_paths =
+      (* target: M.N  ([Pdot (Pident "M", "N")])
+         path L.M.N.v ([Pdot (Pdot (Pdot (Pident "L", "M"), "N"), "v")]) *)
+      let rec replace_head (path : Path.t) (remaining_target : Path.t) =
+        match (path, remaining_target) with
+        | Pident id, Pident id' when Ident.same id id' -> Some replacement_paths
+        | Pident _id, _ -> None
+        | Pdot (p, n), Pident id ->
+          if String.equal n (Ident.name id) then
+            Some (Path.Set.map (reroot ~root:p) replacement_paths)
+          else None
+        | Pdot (p, n), Pdot (t, n') ->
+          if String.equal n n' then begin
+            replace_head p t
+          end
+          else None
+        | _, (Papply _ | Pextra_ty _) | (Papply _ | Pextra_ty _), _ -> None
+      and aux (path : Path.t) =
+        match (replace_head path target_path, path) with
+        | Some paths, _ -> paths
+        | None, Pident _ -> Path.Set.singleton path
+        | None, Pdot (p, n) -> Path.Set.map (fun p -> Path.Pdot (p, n)) (aux p)
+        | None, Papply (p, p') ->
+          let ps = aux p in
+          let p's = aux p' in
+          Path.Set.fold
+            (fun p acc ->
+              Path.Set.fold
+                (fun p' acc -> Path.Set.add (Papply (p, p')) acc)
+                p's acc)
+            ps Path.Set.empty
+        | None, Pextra_ty _ -> Path.Set.singleton path
+      in
+      aux path
+    in
+    let apply_subts acc path substs =
+      Path.Map.fold
+        (fun target replacements acc ->
+          let results = replace_first target ~in_:path ~by:replacements in
+          Path.Set.fold Priority_queue.add results acc)
+        substs acc
+    in
+    let rec fix queue =
+      let new_queue =
+        Priority_queue.fold
+          (fun path acc -> apply_subts acc path !Discourse.g.substs)
+          queue Priority_queue.empty
+      in
+      if Priority_queue.(cardinal new_queue > cardinal queue) then fix new_queue
+      else new_queue
+    in
+    fix queue
+  in
+
   (* Todo: actually fill a map one length at a time. This is just for ealry
      testing. *)
   let rec fill_map next =
