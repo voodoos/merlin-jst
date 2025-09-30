@@ -45,16 +45,16 @@ We call D the domain of discourse:
 
 open Discourse_types
 
-type t
+type t = { paths : Paths.t; substs : Path.Set.t Path.Map.t }
 
 open Shape.Sig_component_kind
-let empty = []
+let empty = { paths = Paths.empty; substs = Path.Map.empty }
 
-let g = Local_store.s_ref Paths.empty
+let g = Local_store.s_ref empty
 let log_section = "discourse"
 let { Logger.log } = Logger.for_section log_section
 
-let debug_print fmt = pp fmt !g
+let debug_print fmt = pp fmt !g.paths
 
 let log_usage ?loc kind path =
   log ~title:"use" "Use %a\n%!" Logger.fmt (fun fmt ->
@@ -116,47 +116,67 @@ let of_core_type env ?(acc = Discourse_types.empty) ty =
     TODO:Q what about rule D11 ? If a path is in D and it includes another module
           path within it, then that module path is also in D. Should we consider
           only [Papply] paths or all path components for addition to D ?  *)
-let add_path_to_discourse env paths kind path =
-  let paths = Paths.add (kind, path) paths in
-  match kind with
-  | Module ->
-    (* TODO This should probably be done lazily *)
-    let md = Env.find_module path env in
-    (* D5. If a module path is in U and its module description was written then
-       the paths used in that description are in D *)
-    let paths = Paths.union paths md.md_discourse in
-    begin
-      (* D3. If a module path is in U then all the paths of its subcomponents
-         are in D *)
-      (* TODO Should we tap into Env.module_data instead ? Or should this be
-         part of the module discourse in md_discourse ? *)
-      match md.md_type with
-      | Mty_signature s ->
-        List.fold_left
-          (fun p -> function
-            | Types.Sig_value (id, _, _) ->
-              Paths.add (Value, Pdot (path, Ident.name id)) p
-            | _ (* TODO *) -> p)
-          paths s
-      | _ -> paths
-    end
-  | Module_type ->
-    let mtd = Env.find_modtype path env in
-    (* D8. If a module type path is in U then any paths used in its definition
-       are in *)
-    Paths.union paths mtd.mtd_discourse
-  | Value ->
-    (* D4. If a value path is in U and its value description was written by a user -
-       as opposed to being inferred - then the paths used in that description are
-       in D. *)
-    let vd = Env.find_value path env in
-    Paths.union paths vd.val_discourse
-  | Type ->
-    (* D6. If a type path is in U then any paths used in its equation or
-       representation are in D. *)
-    let td = Env.find_type path env in
-    Paths.union paths td.type_discourse
-  | _ -> paths
+let add_path_to_discourse env discourse kind path =
+  let paths = Paths.add (kind, path) discourse.paths in
+  let paths, substs =
+    let substs = discourse.substs in
+    match kind with
+    | Module ->
+      (* TODO This should probably be done lazily *)
+      let md = Env.find_module path env in
+      (* D5. If a module path is in U and its module description was written then
+         the paths used in that description are in D *)
+      let paths = Paths.union paths md.md_discourse in
+      begin
+        (* D3. If a module path is in U then all the paths of its subcomponents
+           are in D *)
+        (* TODO Should we tap into Env.module_data instead ? Or should this be
+           part of the module discourse in md_discourse ? *)
+        match md.md_type with
+        | Mty_alias p ->
+          (* D12. If a module path m in D - note D not U - is a module alias
+             with target n and another path p in D includes n within it, then
+             the path obtained by substituting the m for n in p is also in D.
+
+             We accumulate such substitution and will apply them when shortening
+             a path. *)
+          let substs =
+            Path.Map.update p
+              (function
+                | None -> Some (Path.Set.singleton path)
+                | Some paths -> Some (Path.Set.add path paths))
+              substs
+          in
+          (paths, substs)
+        | Mty_signature s ->
+          ( List.fold_left
+              (fun p -> function
+                | Types.Sig_value (id, _, _) ->
+                  Paths.add (Value, Pdot (path, Ident.name id)) p
+                | _ (* TODO *) -> p)
+              paths s,
+            substs )
+        | _ -> (paths, substs)
+      end
+    | Module_type ->
+      let mtd = Env.find_modtype path env in
+      (* D8. If a module type path is in U then any paths used in its definition
+         are in *)
+      (Paths.union paths mtd.mtd_discourse, substs)
+    | Value ->
+      (* D4. If a value path is in U and its value description was written by a user -
+         as opposed to being inferred - then the paths used in that description are
+         in D. *)
+      let vd = Env.find_value path env in
+      (Paths.union paths vd.val_discourse, substs)
+    | Type ->
+      (* D6. If a type path is in U then any paths used in its equation or
+         representation are in D. *)
+      let td = Env.find_type path env in
+      (Paths.union paths td.type_discourse, substs)
+    | _ -> (paths, substs)
+  in
+  { paths; substs }
 
 (** [add_used] adds all parts of a used path to the Discourse (U1, D2) *)
 let add_used ?loc env kind path =
@@ -176,17 +196,17 @@ let add_used ?loc env kind path =
 let define_type path =
   log ~title:"def" "Define type %a\n%!" Logger.fmt (fun fmt ->
       Path.print fmt path);
-  g := Paths.add (Type, path) !g
+  g := { !g with paths = Paths.add (Type, path) !g.paths }
 
 let define_module path =
   log ~title:"def" "Define module %a\n%!" Logger.fmt (fun fmt ->
       Path.print fmt path);
-  g := Paths.add (Module, path) !g
+  g := { !g with paths = Paths.add (Module, path) !g.paths }
 
 let define_modtype path =
   log ~title:"def" "Define modtype %a\n%!" Logger.fmt (fun fmt ->
       Path.print fmt path);
-  g := Paths.add (Module_type, path) !g
+  g := { !g with paths = Paths.add (Module_type, path) !g.paths }
 
 (* Rule U1: Any path occurring in the file is in U *)
 let use_module ~loc env path = add_used ~loc env Module path
@@ -195,11 +215,11 @@ let use_type ~loc env path = add_used ~loc env Type path
 
 let use_constructor _env (constr : Types.constructor_description) =
   (* If a constructor is in U then any paths used in its type are in D. *)
-  g := Paths.union !g constr.cstr_discourse
+  g := { !g with paths = Paths.union !g.paths constr.cstr_discourse }
 
 let use_label _env (label : _ Types.gen_label_description) =
   (* If a label is in U then any paths used in its type are in D. *)
-  g := Paths.union !g label.lbl_discourse
+  g := { !g with paths = Paths.union !g.paths label.lbl_discourse }
 
 let canonical_paths : Paths.t Path.Map.t ref = Local_store.s_ref Path.Map.empty
 
