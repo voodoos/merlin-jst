@@ -183,7 +183,7 @@ let add_used ?loc env kind path =
   let rec loop acc kind path =
     let () = log_usage ?loc kind path in
     let acc = add_path_to_discourse env acc kind path in
-    match path with
+    match (path : Path.t) with
     | Path.Pident _ | Pextra_ty _ -> acc
     | Pdot (path, _) -> loop acc Module path
     | Papply (p1, p2) ->
