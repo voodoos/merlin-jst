@@ -148,6 +148,8 @@ let add_path_to_discourse env discourse kind path =
              are in D *)
           ( List.fold_left
               (fun p -> function
+                | Subst.Lazy.Sig_type (id, _, _, _) ->
+                  Paths.add (Type, Pdot (path, Ident.name id)) p
                 | Subst.Lazy.Sig_value (id, _, _) ->
                   Paths.add (Value, Pdot (path, Ident.name id)) p
                 | _ (* TODO *) -> p)
