@@ -8,7 +8,7 @@ module Paths = struct
       let ls2 = String.length s2 in
       if ls1 == ls2 then String.compare s1 s2 else ls1 - ls2
 
-    let rec compare_paths p1 p2 =
+    let rec compare_paths (p1 : Path.t) (p2 : Path.t) =
       if p1 == p2 then 0
       else
         match (p1, p2) with
@@ -30,7 +30,7 @@ module Paths = struct
         | (Pextra_ty _ | Papply _), Pdot _
         | Pextra_ty _, Papply _ -> 1
 
-    and compare_extra t1 t2 =
+    and compare_extra (t1 : Path.extra_ty) (t2 : Path.extra_ty) =
       match (t1, t2) with
       | Pcstr_ty s1, Pcstr_ty s2 -> compare_strings s1 s2
       | Pext_ty, Pext_ty -> 0
