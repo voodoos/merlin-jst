@@ -64,8 +64,9 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   # 0.01 short-paths - find_type_simple
   Short: u/284[4]
   # 0.01 discourse - discourse
-  t/281[2]; u/284[4]; Bar/282[1]; Foo/283[3]; int/1!;
+  t/281[2]; u/284[4]; Bar/282[1]; Foo/283[3]; int/1!; Bar/282[1].t;
   Foo/283[3].t
+  Bar/282[1] -> [Foo/283[3]]
   # 0.01 short-paths - find_type_simple
   Initial: Foo/283[3].t
   # 0.01 short-paths - find_type_simple
@@ -148,8 +149,9 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   # 0.01 short-paths - find_type_simple
   Short: u/284[4]
   # 0.01 discourse - discourse
-  t/281[2]; u/284[4]; Bar/282[1]; Foo/283[3]; int/1!;
+  t/281[2]; u/284[4]; Bar/282[1]; Foo/283[3]; int/1!; Bar/282[1].t;
   Foo/283[3].t
+  Bar/282[1] -> [Foo/283[3]]
   # 0.01 short-paths - find_type_simple
   Initial: u/284[4]
   # 0.01 short-paths - find_type_simple
