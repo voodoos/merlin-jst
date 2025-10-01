@@ -44,15 +44,16 @@ We call D the domain of discourse:
 *)
 
 open Discourse_types
+open Shape.Sig_component_kind
 
 type t = { paths : Paths.t; substs : Path.Set.t Path.Map.t }
-
-open Shape.Sig_component_kind
 let empty = { paths = Paths.empty; substs = Path.Map.empty }
-
-let g = Local_store.s_ref empty
 let log_section = "discourse"
 let { Logger.log } = Logger.for_section log_section
+
+let g = Local_store.s_ref empty
+
+let record_usages = Config.merlin
 
 let pp_substs fmt substs =
   let pp_sep ppf () = Format.fprintf ppf ";@;" in
@@ -61,10 +62,11 @@ let pp_substs fmt substs =
       (Format.pp_print_list ~pp_sep Path.print)
       s
   in
-  let iter pp_v paths =
-    Path.Map.iter (fun p s -> pp_v (p, Path.Set.to_list s)) paths
+  let substs =
+    Path.Map.bindings substs
+    |> List.map (fun (p, s) -> (p, Path.Set.elements s))
   in
-  Format.pp_print_iter ~pp_sep iter pp_v fmt substs
+  Format.pp_print_list ~pp_sep pp_v fmt substs
 
 let debug_print fmt =
   Format.fprintf fmt "%a@;%a" pp !g.paths pp_substs !g.substs
@@ -203,23 +205,29 @@ let add_used ?loc env kind path =
       let acc = loop acc Module p1 in
       loop acc Module p2
   in
-  g := loop !g kind path
+  if record_usages then g := loop !g kind path
 
 (* Rule U2: All paths for definitions in the current file are in U *)
 let define_type path =
-  log ~title:"def" "Define type %a\n%!" Logger.fmt (fun fmt ->
-      Path.print fmt path);
-  g := { !g with paths = Paths.add (Type, path) !g.paths }
+  if record_usages then begin
+    log ~title:"def" "Define type %a\n%!" Logger.fmt (fun fmt ->
+        Path.print fmt path);
+    g := { !g with paths = Paths.add (Type, path) !g.paths }
+  end
 
 let define_module env path =
-  log ~title:"def" "Define module %a\n%!" Logger.fmt (fun fmt ->
-      Path.print fmt path);
-  g := add_path_to_discourse env !g Module path
+  if record_usages then begin
+    log ~title:"def" "Define module %a\n%!" Logger.fmt (fun fmt ->
+        Path.print fmt path);
+    g := add_path_to_discourse env !g Module path
+  end
 
 let define_modtype path =
-  log ~title:"def" "Define modtype %a\n%!" Logger.fmt (fun fmt ->
-      Path.print fmt path);
-  g := { !g with paths = Paths.add (Module_type, path) !g.paths }
+  if record_usages then begin
+    log ~title:"def" "Define modtype %a\n%!" Logger.fmt (fun fmt ->
+        Path.print fmt path);
+    g := { !g with paths = Paths.add (Module_type, path) !g.paths }
+  end
 
 (* Rule U1: Any path occurring in the file is in U *)
 let use_module ~loc env path = add_used ~loc env Module path
@@ -227,13 +235,13 @@ let use_modtype ~loc env path = add_used ~loc env Module_type path
 let use_type ~loc env path = add_used ~loc env Type path
 
 let use_constructor _env (constr : Types.constructor_description) =
-  (* If a constructor is in U then any paths used in its type are in D. *)
-  g := { !g with paths = Paths.union !g.paths constr.cstr_discourse }
+  if record_usages then begin
+    (* If a constructor is in U then any paths used in its type are in D. *)
+    g := { !g with paths = Paths.union !g.paths constr.cstr_discourse }
+  end
 
 let use_label _env (label : _ Types.gen_label_description) =
-  (* If a label is in U then any paths used in its type are in D. *)
-  g := { !g with paths = Paths.union !g.paths label.lbl_discourse }
-
-let canonical_paths : Paths.t Path.Map.t ref = Local_store.s_ref Path.Map.empty
-
-let graph = Short_paths_graph.Graph.empty
+  if record_usages then begin
+    (* If a label is in U then any paths used in its type are in D. *)
+    g := { !g with paths = Paths.union !g.paths label.lbl_discourse }
+  end
