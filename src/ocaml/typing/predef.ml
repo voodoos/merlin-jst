@@ -34,7 +34,7 @@ let wrap create s =
 let ident_create = wrap Ident.create_predef
 
 let ident_int = ident_create "int"
-and ident_char = ident_create "char"
+let ident_char = ident_create "char"
 and ident_bytes = ident_create "bytes"
 and ident_float = ident_create "float"
 and ident_float32 = ident_create "float32"
@@ -293,6 +293,7 @@ let cstr id args =
     cd_loc = Location.none;
     cd_attributes = [];
     cd_uid = Uid.of_predef_id id;
+    cd_discourse = Discourse_types.empty
   }
 
 let ident_false = ident_create "false"
@@ -364,6 +365,7 @@ let mk_add_type add_type =
           type_unboxed_default = false;
           type_uid = Uid.unboxed_version type_uid;
           type_unboxed_version = None;
+          type_discourse = Discourse_types.empty;
         }
     in
     let decl =
@@ -382,6 +384,7 @@ let mk_add_type add_type =
       type_unboxed_default = false;
       type_uid;
       type_unboxed_version;
+      type_discourse = Discourse_types.empty;
       }
     in
     add_type type_ident decl env
@@ -419,6 +422,7 @@ let mk_add_type1 add_type type_ident
       type_unboxed_default = false;
       type_uid = Uid.of_predef_id type_ident;
       type_unboxed_version = None;
+      type_discourse = Discourse_types.empty;
     }
   in
   add_type type_ident decl env
@@ -443,6 +447,7 @@ let mk_add_type2 add_type type_ident ~jkind ~param1_jkind ~param2_jkind
       type_unboxed_default = false;
       type_uid = Uid.of_predef_id type_ident;
       type_unboxed_version = None;
+      type_discourse = Discourse_types.empty;
     }
   in
   add_type type_ident decl env
