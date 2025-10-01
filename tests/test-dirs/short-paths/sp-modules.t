@@ -58,7 +58,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   Use module Foo/290[9] File "foo.ml", line 8, characters 9-14
   # 0.01 discourse - discourse
   M/283[3]; S/284[4]; t/282[2]; u/291[10]; Bar/289[5]; Foo/290[9]; int/1!;
-  Empty/281[1]; Foo/290[9].t Empty/281[1] -> [M/286[7]];
+  Empty/281[1]; Bar/289[5].t; Foo/290[9].t Empty/281[1] -> [M/286[7]];
   Bar/289[5] -> [Foo/290[9]]
   {
     "class": "return",
@@ -114,13 +114,13 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   # 0.01 discourse - use
   Use module A/284[1] File "substs.ml", line 2, characters 11-14
   # 0.01 discourse - def
-  Define module N/287[5]
+  Define module N/286[5]
   # 0.01 discourse - use
-  Use module N/287[5].C File "substs.ml", line 3, characters 11-14
+  Use module N/286[5].C File "substs.ml", line 3, characters 11-14
   # 0.01 discourse - use
-  Use module N/287[5] File "substs.ml", line 3, characters 11-14
+  Use module N/286[5] File "substs.ml", line 3, characters 11-14
   # 0.01 discourse - def
-  Define module M/288[6]
+  Define module M/287[6]
   # 0.01 discourse - use
   Use type A/284[1].B.C.t File "substs.ml", line 4, characters 8-15
   # 0.01 discourse - use
@@ -138,10 +138,10 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   # 0.01 discourse - use
   Use module A/284[1] File "substs.ml", line 4, characters 8-15
   # 0.01 discourse - discourse
-  A/284[1]; B/283[2]; C/282[3]; M/288[6]; N/287[5]; t/281[4]; A/284[1].B;
-  N/287[5].C; A/284[1].B.C; A/284[1].B.C.t A/284[1].B -> [N/287[5]];
-  N/287[5].C -> [M/288[6]];
-  A/284[1].B.C -> [N/287[5].C]
+  A/284[1]; B/283[2]; C/282[3]; M/287[6]; N/286[5]; t/281[4]; A/284[1].B;
+  C/282[3].t; N/286[5].C; A/284[1].B.C; A/284[1].B.C.t
+  A/284[1].B -> [N/286[5]]; N/286[5].C -> [M/287[6]];
+  A/284[1].B.C -> [N/286[5].C]
   # 0.01 short-paths - find_type_simple
   Initial: A/284[1].B.C.t
   # 0.01 short-paths - find_type_simple
@@ -149,9 +149,11 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   # 0.01 short-paths - fill_map
   Treating t/281[4]
   # 0.01 short-paths - fill_map
-  Treating M/288[6].t
+  Treating C/282[3].t
+  # 0.01 short-paths - fill_map
+  Treating M/287[6].t
   # 0.01 short-paths - find_type_simple
-  Short: M/288[6].t
+  Short: M/287[6].t
   {
     "class": "return",
     "value": [
