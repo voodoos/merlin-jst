@@ -138,15 +138,11 @@ let add_path_to_discourse env discourse kind path =
     match kind with
     | Module ->
       (* TODO This should probably be done lazily *)
-      let md = Env.find_module path env in
+      let md = Env.find_module_lazy path env in
       (* D5. If a module path is in U and its module description was written then
          the paths used in that description are in D *)
       let paths = Paths.union paths md.md_discourse in
       begin
-        (* D3. If a module path is in U then all the paths of its subcomponents
-           are in D *)
-        (* TODO Should we tap into Env.module_data instead ? Or should this be
-           part of the module discourse in md_discourse ? *)
         match md.md_type with
         | Mty_alias p ->
           (* D12. If a module path m in D - note D not U - is a module alias
@@ -164,12 +160,15 @@ let add_path_to_discourse env discourse kind path =
           in
           (paths, substs)
         | Mty_signature s ->
+          (* D3. If a module path is in U then all the paths of its subcomponents
+             are in D *)
           ( List.fold_left
               (fun p -> function
-                | Types.Sig_value (id, _, _) ->
+                | Subst.Lazy.Sig_value (id, _, _) ->
                   Paths.add (Value, Pdot (path, Ident.name id)) p
                 | _ (* TODO *) -> p)
-              paths s,
+              paths
+              (Subst.Lazy.force_signature_once s),
             substs )
         | _ -> (paths, substs)
       end
