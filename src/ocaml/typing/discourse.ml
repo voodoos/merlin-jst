@@ -79,22 +79,6 @@ let log_usage ?loc kind path =
         (fun fmt -> Format.pp_print_option Location.print_loc fmt)
         loc)
 
-let aggregate_discourse_of_signature sign =
-  let open Discourse_types.Paths in
-  List.fold_left
-    (fun acc -> function
-      | Types.Sig_value (_id, vd, _) -> union acc vd.val_discourse
-      | Sig_type (_, td, _, _) -> union acc td.type_discourse
-      | _ -> acc)
-    empty sign
-
-let of_module_type (mt : Types.module_type) =
-  match mt with
-  | Mty_signature s -> aggregate_discourse_of_signature s
-  | _ -> Paths.empty
-
-let () = Subst.discourse_of_module_type := of_module_type
-
 (* [Discourse.of_core_type] lookup paths appearing in core_types. This is meant
    to gather user-written paths associated to a value or type declaration. These
    paths should be added to the domain of discourse when this value / type is
