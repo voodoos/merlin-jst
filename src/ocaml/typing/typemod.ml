@@ -1977,8 +1977,13 @@ and transl_modtype_aux env smty =
   | Pmty_typeof smod ->
       let env = Env.in_signature false env in
       let tmty, mty = !type_module_type_of_fwd env smod in
+      let discourse =
+        match tmty.mod_desc with
+        | Tmod_ident (path,_) -> Discourse_types.Paths.singleton (Module, path)
+        | _ -> empty_discourse
+      in
       mkmty (Tmty_typeof tmty) mty env loc smty.pmty_attributes,
-      empty_discourse (* TODO Discourse *)
+      discourse
   | Pmty_extension ext ->
       raise (Error_forward (Builtin_attributes.error_of_extension ext))
   | Pmty_strengthen (mty, mod_id) ->
