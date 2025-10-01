@@ -150,8 +150,6 @@ module Unsafe: sig
 
 end
 
-val discourse_of_module_type : (Types.module_type -> Discourse_types.Paths.t) ref
-
 module Lazy : sig
   include Types.Wrapped
 
