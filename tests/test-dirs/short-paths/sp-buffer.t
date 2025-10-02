@@ -50,9 +50,15 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   # 0.01 discourse - use
   Use module Foo/283[3] File "foo.ml", line 6, characters 8-13
   # 0.01 discourse - use
+  Use value x/285 File "foo.ml", line 7, characters 8-9
+  # 0.01 discourse - use
   Use type u/284[4] File "foo.ml", line 8, characters 9-10
   # 0.01 discourse - use
   Use type u/284[4] File "foo.ml", line 8, characters 9-10
+  # 0.01 discourse - use
+  Use value x2/286 File "foo.ml", line 9, characters 8-10
+  # 0.01 discourse - use
+  Use value x/285 File "foo.ml", line 1, characters 0-1
   # 0.01 short-paths - find_type_simple
   Initial: Foo/283[3].t
   # 0.01 short-paths - find_type_simple
@@ -64,8 +70,8 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   # 0.01 short-paths - find_type_simple
   Short: u/284[4]
   # 0.01 discourse - discourse
-  t/281[2]; u/284[4]; Bar/282[1]; Foo/283[3]; int/1!; Bar/282[1].t;
-  Foo/283[3].t
+  t/281[2]; u/284[4]; x/285; x2/286; Bar/282[1]; Foo/283[3]; int/1!;
+  Bar/282[1].t; Foo/283[3].t
   Bar/282[1] -> [Foo/283[3]]
   # 0.01 short-paths - find_type_simple
   Initial: Foo/283[3].t
@@ -135,9 +141,15 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   # 0.01 discourse - use
   Use module Foo/283[3] File "foo.ml", line 6, characters 8-13
   # 0.01 discourse - use
+  Use value x/285 File "foo.ml", line 7, characters 8-9
+  # 0.01 discourse - use
   Use type u/284[4] File "foo.ml", line 8, characters 9-10
   # 0.01 discourse - use
   Use type u/284[4] File "foo.ml", line 8, characters 9-10
+  # 0.01 discourse - use
+  Use value x2/286 File "foo.ml", line 9, characters 8-10
+  # 0.01 discourse - use
+  Use value x2/286 File "foo.ml", line 1, characters 0-2
   # 0.01 short-paths - find_type_simple
   Initial: u/284[4]
   # 0.01 short-paths - find_type_simple
@@ -149,8 +161,8 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   # 0.01 short-paths - find_type_simple
   Short: u/284[4]
   # 0.01 discourse - discourse
-  t/281[2]; u/284[4]; Bar/282[1]; Foo/283[3]; int/1!; Bar/282[1].t;
-  Foo/283[3].t
+  t/281[2]; u/284[4]; x/285; x2/286; Bar/282[1]; Foo/283[3]; int/1!;
+  Bar/282[1].t; Foo/283[3].t
   Bar/282[1] -> [Foo/283[3]]
   # 0.01 short-paths - find_type_simple
   Initial: u/284[4]
