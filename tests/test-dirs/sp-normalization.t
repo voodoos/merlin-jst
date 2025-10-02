@@ -50,7 +50,7 @@ This query should not hang indefinitely
         "line": 11,
         "col": 18
       },
-      "type": "type 'a t = Id of 'a t | Unit of unit",
+      "type": "type 'a t = Id of 'a t Id.t | Unit of unit",
       "tail": "no"
     }
   ]
