@@ -53,6 +53,7 @@ module Out_type = struct
         if
           List.length params = List.length tyl
           && List.for_all2 eq_type params tyl
+          && p1 <> p (* TODO if this the correct way to prevent looping ? *)
         then normalize_type_path ~cache env p1
         else if
           cache
