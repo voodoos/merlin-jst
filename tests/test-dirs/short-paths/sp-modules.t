@@ -22,7 +22,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
 
   $ echo "FLG -short-paths" > .merlin
 
-  $ $MERLIN single type-enclosing -position 7:8 \
+  $ $MERLIN single type-enclosing -position 8:14 \
   > -log-file - -log-section discourse,short-paths -filename foo.ml < foo.ml 
   # 0.01 discourse - def
   Define module Empty/281[1]
@@ -56,35 +56,85 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   Use type Foo/290[9].t File "foo.ml", line 8, characters 9-14
   # 0.01 discourse - use
   Use module Foo/290[9] File "foo.ml", line 8, characters 9-14
+  # 0.01 short-paths - find_type_simple
+  Initial: Bar/289[5].t
+  # 0.01 short-paths - find_type_simple
+  Canon: Bar/289[5].t
+  # 0.01 short-paths - fill_map
+  Treating t/282[2]
+  # 0.01 short-paths - fill_map
+  Treating u/291[10]
+  # 0.01 short-paths - fill_map
+  Treating int/1!
+  # 0.01 short-paths - fill_map
+  Treating Bar/289[5].t
+  # 0.01 short-paths - find_type_simple
+  Short: Bar/289[5].t
   # 0.01 discourse - discourse
   M/283[3]; S/284[4]; t/282[2]; u/291[10]; Bar/289[5]; Foo/290[9]; int/1!;
   Empty/281[1]; Bar/289[5].t; Foo/290[9].t Empty/281[1] -> [M/286[7]];
   Bar/289[5] -> [Foo/290[9]]
+  # 0.01 short-paths - find_type_simple
+  Initial: Foo/290[9].t
+  # 0.01 short-paths - find_type_simple
+  Canon: Bar/289[5].t
+  # 0.01 short-paths - fill_map
+  Treating t/282[2]
+  # 0.01 short-paths - fill_map
+  Treating u/291[10]
+  # 0.01 short-paths - fill_map
+  Treating int/1!
+  # 0.01 short-paths - fill_map
+  Treating Bar/289[5].t
+  # 0.01 short-paths - find_type_simple
+  Short: Bar/289[5].t
+  # 0.01 short-paths - find_type_simple
+  Initial: Foo/290[9].t
+  # 0.01 short-paths - find_type_simple
+  Canon: Bar/289[5].t
+  # 0.01 short-paths - fill_map
+  Treating t/282[2]
+  # 0.01 short-paths - fill_map
+  Treating u/291[10]
+  # 0.01 short-paths - find_type_simple
+  Short: u/291[10]
   {
     "class": "return",
     "value": [
       {
         "start": {
-          "line": 7,
-          "col": 7
+          "line": 8,
+          "col": 9
         },
         "end": {
-          "line": 7,
-          "col": 10
+          "line": 8,
+          "col": 14
         },
-        "type": "(module Foo)",
+        "type": "type t = Bar.t",
         "tail": "no"
       },
       {
         "start": {
-          "line": 7,
+          "line": 8,
+          "col": 9
+        },
+        "end": {
+          "line": 8,
+          "col": 14
+        },
+        "type": "Bar.t",
+        "tail": "no"
+      },
+      {
+        "start": {
+          "line": 8,
           "col": 0
         },
         "end": {
-          "line": 7,
-          "col": 16
+          "line": 8,
+          "col": 14
         },
-        "type": "(module Foo)",
+        "type": "type u = u",
         "tail": "no"
       }
     ],
