@@ -218,6 +218,7 @@ let define_modtype path =
 let use_module ~loc env path = add_used ~loc env Module path
 let use_modtype ~loc env path = add_used ~loc env Module_type path
 let use_type ~loc env path = add_used ~loc env Type path
+let use_value ~loc env path = add_used ~loc env Value path
 
 let use_constructor _env (constr : Types.constructor_description) =
   if record_usages then begin

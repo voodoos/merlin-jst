@@ -6317,6 +6317,7 @@ and type_expect_
       let path, actual_mode, desc, kind =
         type_ident env ~recarg lid
       in
+      Discourse.use_value ~loc env path;
       let exp_desc =
         match desc.val_kind with
         | Val_ivar (_, cl_num) ->
