@@ -72,7 +72,8 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   Short: Bar/289[5].t
   # 0.01 discourse - discourse
   M/283[3]; S/284[4]; t/282[2]; u/291[10]; Bar/289[5]; Foo/290[9]; int/1!;
-  Empty/281[1]; Bar/289[5].t; Foo/290[9].t Empty/281[1] -> [M/286[7]];
+  Empty/281[1]; Bar/289[5].M; Bar/289[5].t; Foo/290[9].t
+  Empty/281[1] -> [M/286[7]];
   Bar/289[5] -> [Foo/290[9]]
   # 0.01 short-paths - find_type_simple
   Initial: Foo/290[9].t
@@ -158,52 +159,52 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   # 0.01 discourse - def
   Define module B/283[2]
   # 0.01 discourse - def
-  Define module A/284[1]
+  Define module A/285[1]
   # 0.01 discourse - use
-  Use module A/284[1].B File "substs.ml", line 2, characters 11-14
+  Use module A/285[1].B File "substs.ml", line 2, characters 11-14
   # 0.01 discourse - use
-  Use module A/284[1] File "substs.ml", line 2, characters 11-14
+  Use module A/285[1] File "substs.ml", line 2, characters 11-14
   # 0.01 discourse - def
-  Define module N/286[5]
+  Define module N/288[5]
   # 0.01 discourse - use
-  Use module N/286[5].C File "substs.ml", line 3, characters 11-14
+  Use module N/288[5].C File "substs.ml", line 3, characters 11-14
   # 0.01 discourse - use
-  Use module N/286[5] File "substs.ml", line 3, characters 11-14
+  Use module N/288[5] File "substs.ml", line 3, characters 11-14
   # 0.01 discourse - def
-  Define module M/287[6]
+  Define module M/289[6]
   # 0.01 discourse - use
-  Use type A/284[1].B.C.t File "substs.ml", line 4, characters 8-15
+  Use type A/285[1].B.C.t File "substs.ml", line 4, characters 8-15
   # 0.01 discourse - use
-  Use module A/284[1].B.C File "substs.ml", line 4, characters 8-15
+  Use module A/285[1].B.C File "substs.ml", line 4, characters 8-15
   # 0.01 discourse - use
-  Use module A/284[1].B File "substs.ml", line 4, characters 8-15
+  Use module A/285[1].B File "substs.ml", line 4, characters 8-15
   # 0.01 discourse - use
-  Use module A/284[1] File "substs.ml", line 4, characters 8-15
+  Use module A/285[1] File "substs.ml", line 4, characters 8-15
   # 0.01 discourse - use
-  Use type A/284[1].B.C.t File "substs.ml", line 4, characters 8-15
+  Use type A/285[1].B.C.t File "substs.ml", line 4, characters 8-15
   # 0.01 discourse - use
-  Use module A/284[1].B.C File "substs.ml", line 4, characters 8-15
+  Use module A/285[1].B.C File "substs.ml", line 4, characters 8-15
   # 0.01 discourse - use
-  Use module A/284[1].B File "substs.ml", line 4, characters 8-15
+  Use module A/285[1].B File "substs.ml", line 4, characters 8-15
   # 0.01 discourse - use
-  Use module A/284[1] File "substs.ml", line 4, characters 8-15
+  Use module A/285[1] File "substs.ml", line 4, characters 8-15
   # 0.01 discourse - discourse
-  A/284[1]; B/283[2]; C/282[3]; M/287[6]; N/286[5]; t/281[4]; A/284[1].B;
-  C/282[3].t; N/286[5].C; A/284[1].B.C; A/284[1].B.C.t
-  A/284[1].B -> [N/286[5]]; N/286[5].C -> [M/287[6]];
-  A/284[1].B.C -> [N/286[5].C]
+  A/285[1]; B/283[2]; C/282[3]; M/289[6]; N/288[5]; t/281[4]; A/285[1].B;
+  B/283[2].C; C/282[3].t; N/288[5].C; A/285[1].B.C; B/283[2].C.t;
+  A/285[1].B.C.t A/285[1].B -> [N/288[5]]; N/288[5].C -> [M/289[6]];
+  A/285[1].B.C -> [N/288[5].C]
   # 0.01 short-paths - find_type_simple
-  Initial: A/284[1].B.C.t
+  Initial: A/285[1].B.C.t
   # 0.01 short-paths - find_type_simple
-  Canon: A/284[1].B.C.t
+  Canon: A/285[1].B.C.t
   # 0.01 short-paths - fill_map
   Treating t/281[4]
   # 0.01 short-paths - fill_map
   Treating C/282[3].t
   # 0.01 short-paths - fill_map
-  Treating M/287[6].t
+  Treating M/289[6].t
   # 0.01 short-paths - find_type_simple
-  Short: M/287[6].t
+  Short: M/289[6].t
   {
     "class": "return",
     "value": [
