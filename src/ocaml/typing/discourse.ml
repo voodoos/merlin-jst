@@ -115,7 +115,7 @@ let of_core_type env ?(acc = Discourse_types.empty) ty =
     TODO:Q what about rule D11 ? If a path is in D and it includes another module
           path within it, then that module path is also in D. Should we consider
           only [Papply] paths or all path components for addition to D ?  *)
-let add_path_to_discourse env discourse kind path =
+let rec add_path_to_discourse env discourse kind path =
   let paths = Paths.add (kind, path) discourse.paths in
   let paths, substs =
     let substs = discourse.substs in
@@ -146,16 +146,21 @@ let add_path_to_discourse env discourse kind path =
         | Mty_signature s ->
           (* D3. If a module path is in U then all the paths of its subcomponents
              are in D *)
-          ( List.fold_left
-              (fun p -> function
-                | Subst.Lazy.Sig_type (id, _, _, _) ->
-                  Paths.add (Type, Pdot (path, Ident.name id)) p
-                | Subst.Lazy.Sig_value (id, _, _) ->
-                  Paths.add (Value, Pdot (path, Ident.name id)) p
-                | _ (* TODO *) -> p)
-              paths
-              (Subst.Lazy.force_signature_once s),
-            substs )
+          List.fold_left
+            (fun (p, s) -> function
+              | Subst.Lazy.Sig_type (id, _, _, _) ->
+                (Paths.add (Type, Pdot (path, Ident.name id)) p, s)
+              | Subst.Lazy.Sig_value (id, _, _) ->
+                (Paths.add (Value, Pdot (path, Ident.name id)) p, s)
+              | Subst.Lazy.Sig_module (id, _, _, _, _) ->
+                let d =
+                  add_path_to_discourse env { paths = p; substs = s } Module
+                    (Pdot (path, Ident.name id))
+                in
+                (d.paths, d.substs)
+              | _ (* TODO *) -> (p, s))
+            (paths, substs)
+            (Subst.Lazy.force_signature_once s)
         | _ -> (paths, substs)
       end
     | Module_type ->
