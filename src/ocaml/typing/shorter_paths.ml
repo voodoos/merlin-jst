@@ -156,7 +156,7 @@ let shorten ~env ~canonical_path =
       let new_queue =
         Priority_queue.fold
           (fun path acc -> apply_substs acc path !Discourse.g.substs)
-          queue Priority_queue.empty
+          queue queue
       in
       if Priority_queue.(cardinal new_queue > cardinal queue) then fix new_queue
       else new_queue
@@ -168,7 +168,9 @@ let shorten ~env ~canonical_path =
      testing. *)
   let rec fill_map next =
     match next () with
-    | Seq.Nil -> canonical_path
+    | Seq.Nil ->
+      log ~title:"fill_map" "Empty queue";
+      canonical_path
     | Cons (path, next) ->
       log ~title:"fill_map" "Treating %a\n%!" Logger.fmt (fun fmt ->
           Path.print fmt path);
