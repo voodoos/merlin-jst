@@ -4,6 +4,8 @@ module Priority_queue = struct
   module T = struct
     type t = Path.t
 
+    (* Here we want a compare function that is really based on path lengths.
+       TODO the shortest path is not always the one expected by the user. *)
     let compare = Discourse_types.Paths.T.compare_paths
   end
 
@@ -11,7 +13,7 @@ module Priority_queue = struct
 end
 
 module Out_type = struct
-  (* coming from upstream Out_type*)
+  (* This part is copied from upstream's [Out_type] *)
   let find_double_underscore s =
     let len = String.length s in
     let rec loop i =
@@ -101,9 +103,11 @@ let shorten ~env ~canonical_path =
       !Discourse.g.paths Priority_queue.empty
   in
 
+  (* We compute the transitive closure of the queue with regard to path
+     substitutions. *)
   let queue =
     (* TODO this is a bit brutal and innefficient. We should think of a better
-       algorithm for the real version. *)
+       algorithm for the final version. *)
     let rec reroot ~root (path : Path.t) =
       match path with
       | Pident _ -> root
