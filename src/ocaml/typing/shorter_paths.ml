@@ -87,6 +87,12 @@ module Out_type = struct
     | Pextra_ty (p, _) -> path_size p
 end
 
+let rec lid_of_path = function
+  | Path.Pident id -> Longident.Lident (Ident.name id)
+  | Pdot (p, name) -> Ldot (lid_of_path p, name)
+  | Papply (p, p') -> Lapply (lid_of_path p, lid_of_path p')
+  | Pextra_ty _ -> assert false
+
 (* To shorten paths we will build a table that maps "canonical paths" - i.e. a
    path which is not itself an alias - to a set of paths from D that are aliases
    to it. We will build this table by putting the elements of D into a priority
@@ -182,7 +188,15 @@ let shorten ~env ~canonical_path =
         (* TODO this probably can raise *)
         Out_type.normalize_type_path ~cache:false env path
       in
-      if Path.compare canonical_path canon == 0 then path else fill_map next
+      if Path.compare canonical_path canon == 0 then begin
+        (* Attempt at fixing "shadowing" issues by finding "by name" in the env *)
+        match Env.find_type_by_name (lid_of_path path) env with
+        | exception Not_found -> fill_map next
+        | path', _ ->
+          let canon', _ = Out_type.normalize_type_path ~cache:false env path' in
+          if Path.compare canon canon' == 0 then path else fill_map next
+      end
+      else fill_map next
   in
 
   fill_map (Priority_queue.to_seq queue)
