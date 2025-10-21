@@ -63,24 +63,24 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   Initial: Foo/283[3].t
   # 0.01 short-paths - find_type_simple
   Canon: int/1!
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_one_level
   Treating t/281[2]
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_one_level
   Treating u/284[4]
+  # 0.01 short-paths - fill_one_level
+  Finished level and found a path shorter than the previous level:
+   u/284[4]
   # 0.01 short-paths - find_type_simple
   Short: u/284[4]
   # 0.01 discourse - discourse
-  t/281[2]; u/284[4]; x/285; x2/286; Bar/282[1]; Foo/283[3]; int/1!;
-  Bar/282[1].t; Foo/283[3].t
+  
   Bar/282[1] -> [Foo/283[3]]
   # 0.01 short-paths - find_type_simple
   Initial: Foo/283[3].t
   # 0.01 short-paths - find_type_simple
   Canon: int/1!
-  # 0.01 short-paths - fill_map
-  Treating t/281[2]
-  # 0.01 short-paths - fill_map
-  Treating u/284[4]
+  # 0.01 short-paths - find_best_path
+  Is valid u/284[4] ?
   # 0.01 short-paths - find_type_simple
   Short: u/284[4]
   {
@@ -154,24 +154,24 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   Initial: u/284[4]
   # 0.01 short-paths - find_type_simple
   Canon: int/1!
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_one_level
   Treating t/281[2]
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_one_level
   Treating u/284[4]
+  # 0.01 short-paths - fill_one_level
+  Finished level and found a path shorter than the previous level:
+   u/284[4]
   # 0.01 short-paths - find_type_simple
   Short: u/284[4]
   # 0.01 discourse - discourse
-  t/281[2]; u/284[4]; x/285; x2/286; Bar/282[1]; Foo/283[3]; int/1!;
-  Bar/282[1].t; Foo/283[3].t
+  
   Bar/282[1] -> [Foo/283[3]]
   # 0.01 short-paths - find_type_simple
   Initial: u/284[4]
   # 0.01 short-paths - find_type_simple
   Canon: int/1!
-  # 0.01 short-paths - fill_map
-  Treating t/281[2]
-  # 0.01 short-paths - fill_map
-  Treating u/284[4]
+  # 0.01 short-paths - find_best_path
+  Is valid u/284[4] ?
   # 0.01 short-paths - find_type_simple
   Short: u/284[4]
   {
