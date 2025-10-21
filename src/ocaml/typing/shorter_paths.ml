@@ -165,10 +165,11 @@ let apply_substitutions substs queue =
         end
         else None
       | _, (Papply _ | Pextra_ty _) | (Papply _ | Pextra_ty _), _ -> None
-    and aux (path : Path.t) =
+    in
+    let rec aux (path : Path.t) =
       match (replace_head path target_path, path) with
       | Some paths, _ -> paths
-      | None, Pident _ -> Path.Set.singleton path
+      | None, Pident _ -> Path.Set.empty
       | None, Pdot (p, n) -> Path.Set.map (fun p -> Path.Pdot (p, n)) (aux p)
       | None, Papply (p, p') ->
         let ps = aux p in
@@ -179,7 +180,7 @@ let apply_substitutions substs queue =
               (fun p' acc -> Path.Set.add (Papply (p, p')) acc)
               p's acc)
           ps Path.Set.empty
-      | None, Pextra_ty _ -> Path.Set.singleton path
+      | None, Pextra_ty _ -> Path.Set.empty
     in
     aux path
   in
@@ -190,17 +191,18 @@ let apply_substitutions substs queue =
         Path.Set.fold Priority_queue.add results acc)
       substs acc
   in
-  (* TODO we could only loop on the new productions, not the entire queue *)
-  let rec fix queue =
-    let new_queue =
-      Priority_queue.fold
-        (fun path acc -> apply_substs acc path substs)
-        queue queue
-    in
-    if Priority_queue.(cardinal new_queue > cardinal queue) then fix new_queue
-    else new_queue
+  let rec fix acc queue =
+    let acc = Priority_queue.union acc queue in
+    if Priority_queue.is_empty queue then acc
+    else
+      let new_paths =
+        Priority_queue.fold
+          (fun path acc -> apply_substs acc path substs)
+          queue Priority_queue.empty
+      in
+      fix acc new_paths
   in
-  fix queue
+  fix Priority_queue.empty queue
 
 let compare_length p1 p2 =
   let compare_strings s1 s2 = String.length s1 - String.length s2 in
