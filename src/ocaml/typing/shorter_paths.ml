@@ -8,12 +8,17 @@ module Data = struct
     (* Here we want a compare function that is really based on path lengths.
        TODO the shortest path is not always the one expected by the user. *)
 
+    let compare_strings s1 s2 =
+      let length_diff = String.length s1 - String.length s2 in
+      if length_diff <> 0 then length_diff else String.compare s1 s2
+
     let compare_idents i1 i2 =
       (* Ths is not a total order on idents right ? *)
-      let compare_names = String.compare (Ident.name i1) (Ident.name i2) in
+      let compare_names = compare_strings (Ident.name i1) (Ident.name i2) in
       if compare_names = 0 then Ident.compare i1 i2 else compare_names
 
-    let compare p1 p2 = Discourse_types.compare_paths ~compare_idents p1 p2
+    let compare p1 p2 =
+      Discourse_types.compare_paths ~compare_idents ~compare_strings p1 p2
   end
 
   module Map = Map.Make (T)
@@ -206,6 +211,8 @@ let compare_length p1 p2 =
 
 let find_best_path env ~canon_path table =
   let is_valid path =
+    log ~title:"find_best_path" "Is valid %a ?" Logger.fmt (fun fmt ->
+        Path.print fmt path);
     (* This prevents "shadowing" issues by finding "by name" in the env *)
     match Env.find_type_by_name (lid_of_path path) env with
     | exception Not_found -> false
@@ -225,7 +232,8 @@ let process_queue env queue table ~canon_path best_path =
       (best_path, queue, table)
     | Seq.Cons (path, _next), Some p when compare path < 0 && compare p >= 0 ->
       log ~title:"fill_one_level"
-        "Finished level and found a path shorter than the previous level.";
+        "Finished level and found a path shorter than the previous level:\n %a"
+        Logger.fmt (fun fmt -> Path.print fmt p);
       (Some p, queue, table)
     | Seq.Cons (path, next), _ ->
       log ~title:"fill_one_level" "Treating %a\n%!" Logger.fmt (fun fmt ->
