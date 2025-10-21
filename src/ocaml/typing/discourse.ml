@@ -52,6 +52,9 @@ let log_section = "discourse"
 let { Logger.log } = Logger.for_section log_section
 
 let g = Local_store.s_ref empty
+let get () = !g
+let set v = g := v
+let reset () = g := empty
 
 let record_usages = Config.merlin
 

@@ -1,4 +1,5 @@
-let compare_paths ~compare_idents ~compare_strings (p1 : Path.t) (p2 : Path.t) =
+let compare_paths ?(compare_idents = Ident.compare)
+    ?(compare_strings = String.compare) (p1 : Path.t) (p2 : Path.t) =
   let rec compare_paths (p1 : Path.t) (p2 : Path.t) =
     if p1 == p2 then 0
     else
@@ -39,15 +40,8 @@ module Paths = struct
     (* TODO since we are versing these paths in a different structure (the
         priority queue) before shortening, it does not seems useful tu use a
         custom path comparison function here. *)
-    let compare_strings s1 s2 =
-      let ls1 = String.length s1 in
-      let ls2 = String.length s2 in
-      if ls1 == ls2 then String.compare s1 s2 else ls1 - ls2
 
-    let compare_idents i1 i2 = compare_strings (Ident.name i1) (Ident.name i2)
-
-    let compare (_, p1) (_, p2) =
-      compare_paths ~compare_idents ~compare_strings p1 p2
+    let compare (_, p1) (_, p2) = compare_paths p1 p2
   end
 
   include Set.Make (T)
