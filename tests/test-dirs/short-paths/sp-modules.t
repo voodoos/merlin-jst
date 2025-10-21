@@ -60,43 +60,58 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   Initial: Bar/289[5].t
   # 0.01 short-paths - find_type_simple
   Canon: Bar/289[5].t
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_by_level
   Treating t/282[2]
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_by_level
+  Treating t/285[6]
+  # 0.01 short-paths - fill_by_level
   Treating u/291[10]
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_by_level
   Treating int/1!
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_by_level
   Treating Bar/289[5].t
+  # 0.01 short-paths - fill_by_level
+  Treating Foo/290[9].t
+  # 0.01 short-paths - fill_by_level
+  Empty queue
   # 0.01 short-paths - find_type_simple
-  Short: Bar/289[5].t
+  Short: Foo/290[9].t
   # 0.01 discourse - discourse
-  M/283[3]; S/284[4]; t/282[2]; u/291[10]; Bar/289[5]; Foo/290[9]; int/1!;
-  Empty/281[1]; Bar/289[5].M; Bar/289[5].t; Foo/290[9].t
-  Empty/281[1] -> [M/286[7]];
+   Empty/281[1] -> [M/286[7]];
   Bar/289[5] -> [Foo/290[9]]
   # 0.01 short-paths - find_type_simple
   Initial: Foo/290[9].t
   # 0.01 short-paths - find_type_simple
   Canon: Bar/289[5].t
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_by_level
   Treating t/282[2]
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_by_level
+  Treating t/285[6]
+  # 0.01 short-paths - fill_by_level
   Treating u/291[10]
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_by_level
   Treating int/1!
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_by_level
   Treating Bar/289[5].t
+  # 0.01 short-paths - fill_by_level
+  Treating Foo/290[9].t
+  # 0.01 short-paths - fill_by_level
+  Empty queue
   # 0.01 short-paths - find_type_simple
-  Short: Bar/289[5].t
+  Short: Foo/290[9].t
   # 0.01 short-paths - find_type_simple
   Initial: Foo/290[9].t
   # 0.01 short-paths - find_type_simple
   Canon: Bar/289[5].t
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_by_level
   Treating t/282[2]
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_by_level
+  Treating t/285[6]
+  # 0.01 short-paths - fill_by_level
   Treating u/291[10]
+  # 0.01 short-paths - fill_by_level
+  Finished level and found a path shorter than the previous level:
+   u/291[10]
   # 0.01 short-paths - find_type_simple
   Short: u/291[10]
   {
@@ -111,7 +126,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
           "line": 8,
           "col": 14
         },
-        "type": "type t = Bar.t",
+        "type": "type t = Foo.t",
         "tail": "no"
       },
       {
@@ -123,7 +138,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
           "line": 8,
           "col": 14
         },
-        "type": "Bar.t",
+        "type": "Foo.t",
         "tail": "no"
       },
       {
@@ -189,20 +204,23 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   # 0.01 discourse - use
   Use module A/285[1] File "substs.ml", line 4, characters 8-15
   # 0.01 discourse - discourse
-  A/285[1]; B/283[2]; C/282[3]; M/289[6]; N/288[5]; t/281[4]; A/285[1].B;
-  B/283[2].C; C/282[3].t; N/288[5].C; A/285[1].B.C; B/283[2].C.t;
+  t/281[4]; C/282[3]; B/283[2]; A/285[1]; N/288[5]; M/289[6]; C/282[3].t;
+  B/283[2].C; A/285[1].B; N/288[5].C; B/283[2].C.t; A/285[1].B.C;
   A/285[1].B.C.t A/285[1].B -> [N/288[5]]; N/288[5].C -> [M/289[6]];
   A/285[1].B.C -> [N/288[5].C]
   # 0.01 short-paths - find_type_simple
   Initial: A/285[1].B.C.t
   # 0.01 short-paths - find_type_simple
   Canon: A/285[1].B.C.t
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_by_level
   Treating t/281[4]
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_by_level
   Treating C/282[3].t
-  # 0.01 short-paths - fill_map
+  # 0.01 short-paths - fill_by_level
   Treating M/289[6].t
+  # 0.01 short-paths - fill_by_level
+  Finished level and found a path shorter than the previous level:
+   M/289[6].t
   # 0.01 short-paths - find_type_simple
   Short: M/289[6].t
   {
