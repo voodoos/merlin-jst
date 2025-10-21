@@ -210,9 +210,8 @@ let compare_length p1 p2 =
     ~compare_strings p1 p2
 
 let find_best_path env ~canon_path table =
+  (* TODO it might be worth it to memoïze this function *)
   let is_valid path =
-    log ~title:"find_best_path" "Is valid %a ?" Logger.fmt (fun fmt ->
-        Path.print fmt path);
     (* This prevents "shadowing" issues by finding "by name" in the env *)
     match Env.find_type_by_name (lid_of_path path) env with
     | exception Not_found -> false
@@ -224,49 +223,48 @@ let find_best_path env ~canon_path table =
   | None -> None
   | Some paths -> Data.Set.find_first_opt is_valid paths
 
+let improve_path env ~canon_path table path =
+  find_best_path env ~canon_path table
+  |> Option.fold ~none:path ~some:Option.some
+
 let process_queue env queue table ~canon_path best_path =
   let rec fill_by_level ~compare seq queue table best_path =
-    match (seq (), best_path) with
-    | Seq.Nil, _ ->
-      log ~title:"fill_one_level" "Empty queue";
+    match seq () with
+    | Seq.Nil ->
+      log ~title:"fill_by_level" "Empty queue";
+      let best_path = improve_path env ~canon_path table best_path in
       (best_path, queue, table)
-    | Seq.Cons (path, _next), Some p when compare path < 0 && compare p >= 0 ->
-      log ~title:"fill_one_level"
-        "Finished level and found a path shorter than the previous level:\n %a"
-        Logger.fmt (fun fmt -> Path.print fmt p);
-      (Some p, queue, table)
-    | Seq.Cons (path, next), _ ->
-      log ~title:"fill_one_level" "Treating %a\n%!" Logger.fmt (fun fmt ->
-          Path.print fmt path);
-      let canon, _ =
-        (* TODO this probably can raise *)
-        normalize_type_path env path
-      in
-      let table =
-        (* We add the path to the table for future lookups *)
-        Data.Map.update canon
-          (function
-            | None -> Some (Data.Set.singleton path)
-            | Some set -> Some (Data.Set.add path set))
-          table
-      in
-      (* And remove it from the queue *)
-      let queue = Priority_queue.remove path queue in
-      let best_path =
-        (* TODO maybe should check only when changing level ? *)
-        if Path.compare canon_path canon <> 0 then best_path
-        else begin
-          (* Attempt at fixing "shadowing" issues by finding "by name" in the env *)
-          match Env.find_type_by_name (lid_of_path path) env with
-          | exception Not_found -> best_path
-          | path', _ ->
-            let canon', _ =
-              Out_type.normalize_type_path ~cache:false env path'
-            in
-            if Path.compare canon canon' == 0 then Some path else best_path
-        end
-      in
-      fill_by_level ~compare:(compare_length path) next queue table best_path
+    | Seq.Cons (path, next) ->
+      let next_level = compare path < 0 in
+      if next_level then begin
+        match improve_path env ~canon_path table best_path with
+        | Some path when compare path >= 0 ->
+          log ~title:"fill_by_level"
+            "Finished level and found a path shorter than the previous level:\n\
+            \ %a" Logger.fmt (fun fmt -> Path.print fmt path);
+          (Some path, queue, table)
+        | best_path -> add_path_to_table env path next best_path
+      end
+      else begin
+        add_path_to_table env path next best_path
+      end
+  and add_path_to_table env path next best_path =
+    log ~title:"fill_by_level" "Treating %a\n%!" Logger.fmt (fun fmt ->
+        Path.print fmt path);
+    let canon, _ =
+      (* TODO this probably can raise *)
+      normalize_type_path env path
+    in
+    let table =
+      Data.Map.update canon
+        (function
+          | None -> Some (Data.Set.singleton path)
+          | Some set -> Some (Data.Set.add path set))
+        table
+    in
+    (* And remove it from the queue *)
+    let queue = Priority_queue.remove path queue in
+    fill_by_level ~compare:(compare_length path) next queue table best_path
   in
   match (Priority_queue.min_elt_opt queue, best_path) with
   | None, _ -> (best_path, queue, table)
@@ -286,7 +284,7 @@ let shorten ~env ~canon_path =
     |> fill_with_discourse discourse
     |> apply_substitutions discourse.substs
   in
-  (* Do we already have a good candidate ? *)
+  (* Do we already have a candidate ? *)
   let best_path = find_best_path env ~canon_path table in
   (* Is there a better one in the queue ? *)
   let best_path, new_queue, new_table =
