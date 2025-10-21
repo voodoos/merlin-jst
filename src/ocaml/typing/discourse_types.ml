@@ -37,11 +37,11 @@ module Paths = struct
   module T = struct
     type t = Shape.Sig_component_kind.t * Path.t
 
-    (* TODO since we are versing these paths in a different structure (the
+    (* Since we are versing these paths in a different structure (the
         priority queue) before shortening, it does not seems useful tu use a
         custom path comparison function here. *)
 
-    let compare (_, p1) (_, p2) = compare_paths p1 p2
+    let compare (_, p1) (_, p2) = Path.compare p1 p2
   end
 
   include Set.Make (T)
