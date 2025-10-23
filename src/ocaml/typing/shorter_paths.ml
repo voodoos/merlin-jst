@@ -251,12 +251,14 @@ let process_queue env queue table ~canon_path best_path =
         add_path_to_table env path next best_path
       end
   and add_path_to_table env path next best_path =
-    log ~title:"fill_by_level" "Treating %a\n%!" Logger.fmt (fun fmt ->
-        Path.print fmt path);
     let canon, _ =
       (* TODO this probably can raise *)
       normalize_type_path env path
     in
+    log ~title:"fill_by_level" "Treating %a (%a)\n%!" Logger.fmt
+      (fun fmt -> Path.print fmt path)
+      Logger.fmt
+      (fun fmt -> Path.print fmt canon);
     let table =
       Data.Map.update canon
         (function
