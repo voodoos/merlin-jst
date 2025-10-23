@@ -241,3 +241,56 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
     ],
     "notifications": []
   }
+
+  $ cat > open.ml <<EOF
+  > module A = struct type a = int end
+  > open A 
+  > let x = (5 : a)
+  > EOF
+
+FIXME: the canon form of a should be int ?
+  $ $MERLIN single type-enclosing -position 3:4 \
+  > -log-file - -log-section discourse,short-paths -filename open.ml <open.ml 
+  # 0.01 discourse - def
+  Define type a/281[2]
+  # 0.01 discourse - use
+  Use type int/1! File "open.ml", line 1, characters 27-30
+  # 0.01 discourse - def
+  Define module A/282[1]
+  # 0.01 discourse - use
+  Use type A/282[1].a File "open.ml", line 3, characters 13-14
+  # 0.01 discourse - use
+  Use module A/282[1] File "open.ml", line 3, characters 13-14
+  # 0.01 discourse - discourse
+  int/1!; a/281[2]; A/282[1]; A/282[1].a
+  # 0.01 short-paths - find_type_simple
+  Initial: A/282[1].a
+  # 0.01 short-paths - find_type_simple
+  Canon: int/1!
+  # 0.01 short-paths - fill_by_level
+  Treating a/281[2]
+  # 0.01 short-paths - fill_by_level
+  Treating int/1!
+  # 0.01 short-paths - fill_by_level
+  Finished level and found a path shorter than the previous level:
+   int/1!
+  # 0.01 short-paths - find_type_simple
+  Short: int/1!
+  {
+    "class": "return",
+    "value": [
+      {
+        "start": {
+          "line": 3,
+          "col": 4
+        },
+        "end": {
+          "line": 3,
+          "col": 5
+        },
+        "type": "int",
+        "tail": "no"
+      }
+    ],
+    "notifications": []
+  }
