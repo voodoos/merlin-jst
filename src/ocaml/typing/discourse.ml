@@ -99,14 +99,33 @@ let of_core_type env ?(acc = Discourse_types.empty) ty =
       let path, _td = Env.find_type_by_name lid env in
       let acc = Discourse_types.Paths.add (Type, path) acc in
       List.fold_left aux acc params
-    | Ptyp_object _ -> (* TODO *) acc
-    | Ptyp_class _ -> (* TODO *) acc
+    | Ptyp_object (fields, _) ->
+      List.fold_left
+        (fun acc { Parsetree.pof_desc = Otag (_, ct) | Oinherit ct; _ } ->
+          aux acc ct)
+        acc fields
+    | Ptyp_class ({ txt = lid; _ }, l) ->
+      let path, _td = Env.find_type_by_name lid env in
+      let acc = Discourse_types.Paths.add (Type, path) acc in
+      List.fold_left aux acc l
     | Ptyp_alias (ct, _, _) -> aux acc ct
-    | Ptyp_variant (_row, _, _) -> (* TODO *) acc
+    | Ptyp_variant (row, _, _) ->
+      List.fold_left
+        (fun acc { Parsetree.prf_desc; _ } ->
+          match prf_desc with
+          | Rtag (_, _, l) -> List.fold_left aux acc l
+          | Rinherit ct -> aux acc ct)
+        acc row
     | Ptyp_poly (_, ct) -> aux acc ct
-    | Ptyp_package _ -> (* TODO *) acc
-    | Ptyp_open (_lid, ct) -> (* TODO *) aux acc ct
-    | Ptyp_of_kind _ | Ptyp_var _ -> (* TODO ? *) acc
+    | Ptyp_package ({ txt = lid; _ }, l) ->
+      let path, _td = Env.find_modtype_by_name lid env in
+      let acc = Discourse_types.Paths.add (Module_type, path) acc in
+      List.fold_left (fun acc (_, ct) -> aux acc ct) acc l
+    | Ptyp_open ({ txt = lid; _ }, ct) ->
+      let path, _td = Env.find_module_by_name lid env in
+      let acc = Discourse_types.Paths.add (Module, path) acc in
+      aux acc ct
+    | Ptyp_of_kind _ | Ptyp_var _ -> acc
     | Ptyp_extension _ -> acc
   in
   aux acc ty
