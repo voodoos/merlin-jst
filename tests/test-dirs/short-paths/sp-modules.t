@@ -58,22 +58,42 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   Use module Foo/290[9] File "foo.ml", line 8, characters 9-14
   # 0.01 short-paths - find_type_simple
   Initial: Bar/289[5].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for Bar/289[5].t
   # 0.01 short-paths - find_type_simple
   Canon: Bar/289[5].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for t/282[2]
   # 0.01 short-paths - fill_by_level
-  Treating t/282[2]
+  Treating t/282[2] (t/282[2])
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for t/285[6]
   # 0.01 short-paths - fill_by_level
-  Treating t/285[6]
+  Treating t/285[6] (t/285[6])
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion u/291[10] for u/291[10]
   # 0.01 short-paths - fill_by_level
-  Treating u/291[10]
+  Treating u/291[10] (u/291[10])
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for int/1!
   # 0.01 short-paths - fill_by_level
-  Treating int/1!
+  Treating int/1! (int/1!)
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for Bar/289[5].t
   # 0.01 short-paths - fill_by_level
-  Treating Bar/289[5].t
+  Treating Bar/289[5].t (Bar/289[5].t)
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion Bar/289[5].t for Foo/290[9].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for Bar/289[5].t
   # 0.01 short-paths - fill_by_level
-  Treating Foo/290[9].t
+  Treating Foo/290[9].t (Bar/289[5].t)
   # 0.01 short-paths - fill_by_level
   Empty queue
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion Bar/289[5].t for Foo/290[9].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for Bar/289[5].t
   # 0.01 short-paths - find_type_simple
   Short: Foo/290[9].t
   # 0.01 discourse - discourse
@@ -81,34 +101,96 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   Bar/289[5] -> [Foo/290[9]]
   # 0.01 short-paths - find_type_simple
   Initial: Foo/290[9].t
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion Bar/289[5].t for Foo/290[9].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for Bar/289[5].t
   # 0.01 short-paths - find_type_simple
   Canon: Bar/289[5].t
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion Bar/289[5].t for Foo/290[9].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for Bar/289[5].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for t/282[2]
   # 0.01 short-paths - fill_by_level
-  Treating t/282[2]
+  Treating t/282[2] (t/282[2])
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for t/285[6]
   # 0.01 short-paths - fill_by_level
-  Treating t/285[6]
+  Treating t/285[6] (t/285[6])
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion u/291[10] for u/291[10]
   # 0.01 short-paths - fill_by_level
-  Treating u/291[10]
+  Treating u/291[10] (u/291[10])
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion Bar/289[5].t for Foo/290[9].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for Bar/289[5].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for int/1!
   # 0.01 short-paths - fill_by_level
-  Treating int/1!
+  Treating int/1! (int/1!)
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion Bar/289[5].t for Foo/290[9].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for Bar/289[5].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for Bar/289[5].t
   # 0.01 short-paths - fill_by_level
-  Treating Bar/289[5].t
+  Treating Bar/289[5].t (Bar/289[5].t)
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion Bar/289[5].t for Foo/290[9].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for Bar/289[5].t
   # 0.01 short-paths - fill_by_level
-  Treating Foo/290[9].t
+  Treating Foo/290[9].t (Bar/289[5].t)
   # 0.01 short-paths - fill_by_level
   Empty queue
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion Bar/289[5].t for Foo/290[9].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for Bar/289[5].t
   # 0.01 short-paths - find_type_simple
   Short: Foo/290[9].t
   # 0.01 short-paths - find_type_simple
   Initial: Foo/290[9].t
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion Bar/289[5].t for Foo/290[9].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for Bar/289[5].t
   # 0.01 short-paths - find_type_simple
   Canon: Bar/289[5].t
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion Bar/289[5].t for Foo/290[9].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for Bar/289[5].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for t/282[2]
   # 0.01 short-paths - fill_by_level
-  Treating t/282[2]
+  Treating t/282[2] (t/282[2])
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for t/285[6]
   # 0.01 short-paths - fill_by_level
-  Treating t/285[6]
+  Treating t/285[6] (t/285[6])
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion Foo/290[9].t for u/291[10]
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion Bar/289[5].t for Foo/290[9].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for Bar/289[5].t
   # 0.01 short-paths - fill_by_level
-  Treating u/291[10]
+  Treating u/291[10] (Bar/289[5].t)
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion Bar/289[5].t for Foo/290[9].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for Bar/289[5].t
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion Foo/290[9].t for u/291[10]
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion Bar/289[5].t for Foo/290[9].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for Bar/289[5].t
   # 0.01 short-paths - fill_by_level
   Finished level and found a path shorter than the previous level:
    u/291[10]
@@ -210,14 +292,28 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   A/285[1].B.C -> [N/288[5].C]
   # 0.01 short-paths - find_type_simple
   Initial: A/285[1].B.C.t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for A/285[1].B.C.t
   # 0.01 short-paths - find_type_simple
   Canon: A/285[1].B.C.t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for t/281[4]
   # 0.01 short-paths - fill_by_level
-  Treating t/281[4]
+  Treating t/281[4] (t/281[4])
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for C/282[3].t
   # 0.01 short-paths - fill_by_level
-  Treating C/282[3].t
+  Treating C/282[3].t (C/282[3].t)
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion A/285[1].B.C.t for M/289[6].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for A/285[1].B.C.t
   # 0.01 short-paths - fill_by_level
-  Treating M/289[6].t
+  Treating M/289[6].t (A/285[1].B.C.t)
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion A/285[1].B.C.t for M/289[6].t
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for A/285[1].B.C.t
   # 0.01 short-paths - fill_by_level
   Finished level and found a path shorter than the previous level:
    M/289[6].t
@@ -258,6 +354,8 @@ FIXME: the canon form of a should be int ?
   # 0.01 discourse - def
   Define module A/282[1]
   # 0.01 discourse - use
+  Use module A/282[1] File "open.ml", line 2, characters 5-6
+  # 0.01 discourse - use
   Use type A/282[1].a File "open.ml", line 3, characters 13-14
   # 0.01 discourse - use
   Use module A/282[1] File "open.ml", line 3, characters 13-14
@@ -265,17 +363,27 @@ FIXME: the canon form of a should be int ?
   int/1!; a/281[2]; A/282[1]; A/282[1].a
   # 0.01 short-paths - find_type_simple
   Initial: A/282[1].a
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion int/1! for A/282[1].a
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for int/1!
   # 0.01 short-paths - find_type_simple
   Canon: int/1!
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion int/1! for A/282[1].a
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for int/1!
   # 0.01 short-paths - fill_by_level
-  Treating a/281[2]
-  # 0.01 short-paths - fill_by_level
-  Treating int/1!
+  Treating a/281[2] (int/1!)
+  # 0.01 short-paths - normalize_type_path
+  Found type expansion int/1! for A/282[1].a
+  # 0.01 short-paths - normalize_type_path
+  Calling [Env.normalize_type_path] for int/1!
   # 0.01 short-paths - fill_by_level
   Finished level and found a path shorter than the previous level:
-   int/1!
+   a/281[2]
   # 0.01 short-paths - find_type_simple
-  Short: int/1!
+  Short: a/281[2]
   {
     "class": "return",
     "value": [
@@ -288,7 +396,7 @@ FIXME: the canon form of a should be int ?
           "line": 3,
           "col": 5
         },
-        "type": "int",
+        "type": "a",
         "tail": "no"
       }
     ],
