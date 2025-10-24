@@ -67,6 +67,8 @@ module Out_type = struct
       in
       match get_desc ty with
       | Tconstr (p1, tyl, _) ->
+        log ~title:"normalize_type_path" "Found type expansion %a for %a"
+          Logger.fmt (Fun.flip Path.print p1) Logger.fmt (Fun.flip Path.print p);
         if
           List.length params = List.length tyl
           && List.for_all2 eq_type params tyl
@@ -82,7 +84,11 @@ module Out_type = struct
           let p2, s2 = normalize_type_path ~cache env p1 in
           (p2, compose l1 s2)
       | _ -> (p, Nth (index params ty))
-    with Not_found -> (Env.normalize_type_path None env p, Id)
+    with Not_found ->
+      log ~title:"normalize_type_path"
+        "Calling [Env.normalize_type_path] for %a" Logger.fmt
+        (Fun.flip Path.print p);
+      (Env.normalize_type_path None env p, Id)
 
   let penalty s =
     if s <> "" && s.[0] = '_' then 10
@@ -252,8 +258,12 @@ let process_queue env queue table ~canon_path best_path =
       end
   and add_path_to_table env path next best_path =
     let canon, _ =
-      (* TODO this probably can raise *)
-      normalize_type_path env path
+      (* TODO: this means that the queue treatment is dependent form the
+         environment. Since we currently empty the discourse after treatiung the
+         queue, we might get incorrect results in subsequent queries ? *)
+      match Env.find_type_by_name (lid_of_path path) env with
+      | exception Not_found -> normalize_type_path env path
+      | path', _ -> normalize_type_path env path'
     in
     log ~title:"fill_by_level" "Treating %a (%a)\n%!" Logger.fmt
       (fun fmt -> Path.print fmt path)
