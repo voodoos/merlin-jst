@@ -170,17 +170,25 @@ let rec add_path_to_discourse env discourse kind path =
              are in D *)
           List.fold_left
             (fun (p, s) -> function
-              | Subst.Lazy.Sig_type (id, _, _, _) ->
-                (Paths.add (Type, Pdot (path, Ident.name id)) p, s)
               | Subst.Lazy.Sig_value (id, _, _) ->
                 (Paths.add (Value, Pdot (path, Ident.name id)) p, s)
+              | Subst.Lazy.Sig_type (id, _, _, _) ->
+                (Paths.add (Type, Pdot (path, Ident.name id)) p, s)
+              | Subst.Lazy.Sig_typext (id, _, _, _) ->
+                ( Paths.add (Extension_constructor, Pdot (path, Ident.name id)) p,
+                  s )
               | Subst.Lazy.Sig_module (id, _, _, _, _) ->
                 let d =
                   add_path_to_discourse env { paths = p; substs = s } Module
                     (Pdot (path, Ident.name id))
                 in
                 (d.paths, d.substs)
-              | _ (* TODO *) -> (p, s))
+              | Subst.Lazy.Sig_modtype (id, _, _) ->
+                (Paths.add (Module_type, Pdot (path, Ident.name id)) p, s)
+              | Subst.Lazy.Sig_class (id, _, _, _) ->
+                (Paths.add (Class, Pdot (path, Ident.name id)) p, s)
+              | Subst.Lazy.Sig_class_type (id, _, _, _) ->
+                (Paths.add (Class_type, Pdot (path, Ident.name id)) p, s))
             (paths, substs)
             (Subst.Lazy.force_signature_once s)
         | _ -> (paths, substs)
