@@ -841,7 +841,7 @@ and transl_type_aux env ~row_context ~aliased ~policy mode styp =
     ctyp (Ttyp_unboxed_tuple tl) ctyp_type
   | Ptyp_constr(lid, stl) ->
       let (path, decl) = Env.lookup_type ~loc:lid.loc lid.txt env in
-      Discourse.use_type ~loc:lid.loc env path;
+      Discourse.use_type env lid path;
       let stl =
         match stl with
         | [ {ptyp_desc=Ptyp_any None} as t ] when decl.type_arity > 1 ->

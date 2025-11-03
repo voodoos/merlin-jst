@@ -1866,15 +1866,16 @@ and transl_modtype_aux env smty =
   match smty.pmty_desc with
     Pmty_ident lid ->
       let path = transl_modtype_longident loc env lid.txt in
-      Discourse.use_modtype ~loc:lid.loc env path;
+      Discourse.use_modtype env lid path;
       mkmty (Tmty_ident (path, lid)) (Mty_ident path) env loc
         smty.pmty_attributes,
-        Discourse_types.Paths.singleton (Module_type, path)
+        Discourse_types.Paths.singleton (Module_type, lid.txt, path)
   | Pmty_alias lid ->
       let path = transl_module_alias loc env lid.txt in
-      Discourse.use_module ~loc:lid.loc env path;
+      Discourse.use_module env lid path;
       mkmty (Tmty_alias (path, lid)) (Mty_alias path) env loc
-        smty.pmty_attributes, Discourse_types.Paths.singleton (Module, path)
+        smty.pmty_attributes,
+        Discourse_types.Paths.singleton (Module, lid.txt, path)
   | Pmty_signature ssg ->
       Env.check_no_open_quotations loc env Env.Sig_qt;
       let sg = transl_signature env [] ssg in
@@ -1934,7 +1935,8 @@ and transl_modtype_aux env smty =
       let tmty, mty = !type_module_type_of_fwd env smod in
       let discourse =
         match tmty.mod_desc with
-        | Tmod_ident (path,_) -> Discourse_types.Paths.singleton (Module, path)
+        | Tmod_ident (path,lid) ->
+            Discourse_types.Paths.singleton (Module, lid.txt, path)
         | _ -> empty_discourse
       in
       mkmty (Tmty_typeof tmty) mty env loc smty.pmty_attributes,
@@ -1960,7 +1962,7 @@ and transl_modtype_aux env smty =
           env
           loc
           [],
-        Discourse_types.Paths.add (Module, path) discourse
+        Discourse_types.Paths.add (Module, mod_id.txt, path) discourse
       with Includemod.Error explanation ->
         raise(Error(loc, env, Strengthening_mismatch(mod_id.txt, explanation)))
       ;
@@ -1983,7 +1985,7 @@ and transl_with ~loc env remove_aliases (rev_tcstrs, sg) constr =
     | Pwith_module (l, l')
     | Pwith_modsubst (l,l') ->
         let path, md, _ = Env.lookup_module ~loc l'.txt env in
-        Discourse.use_module ~loc:l'.loc env path;
+        Discourse.use_module env l' path;
         let constr = if destructive then
             (Twith_modsubst (path, l'))
           else
@@ -2184,7 +2186,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
                 ~mode:md_mode env
             in
             let newenv = Env.update_short_paths newenv in
-            Discourse.define_module newenv (Pident id);
+            Discourse.define_module newenv (Lident name);
             Signature_names.check_module names pmd.pmd_name.loc id;
             Some id, newenv
         in
@@ -2205,15 +2207,18 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
         sig_item, tsg, newenv
     | Psig_modsubst pms ->
         let scope = Ctype.create_scope () in
+        let lid = pms.pms_manifest.txt in
         let path, md, _ =
-          Env.lookup_module ~loc:pms.pms_manifest.loc pms.pms_manifest.txt env
+          Env.lookup_module ~loc:pms.pms_manifest.loc lid env
         in
         let aliasable = not (Env.is_functor_arg path env) in
         let md =
           if not aliasable then
             md
           else
-            let md_discourse = Discourse_types.Paths.singleton (Module, path) in
+            let md_discourse =
+              Discourse_types.Paths.singleton (Module, lid, path)
+            in
             { md_type = Mty_alias path;
               md_modalities = Mode.Modality.id;
               md_attributes = pms.pms_attributes;
@@ -2231,7 +2236,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
           Env.enter_module_declaration ~scope pms.pms_name.txt pres md
             ~mode:md_mode env
         in
-        Discourse.define_module newenv (Pident id);
+        Discourse.define_module newenv (Lident pms.pms_name.txt);
         let info =
           `Substituted_away (Subst.add_module id path Subst.identity)
         in
@@ -2258,7 +2263,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
           ) tdecls
         in
         List.iter (fun (id, md, _uid) ->
-          Discourse.define_module newenv (Pident id);
+          Discourse.define_module newenv (Lident (Ident.name id));
           Signature_names.check_module names md.md_loc id;
         ) decls;
         let sig_items =
@@ -2407,7 +2412,7 @@ and transl_modtype_decl_aux env
   in
   let scope = Ctype.create_scope () in
   let (id, newenv) = Env.enter_modtype ~scope pmtd_name.txt decl env in
-  Discourse.define_modtype (Pident id);
+  Discourse.define_modtype newenv (Lident pmtd_name.txt);
   let mtd =
     {
      mtd_id=id;
@@ -2991,7 +2996,7 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
       let path, mode_with_locks =
         Env.lookup_module_path ~load:(not alias) ~loc:smod.pmod_loc lid.txt env
       in
-      Discourse.use_module ~loc:smod.pmod_loc env path;
+      Discourse.use_module env lid path;
       type_module_path_aux ~alias ~hold_locks sttn env path mode_with_locks lid
         smod
   | Pmod_structure sstr ->
@@ -3414,7 +3419,7 @@ and type_open_decl_aux ?used_slot ?toplevel funct_body names env od =
     let path, (mode, locks), newenv =
       type_open_ ?used_slot ?toplevel od.popen_override env loc lid
     in
-    Discourse.use_module ~loc:lid.loc env path;
+    Discourse.use_module env lid path;
     let md = { mod_desc = Tmod_ident (path, lid);
                mod_type = Mty_alias path;
                mod_mode = mode, Some (locks, lid.txt, lid.loc);
@@ -3706,7 +3711,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
             let id, e = Env.enter_module_declaration
               ~scope ~shape:md_shape name pres md ~mode:md_mode env
             in
-            Discourse.define_module e (Pident id);
+            Discourse.define_module e (Lident name);
             let e = Env.update_short_paths e in
             Signature_names.check_module names pmb_loc id;
             Some id, e,
@@ -4026,7 +4031,7 @@ let type_module_type_of env smod =
         let path, md, (mode, locks) =
           Env.lookup_module ~loc:smod.pmod_loc lid.txt env
         in
-        Discourse.use_module ~loc:lid.loc env path;
+        Discourse.use_module env lid path;
         { mod_desc = Tmod_ident (path, lid);
           mod_type = md.md_type;
           mod_mode = mode, Some (locks, lid.txt, lid.loc);
