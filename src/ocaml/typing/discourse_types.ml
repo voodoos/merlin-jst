@@ -32,16 +32,33 @@ let compare_paths ?(compare_idents = Ident.compare)
   in
   compare_paths p1 p2
 
+let rec compare_longidents ?(compare_strings = String.compare)
+    (l1 : Longident.t) (l2 : Longident.t) =
+  match (l1, l2) with
+  | Lident s1, Lident s2 -> compare_strings s1 s2
+  | Lident _, _ -> -1
+  | _, Lident _ -> 1
+  | Ldot (l1, s1), Ldot (l2, s2) ->
+    let c = compare_longidents l1 l2 in
+    if c = 0 then compare_strings s1 s2 else c
+  | Lapply (l1, l'1), Lapply (l2, l'2) ->
+    let c = compare_longidents l1 l2 in
+    if c = 0 then compare_longidents l'1 l'2 else c
+  | Ldot _, Lapply _ -> -1
+  | Lapply _, Ldot _ -> 1
+
 (* This module exists to prevent a dependency cycle with Types. *)
 module Paths = struct
   module T = struct
-    type t = Shape.Sig_component_kind.t * Path.t
+    type t = Shape.Sig_component_kind.t * Longident.t * Path.t
 
     (* Since we are versing these paths in a different structure (the
         priority queue) before shortening, it does not seems useful tu use a
         custom path comparison function here. *)
 
-    let compare (_, p1) (_, p2) = Path.compare p1 p2
+    let compare (_, lid1, p1) (_, lid2, p2) =
+      let c = compare_longidents lid1 lid2 in
+      if c = 0 then compare_paths p1 p2 else c
   end
 
   include Set.Make (T)
@@ -52,5 +69,5 @@ let empty = Paths.empty
 
 let pp ppf t =
   let pp_sep ppf () = Format.fprintf ppf ";@;" in
-  let paths = Paths.elements t |> List.map snd in
+  let paths = Paths.elements t |> List.map (fun (_, _, p) -> p) in
   Format.pp_print_list ~pp_sep Path.print ppf paths

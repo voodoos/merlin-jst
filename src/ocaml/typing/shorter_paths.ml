@@ -139,7 +139,7 @@ let normalize_type_path = Out_type.normalize_type_path ~cache:false
 
 let fill_with_discourse (discourse : Discourse.t) queue =
   Discourse_types.Paths.fold
-    (fun (kind, path) acc ->
+    (fun (kind, _, path) acc ->
       if kind = Type then Priority_queue.add path acc else acc)
     discourse.paths queue
 
