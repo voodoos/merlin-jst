@@ -793,7 +793,7 @@ type type_declaration =
           itself has [type_unboxed_version = None].
        2. the Uid of the unboxed version is [Uid.unboxed_version <uid of boxed>]
     *)
-    type_discourse: Discourse_types.Paths.t;
+    type_discourse: Discourse_types.t;
   }
 
 and type_decl_kind = (label_declaration, label_declaration, constructor_declaration) type_kind
@@ -934,7 +934,7 @@ and constructor_declaration =
     cd_loc: Location.t;
     cd_attributes: Parsetree.attributes;
     cd_uid: Uid.t;
-    cd_discourse : Discourse_types.Paths.t;
+    cd_discourse : Discourse_types.t;
     (* TODO remove this, it seems sufficient to store the discourse in
        constructor_representation. *)
   }
@@ -992,6 +992,7 @@ type class_declaration =
     cty_loc: Location.t;
     cty_attributes: Parsetree.attributes;
     cty_uid: Uid.t;
+    cty_discourse: Discourse_types.t;
   }
 
 type class_type_declaration =
@@ -1003,6 +1004,7 @@ type class_type_declaration =
     clty_loc: Location.t;
     clty_attributes: Parsetree.attributes;
     clty_uid: Uid.t;
+    clty_discourse: Discourse_types.t;
   }
 
 (* Type expressions for the module language *)
@@ -1049,7 +1051,7 @@ module type Wrapped = sig
       val_zero_alloc: Zero_alloc.t;
       val_attributes: Parsetree.attributes;
       val_uid: Uid.t;
-      val_discourse: Discourse_types.Paths.t;
+      val_discourse: Discourse_types.t;
     }
 
   type module_type =
@@ -1084,7 +1086,7 @@ module type Wrapped = sig
     md_attributes: Parsetree.attributes;
     md_loc: Location.t;
     md_uid: Uid.t;
-    md_discourse: Discourse_types.Paths.t;
+    md_discourse: Discourse_types.t;
   }
 
   and modtype_declaration =
@@ -1093,7 +1095,7 @@ module type Wrapped = sig
     mtd_attributes: Parsetree.attributes;
     mtd_loc: Location.t;
     mtd_uid: Uid.t;
-    mtd_discourse: Discourse_types.Paths.t;
+    mtd_discourse: Discourse_types.t;
   }
 
   (* Returns [None] for items that have no runtime representation (see
@@ -1149,7 +1151,7 @@ type constructor_description =
     cstr_inlined: type_declaration option;
       (* [Some decl] here iff the cstr has an inline record (which is decl) *)
     cstr_uid: Uid.t;
-    cstr_discourse: Discourse_types.Paths.t;
+    cstr_discourse: Discourse_types.t;
    }
 
 (* Constructors are the same *)
@@ -1188,7 +1190,7 @@ type 'a gen_label_description =
     lbl_loc: Location.t;
     lbl_attributes: Parsetree.attributes;
     lbl_uid: Uid.t;
-    lbl_discourse: Discourse_types.Paths.t;
+    lbl_discourse: Discourse_types.t;
   }
 
 type label_description = record_representation gen_label_description

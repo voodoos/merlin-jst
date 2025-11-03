@@ -47,6 +47,7 @@ module Paths = struct
   include Set.Make (T)
 end
 
+type t = Paths.t
 let empty = Paths.empty
 
 let pp ppf t =
