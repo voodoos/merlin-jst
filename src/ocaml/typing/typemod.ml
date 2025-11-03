@@ -3496,6 +3496,7 @@ and type_open_decl_aux ?used_slot ?toplevel funct_body names env od =
     let path, (mode, locks), newenv =
       type_open_ ?used_slot ?toplevel od.popen_override env loc lid
     in
+    Discourse.use_module ~loc:lid.loc env path;
     let md = { mod_desc = Tmod_ident (path, lid);
                mod_type = Mty_alias path;
                mod_mode = mode, Some (locks, lid.txt, lid.loc);
@@ -4106,12 +4107,13 @@ let type_module_type_of env smod =
         let path, md, (mode, locks) =
           Env.lookup_module ~loc:smod.pmod_loc lid.txt env
         in
-          { mod_desc = Tmod_ident (path, lid);
-            mod_type = md.md_type;
-            mod_mode = mode, Some (locks, lid.txt, lid.loc);
-            mod_env = env;
-            mod_attributes = smod.pmod_attributes;
-            mod_loc = smod.pmod_loc }
+        Discourse.use_module ~loc:lid.loc env path;
+        { mod_desc = Tmod_ident (path, lid);
+          mod_type = md.md_type;
+          mod_mode = mode, Some (locks, lid.txt, lid.loc);
+          mod_env = env;
+          mod_attributes = smod.pmod_attributes;
+          mod_loc = smod.pmod_loc }
     | _ ->
         let me, _shape = type_module env smod in
         me
