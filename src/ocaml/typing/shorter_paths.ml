@@ -253,31 +253,38 @@ let process_queue env queue table ~canon_path best_path =
           (Some path, queue, table)
         | best_path -> add_path_to_table env path next best_path
       end
-      else begin
-        add_path_to_table env path next best_path
-      end
+      else add_path_to_table env path next best_path
   and add_path_to_table env path next best_path =
-    let canon, _ =
-      (* TODO: this means that the queue treatment is dependent form the
-         environment. Since we currently empty the discourse after treatiung the
-         queue, we might get incorrect results in subsequent queries ? *)
-      match Env.find_type_by_name (lid_of_path path) env with
-      | exception Not_found -> normalize_type_path env path
-      | path', _ -> normalize_type_path env path'
+    log ~title:"fill_by_level" "Treating %a" Logger.fmt (fun fmt ->
+        Path.print fmt path);
+    let queue, table =
+      try
+        let real_path =
+          (* In the presence of `open` statements the Discourse contains partial
+             paths that cannot be looked-up in the environement directly. We can
+             find by name instead. However we must then check that we did actually
+             find the type we were looking (same ident) for and not an homonym. *)
+          let path', _ = Env.find_type_by_name (lid_of_path path) env in
+          log ~title:"fill_by_level" "find_type_by_name: %a" Logger.fmt
+            (fun fmt -> Path.print fmt path');
+          path'
+        in
+        let canon, _ = normalize_type_path env real_path in
+        log ~title:"fill_by_level" "Found canonical path %a" Logger.fmt
+          (fun fmt -> Path.print fmt canon);
+        let table =
+          Data.Map.update canon
+            (function
+              | None -> Some (Data.Set.singleton path)
+              | Some set -> Some (Data.Set.add path set))
+            table
+        in
+        (* And remove it from the queue *)
+        (Priority_queue.remove path queue, table)
+      with Not_found ->
+        (* Elements not valid in the current environement are left in the queue*)
+        (queue, table)
     in
-    log ~title:"fill_by_level" "Treating %a (%a)\n%!" Logger.fmt
-      (fun fmt -> Path.print fmt path)
-      Logger.fmt
-      (fun fmt -> Path.print fmt canon);
-    let table =
-      Data.Map.update canon
-        (function
-          | None -> Some (Data.Set.singleton path)
-          | Some set -> Some (Data.Set.add path set))
-        table
-    in
-    (* And remove it from the queue *)
-    let queue = Priority_queue.remove path queue in
     fill_by_level ~compare:(compare_length path) next queue table best_path
   in
   match (Priority_queue.min_elt_opt queue, best_path) with
