@@ -69,5 +69,8 @@ let empty = Paths.empty
 
 let pp ppf t =
   let pp_sep ppf () = Format.fprintf ppf ";@;" in
-  let paths = Paths.elements t |> List.map (fun (_, _, p) -> p) in
-  Format.pp_print_list ~pp_sep Path.print ppf paths
+  let pp_lid_and_path ppf (lid, p) =
+    Format.fprintf ppf "%a (%a)" Pprintast.longident lid Path.print p
+  in
+  let paths = Paths.elements t |> List.map (fun (_, lid, p) -> (lid, p)) in
+  Format.pp_print_list ~pp_sep pp_lid_and_path ppf paths
