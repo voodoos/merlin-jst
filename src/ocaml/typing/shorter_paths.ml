@@ -142,58 +142,79 @@ let fill_with_discourse (discourse : Discourse.t) queue =
       if kind = Type then Priority_queue.add (lid, path) acc else acc)
     discourse.paths queue
 
-(*let apply_substitutions substs queue =
+let apply_substitutions substs queue =
   (* We compute the transitive closure of the queue with regard to path
      substitutions. *)
   (* TODO this is a bit brutal and innefficient. We should think of a better
      algorithm for the final version. *)
-  let rec reroot ~root (path : Path.t) =
+  let rec reroot_path ~root (path : Path.t) : Path.t =
     match path with
     | Pident _ -> root
-    | Pdot (p, n) -> Path.Pdot (reroot ~root p, n)
+    | Pdot (p, n) -> Pdot (reroot_path ~root p, n)
     | p -> (* Replacement paths cannot be Papply or Pextras *) p
   in
-  let replace_first target_path ~in_:path ~by:replacement_paths =
+  let rec reroot_lid ~root (path : Longident.t) : Longident.t =
+    match path with
+    | Lident _ -> root
+    | Ldot (p, n) -> Ldot (reroot_lid ~root p, n)
+    | p -> (* Replacement lid cannot be Lapply  *) p
+  in
+  let replace_first target_path ~in_:(lid, path) ~by:replacement_paths =
     (* target: M.N  ([Pdot (Pident "M", "N")])
        path L.M.N.v ([Pdot (Pdot (Pdot (Pident "L", "M"), "N"), "v")]) *)
-    let rec replace_head (path : Path.t) (remaining_target : Path.t) =
-      match (path, remaining_target) with
-      | Pident id, Pident id' when Ident.same id id' -> Some replacement_paths
-      | Pident _id, _ -> None
-      | Pdot (p, n), Pident id ->
+    let replacements =
+      Path.Set.fold
+        (fun p acc -> Lid_set.add (lid_of_path p, p) acc)
+        replacement_paths Lid_set.empty
+    in
+    let rec replace_head (lid : Longident.t) (path : Path.t)
+        (remaining_target : Path.t) =
+      match (lid, path, remaining_target) with
+      | Lident _, Pident id, Pident id' when Ident.same id id' ->
+        Some replacements
+      | Lident _, Pident _, _ -> None
+      | Ldot (l, _), Pdot (p, n), Pident id ->
         if String.equal n (Ident.name id) then
-          Some (Path.Set.map (reroot ~root:p) replacement_paths)
+          Some
+            (Lid_set.map
+               (fun (lid, path) ->
+                 (reroot_lid ~root:l lid, reroot_path ~root:p path))
+               replacements)
         else None
-      | Pdot (p, n), Pdot (t, n') ->
+      | Ldot (l, _), Pdot (p, n), Pdot (t, n') ->
         if String.equal n n' then begin
-          replace_head p t
+          replace_head l p t
         end
         else None
-      | _, (Papply _ | Pextra_ty _) | (Papply _ | Pextra_ty _), _ -> None
+      | _, _, _ -> None
     in
-    let rec aux (path : Path.t) =
-      match (replace_head path target_path, path) with
-      | Some paths, _ -> paths
-      | None, Pident _ -> Path.Set.empty
-      | None, Pdot (p, n) -> Path.Set.map (fun p -> Path.Pdot (p, n)) (aux p)
-      | None, Papply (p, p') ->
-        let ps = aux p in
-        let p's = aux p' in
-        Path.Set.fold
-          (fun p acc ->
-            Path.Set.fold
-              (fun p' acc -> Path.Set.add (Papply (p, p')) acc)
+    let rec aux (lid : Longident.t) (path : Path.t) =
+      match (replace_head lid path target_path, lid, path) with
+      | Some paths, _, _ -> paths
+      | None, Lident _, Pident _ -> Lid_set.empty
+      | None, Ldot (l, _), Pdot (p, n) ->
+        Lid_set.map
+          (fun (l, p) -> (Longident.Ldot (l, n), Pdot (p, n)))
+          (aux l p)
+      | None, Lapply (l, l'), Papply (p, p') ->
+        let ps = aux l p in
+        let p's = aux l' p' in
+        Lid_set.fold
+          (fun (l, p) acc ->
+            Lid_set.fold
+              (fun (l', p') acc ->
+                Lid_set.add (Lapply (l, l'), Papply (p, p')) acc)
               p's acc)
-          ps Path.Set.empty
-      | None, Pextra_ty _ -> Path.Set.empty
+          ps Lid_set.empty
+      | _, _, _ -> Lid_set.empty
     in
-    aux path
+    aux lid path
   in
-  let apply_substs acc path substs =
+  let apply_substs acc (lid, path) substs =
     Path.Map.fold
       (fun target replacements acc ->
-        let results = replace_first target ~in_:path ~by:replacements in
-        Path.Set.fold Priority_queue.add results acc)
+        let results = replace_first target ~in_:(lid, path) ~by:replacements in
+        Lid_set.fold Priority_queue.add results acc)
       substs acc
   in
   let rec fix acc queue =
@@ -202,12 +223,12 @@ let fill_with_discourse (discourse : Discourse.t) queue =
     else
       let new_paths =
         Priority_queue.fold
-          (fun lid path acc -> apply_substs acc path substs)
+          (fun (lid, path) acc -> apply_substs acc (lid, path) substs)
           queue Priority_queue.empty
       in
       fix acc new_paths
   in
-  fix Priority_queue.empty queue*)
+  fix Priority_queue.empty queue
 
 let compare_length l1 l2 =
   let compare_strings s1 s2 = String.length s1 - String.length s2 in
@@ -314,8 +335,9 @@ let shorten ~env ~canon_path =
   let discourse = Discourse.get () in
   let queue, table = (!priority_queue, !canon_table) in
   let queue =
-    queue |> fill_with_discourse discourse
-    (* |> apply_substitutions discourse.substs *)
+    queue
+    |> fill_with_discourse discourse
+    |> apply_substitutions discourse.substs
   in
   (* Do we already have a candidate ? *)
   let best_lid = find_best_lid env ~canon_path table in
