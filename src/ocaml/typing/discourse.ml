@@ -218,17 +218,18 @@ let rec add_path_to_discourse env discourse kind lid path =
 
 (** [add_used] adds all parts of a used path to the Discourse (U1, D2) *)
 let add_used env kind lid path =
-  let rec loop acc kind path =
+  let mkloc l = Location.mkloc l lid.Location.loc in
+  let rec loop acc kind lid path =
     let () = log_usage ~loc:lid.Location.loc kind path in
     let acc = add_path_to_discourse env acc kind lid.txt path in
-    match (path : Path.t) with
-    | Path.Pident _ | Pextra_ty _ -> acc
-    | Pdot (path, _) -> loop acc Module path
-    | Papply (p1, p2) ->
-      let acc = loop acc Module p1 in
-      loop acc Module p2
+    match ((path : Path.t), (lid.txt : Longident.t)) with
+    | Pdot (path, _), Ldot (lid, _) -> loop acc Module (mkloc lid) path
+    | Papply (p1, p2), Lapply (l1, l2) ->
+      let acc = loop acc Module (mkloc l1) p1 in
+      loop acc Module (mkloc l2) p2
+    | _, _ -> acc
   in
-  if record_usages then g := loop !g kind path
+  if record_usages then g := loop !g kind lid path
 
 (* Rule U2: All paths for definitions in the current file are in U *)
 let define_type env lid =
