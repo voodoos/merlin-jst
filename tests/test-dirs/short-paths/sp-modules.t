@@ -208,7 +208,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
           "line": 8,
           "col": 14
         },
-        "type": "type t = Foo.t",
+        "type": "type t = Bar.t",
         "tail": "no"
       },
       {
@@ -220,7 +220,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
           "line": 8,
           "col": 14
         },
-        "type": "Foo.t",
+        "type": "Bar.t",
         "tail": "no"
       },
       {
@@ -232,7 +232,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
           "line": 8,
           "col": 14
         },
-        "type": "type u = u",
+        "type": "type u = Bar.t",
         "tail": "no"
       }
     ],
@@ -338,7 +338,34 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
     "notifications": []
   }
 
-  $ cat > open.ml <<EOF
+  $ cat >open.ml <<EOF
+  > module A = struct type a = int end
+  > include A 
+  > let x = (5 : a)
+  > EOF
+
+  $ $MERLIN single type-enclosing -position 3:4 \
+  > -filename open.ml <open.ml 
+  {
+    "class": "return",
+    "value": [
+      {
+        "start": {
+          "line": 3,
+          "col": 4
+        },
+        "end": {
+          "line": 3,
+          "col": 5
+        },
+        "type": "a",
+        "tail": "no"
+      }
+    ],
+    "notifications": []
+  }
+
+  $ cat >open.ml <<EOF
   > module A = struct type a = int end
   > open A 
   > let x = (5 : a)
