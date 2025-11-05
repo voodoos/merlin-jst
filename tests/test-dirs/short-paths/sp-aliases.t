@@ -222,7 +222,7 @@
           "line": 6,
           "col": 3
         },
-        "type": "sig type prev = t type t = Bar val err : prev -> t/2 end",
+        "type": "sig type prev = t type t = Bar val err : prev -> t end",
         "tail": "no"
       },
       {
@@ -234,7 +234,28 @@
           "line": 6,
           "col": 3
         },
-        "type": "sig type prev = t type t = Bar val err : prev -> t/2 end",
+        "type": "sig type prev = t type t = Bar val err : prev -> t end",
+        "tail": "no"
+      }
+    ],
+    "notifications": []
+  }
+
+  $ $MERLIN single type-enclosing -position 2:0 \
+  > -filename test.ml < test.ml 
+  {
+    "class": "return",
+    "value": [
+      {
+        "start": {
+          "line": 2,
+          "col": 0
+        },
+        "end": {
+          "line": 6,
+          "col": 3
+        },
+        "type": "sig type prev = t type t = Bar val err : prev -> t end",
         "tail": "no"
       }
     ],
