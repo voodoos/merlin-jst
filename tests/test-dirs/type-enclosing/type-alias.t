@@ -24,7 +24,6 @@ Test 1.1
   }
 
 Test 1.2 with short paths
-
   $ $MERLIN single type-enclosing -short-paths  -position 2:5 -filename type_alias.ml <<EOF
   > type foo = int
   > let x : foo = 1
@@ -41,7 +40,7 @@ Test 1.2 with short paths
           "line": 2,
           "col": 5
         },
-        "type": "int",
+        "type": "foo",
         "tail": "no"
       }
     ],
@@ -92,7 +91,7 @@ Test 2.2 with shortpaths
           "line": 2,
           "col": 5
         },
-        "type": "int",
+        "type": "foo",
         "tail": "no"
       }
     ],

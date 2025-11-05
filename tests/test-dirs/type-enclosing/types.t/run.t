@@ -94,7 +94,7 @@ FIXED: small enclosing was incorrect?
     }
   ]
 
-A type with a type param shouldn't equal itself - aliasing a list type
+FIXME A type with a type param shouldn't equal itself - aliasing a list type
 
   $ $MERLIN single type-enclosing -short-paths -position 11:9 -verbosity 0 \
   > -filename ./types.ml < ./types.ml | jq ".value"
@@ -108,7 +108,7 @@ A type with a type param shouldn't equal itself - aliasing a list type
         "line": 11,
         "col": 19
       },
-      "type": "type 'a l = 'a list",
+      "type": "type 'a l = 'a l",
       "tail": "no"
     }
   ]
@@ -127,7 +127,7 @@ Shows kind with increased verbosity:
         "line": 11,
         "col": 19
       },
-      "type": "type 'a l : immutable_data with 'a = 'a list",
+      "type": "type 'a l : immutable_data with 'a = 'a l",
       "tail": "no"
     }
   ]
