@@ -355,29 +355,35 @@ let shorten ~env ~canon_path =
   let queue, table = (!priority_queue, !canon_table) in
   log_dbg ~title:"shorten" "Current table: %a" Logger.fmt (fun fmt ->
       pp_table fmt table);
+
   let queue =
     queue
     |> fill_with_discourse discourse
     |> apply_substitutions discourse.substs
   in
+
   (* Do we already have a candidate ? *)
   let best_lid = find_best_lid env ~canon_path table in
+
   (* Is there a better one in the queue ? *)
   let best_lid, { queue = new_queue; table = new_table } =
     process_queue env { queue; table } ~canon_path best_lid
   in
+
   (* Empty the discourse *)
   Discourse.set { discourse with paths = Discourse_types.Paths.empty };
+
   (* Update the persistent queue and table *)
   priority_queue := new_queue;
   canon_table := new_table;
+
   match best_lid with
   | None -> canon_path
   | Some (lid, path) ->
     log ~title:"shorten" "%a" Logger.fmt (fun fmt ->
         Format.fprintf fmt "Masking path %a with lid %a" Path.print path
           Pprintast.longident lid);
-    path_mask path lid (* TODO *)
+    path_mask path lid
 
 let find_type_simple ~env path =
   log ~title:"find_type_simple" "Initial: %a\n%!" Logger.fmt (fun fmt ->
