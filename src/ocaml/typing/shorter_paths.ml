@@ -346,8 +346,8 @@ let rec path_mask (path : Path.t) (lid : Longident.t) : Path.t =
   | Pdot (p, s), Ldot (l, _) -> Pdot (path_mask p l, s)
   | Papply (p1, p2), Lapply (l1, _) -> Papply (path_mask p1 l1, p2)
   | (Pdot _ | Papply _), Lident s ->
-    (* TODO is this OK ?*)
-    Pident (Ident.create_persistent s)
+    let scope = Path.scope path in
+    Pident (Ident.create_scoped ~scope s)
   | _ -> assert false
 
 let shorten ~env ~canon_path =
