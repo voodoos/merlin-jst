@@ -97,8 +97,6 @@ let of_core_type env ?(acc = Discourse_types.empty) ty =
       List.fold_left (fun acc (_, ct) -> aux acc ct) acc l
     | Ptyp_constr ({ txt = lid }, params) ->
       let path, _td = Env.find_type_by_name lid env in
-      (* TODO is that the correct path ? I think it is the real path, not the
-              short one. We could use the lid instead. *)
       let acc = Discourse_types.Paths.add (Type, lid, path) acc in
       List.fold_left aux acc params
     | Ptyp_object (fields, _) ->
@@ -151,6 +149,7 @@ let rec add_path_to_discourse env discourse kind lid path =
       let md = Env.find_module_lazy path env in
       (* D5. If a module path is in U and its module description was written then
          the paths used in that description are in D *)
+      (* TODO this should call add_path_to_discourse *)
       let paths = Paths.union paths md.md_discourse in
       begin
         match md.md_type with
