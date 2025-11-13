@@ -353,6 +353,8 @@ let rec path_mask (path : Path.t) (lid : Longident.t) : Path.t =
 let shorten ~env ~canon_path =
   let discourse = Discourse.get () in
   let queue, table = (!priority_queue, !canon_table) in
+  log_dbg ~title:"shorten" "Current discourse: %a" Logger.fmt (fun fmt ->
+      Discourse.debug_print fmt);
   log_dbg ~title:"shorten" "Current table: %a" Logger.fmt (fun fmt ->
       pp_table fmt table);
 
