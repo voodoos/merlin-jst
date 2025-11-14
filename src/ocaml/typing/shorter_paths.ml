@@ -159,10 +159,10 @@ let apply_substitutions substs queue =
      substitutions. *)
   (* TODO this is a bit brutal and innefficient. We should think of a better
      algorithm for the final version. *)
-  let rec reroot_path ~root (path : Path.t) : Path.t =
+  let rec _reroot_path ~root (path : Path.t) : Path.t =
     match path with
     | Pident _ -> root
-    | Pdot (p, n) -> Pdot (reroot_path ~root p, n)
+    | Pdot (p, n) -> Pdot (_reroot_path ~root p, n)
     | p -> (* Replacement paths cannot be Papply or Pextras *) p
   in
   let rec reroot_lid ~root (path : Longident.t) : Longident.t =
@@ -176,49 +176,45 @@ let apply_substitutions substs queue =
        path L.M.N.v ([Pdot (Pdot (Pdot (Pident "L", "M"), "N"), "v")]) *)
     let replacements =
       Path.Set.fold
-        (fun p acc -> Lid_set.add (lid_of_path p, p) acc)
+        (fun p acc -> Lid_set.add (lid_of_path p, path) acc)
         replacement_paths Lid_set.empty
     in
     let rec replace_head (lid : Longident.t) (path : Path.t)
         (remaining_target : Path.t) =
-      match (lid, path, remaining_target) with
-      | Lident _, Pident id, Pident id' when Ident.same id id' ->
+      match (lid, remaining_target) with
+      | Lident id, Pident id' when String.equal id (Ident.name id') ->
         Some replacements
-      | Lident _, Pident _, _ -> None
-      | Ldot (l, _), Pdot (p, n), Pident id ->
-        if String.equal n (Ident.name id) then
+      | Lident _, _ -> None
+      | Ldot (l, n), Pident id ->
+        if String.equal n (Ident.name id) then (
+          Format.eprintf "IT HAPPENDED\n%!";
           Some
             (Lid_set.map
-               (fun (lid, path) ->
-                 (reroot_lid ~root:l lid, reroot_path ~root:p path))
-               replacements)
+               (fun (lid, _path) -> (reroot_lid ~root:l lid, path))
+               replacements))
         else None
-      | Ldot (l, _), Pdot (p, n), Pdot (t, n') ->
+      | Ldot (l, n), Pdot (t, n') ->
         if String.equal n n' then begin
-          replace_head l p t
+          replace_head l path t
         end
         else None
-      | _, _, _ -> None
+      | _, _ -> None
     in
     let rec aux (lid : Longident.t) (path : Path.t) =
-      match (replace_head lid path target_path, lid, path) with
-      | Some paths, _, _ -> paths
-      | None, Lident _, Pident _ -> Lid_set.empty
-      | None, Ldot (l, _), Pdot (p, n) ->
-        Lid_set.map
-          (fun (l, p) -> (Longident.Ldot (l, n), Pdot (p, n)))
-          (aux l p)
-      | None, Lapply (l, l'), Papply (p, p') ->
-        let ps = aux l p in
-        let p's = aux l' p' in
+      match (replace_head lid path target_path, lid) with
+      | Some paths, _ -> paths
+      | None, Lident _ -> Lid_set.empty
+      | None, Ldot (l, n) ->
+        Lid_set.map (fun (l, _p) -> (Longident.Ldot (l, n), path)) (aux l path)
+      | None, Lapply (l, l') ->
+        let ps = aux l path in
+        let p's = aux l' path in
         Lid_set.fold
-          (fun (l, p) acc ->
+          (fun (l, _p) acc ->
             Lid_set.fold
-              (fun (l', p') acc ->
-                Lid_set.add (Lapply (l, l'), Papply (p, p')) acc)
+              (fun (l', _) acc -> Lid_set.add (Lapply (l, l'), path) acc)
               p's acc)
           ps Lid_set.empty
-      | _, _, _ -> Lid_set.empty
     in
     aux lid path
   in
@@ -253,6 +249,8 @@ let find_best_lid env ~canon_path table =
     match Env.find_type_by_name lid env with
     | exception Not_found -> false
     | path', _ ->
+      let path, _ = normalize_type_path env path in
+      let path', _ = normalize_type_path env path' in
       let path_comp = Path.compare path path' in
       path_comp == 0
   in
@@ -302,9 +300,20 @@ let process_queue env state ~canon_path best_lid =
              find by name instead. However we must then check that we did actually
              find the type we were looking (same ident) for and not an homonym. *)
           let path', _ = Env.find_type_by_name lid env in
-          log ~title:"fill_by_level" "find_type_by_name: %a" Logger.fmt
+          log ~title:"fill_by_level" "find_type_by_name %a (%a) = %a" Logger.fmt
+            (fun fmt -> Pprintast.longident fmt lid)
+            Logger.fmt
+            (fun fmt -> Path.print fmt path)
+            Logger.fmt
             (fun fmt -> Path.print fmt path');
-          if path' <> path then raise Not_found
+
+          let p, _ = normalize_type_path env path in
+          let p', _ = normalize_type_path env path' in
+          log ~title:"fill_by_level" "find_type_by_name %a <>? %a" Logger.fmt
+            (fun fmt -> Path.print fmt p)
+            Logger.fmt
+            (fun fmt -> Path.print fmt p');
+          if p' <> p then raise Not_found
         in
         let canon, _ = normalize_type_path env path in
         log ~title:"fill_by_level" "Found canonical path %a" Logger.fmt

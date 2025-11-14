@@ -97,6 +97,24 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
     "notifications": []
   }
 
+
+  $ cat > substs.ml <<EOF
+  > module W = struct
+  >   module A = struct module B = struct module C = struct type t end end end
+  >   module N = A.B
+  >   module M = N.C
+  > end
+  > let x : W.A.B.C.t = assert false
+  > open W 
+  > let x : A.B.C.t = assert false
+  > EOF
+
+$ $MERLIN single type-enclosing -position 6:4 \
+> -log-file - -log-section short-paths -filename substs.ml < substs.ml 
+
+  $ $MERLIN single type-enclosing -position 8:4 \
+  > -log-file - -log-section discourse,short-paths -filename substs.ml < substs.ml
+
   $ cat >open.ml <<EOF
   > module A = struct type a = int end
   > include A 
@@ -150,3 +168,15 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
     ],
     "notifications": []
   }
+
+Open + Subst
+
+$ cat >open.ml <<EOF
+> module A = struct module B = struct module C = struct type a = V end end end
+> module X = A.B.C
+> open A.B.C
+> let x = (V : X.a)
+> EOF
+
+$ $MERLIN single type-enclosing -position 4:4 \
+> -log-file - -filename open.ml <open.ml 
