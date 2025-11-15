@@ -81,14 +81,22 @@ module String_map = Map.Make (String)
 module Lid_trie = struct
   type t = Trie of Longident.t option * Path.Set.t * t String_map.t
 
+  let pp_lid_paths fmt (lid, paths) =
+    let open Format in
+    fprintf fmt "(%a,[%a])" Pprintast.longident lid (pp_print_seq Path.print)
+      (Path.Set.to_seq paths)
+
   let rec pp_trie fmt (Trie (lid, paths, tries)) =
     let open Format in
     let pp_map fmt (id, trie) =
       Format.fprintf fmt "@[<v 2>%s: %a@]" id pp_trie trie
     in
-    Format.fprintf fmt "(%a,[%a]) :> %a"
-      (pp_print_option Pprintast.longident)
-      lid (pp_print_seq Path.print) (Path.Set.to_seq paths)
+    let pp_lid_paths fmt (lid, paths) =
+      match lid with
+      | None -> Format.fprintf fmt "Root"
+      | Some lid -> pp_lid_paths fmt (lid, paths)
+    in
+    Format.fprintf fmt "%a :> %a" pp_lid_paths (lid, paths)
       (pp_print_seq pp_map) (String_map.to_seq tries)
 
   (* let empty = Trie (Path.Set.empty, String_map.empty) *)
@@ -118,6 +126,15 @@ module Lid_trie = struct
         Path.Set.union p1 p2,
         String_map.union (fun _key t1 t2 -> Some (union t1 t2)) m1 m2 )
 
+  let to_seq t =
+    let rec aux (Trie (_, _, tries)) =
+      String_map.to_seq tries
+      |> Seq.flat_map (fun (_name, t) -> Seq.cons t (aux t))
+    in
+    aux t
+    |> Seq.filter_map (fun (Trie (lid, paths, _tries)) ->
+           if Path.Set.is_empty paths then None else Some (Option.get lid, paths))
+
   let _ =
     let t =
       union
@@ -128,5 +145,8 @@ module Lid_trie = struct
            (Ldot (Ldot (Lident "A", "B"), "x"))
            (Pident (Ident.create_persistent "totoid2")))
     in
-    Format.eprintf "TRIE %a\n%!" pp_trie t
+    Format.eprintf "TRIE %a\n%!" pp_trie t;
+    Format.eprintf "TRIESEQ %a\n%!"
+      (Format.pp_print_seq pp_lid_paths)
+      (to_seq t)
 end
