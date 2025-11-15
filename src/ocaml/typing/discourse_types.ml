@@ -79,35 +79,43 @@ let pp ppf t =
 module String_map = Map.Make (String)
 
 module Lid_trie = struct
-  type t = Trie of Path.Set.t * t String_map.t
+  type t = Trie of Longident.t option * Path.Set.t * t String_map.t
 
-  let rec pp_trie fmt (Trie (paths, tries)) =
+  let rec pp_trie fmt (Trie (lid, paths, tries)) =
     let open Format in
-    pp_print_seq Path.print fmt (Path.Set.to_seq paths);
     let pp_map fmt (id, trie) =
       Format.fprintf fmt "@[<v 2>%s: %a@]" id pp_trie trie
     in
-    pp_print_seq pp_map fmt (String_map.to_seq tries)
+    Format.fprintf fmt "(%a,[%a]) :> %a"
+      (pp_print_option Pprintast.longident)
+      lid (pp_print_seq Path.print) (Path.Set.to_seq paths)
+      (pp_print_seq pp_map) (String_map.to_seq tries)
 
   (* let empty = Trie (Path.Set.empty, String_map.empty) *)
 
-  let leaf path = Trie (Path.Set.singleton path, String_map.empty)
+  let leaf lid path = Trie (Some lid, Path.Set.singleton path, String_map.empty)
 
   let trie_of_lid lid path =
-    let rec aux acc = function
+    let rec aux acc lid =
+      match lid with
       | Longident.Lident id ->
         let map = String_map.singleton id acc in
-        Trie (Path.Set.empty, map)
+        Trie (None, Path.Set.empty, map)
       | Ldot (lid, id) ->
-        let acc = Trie (Path.Set.empty, String_map.singleton id acc) in
+        let acc =
+          Trie (Some lid, Path.Set.empty, String_map.singleton id acc)
+        in
         aux acc lid
       | Lapply (_, _) -> assert false
     in
-    aux (leaf path) lid
+    aux (leaf lid path) lid
 
-  let rec union (Trie (p1, m1)) (Trie (p2, m2)) =
+  let rec union (Trie (lid1, p1, m1)) (Trie (lid2, p2, m2)) =
+    assert (lid1 = lid2);
+    (* TODO remove this assert when it's clear that this invariant holds *)
     Trie
-      ( Path.Set.union p1 p2,
+      ( lid1,
+        Path.Set.union p1 p2,
         String_map.union (fun _key t1 t2 -> Some (union t1 t2)) m1 m2 )
 
   let _ =
