@@ -1,3 +1,5 @@
+(* This module exists to prevent a dependency cycle with Types. *)
+
 let compare_paths ?(compare_idents = Ident.compare)
     ?(compare_strings = String.compare) (p1 : Path.t) (p2 : Path.t) =
   let rec compare_paths (p1 : Path.t) (p2 : Path.t) =
@@ -47,7 +49,6 @@ let rec compare_longidents ?(compare_strings = String.compare)
   | Ldot _, Lapply _ -> -1
   | Lapply _, Ldot _ -> 1
 
-(* This module exists to prevent a dependency cycle with Types. *)
 module Paths = struct
   module T = struct
     type t = Shape.Sig_component_kind.t * Longident.t * Path.t
@@ -74,3 +75,50 @@ let pp ppf t =
   in
   let paths = Paths.elements t |> List.map (fun (_, lid, p) -> (lid, p)) in
   Format.pp_print_list ~pp_sep pp_lid_and_path ppf paths
+
+module String_map = Map.Make (String)
+
+module Lid_trie = struct
+  type t = Trie of Path.Set.t * t String_map.t
+
+  let rec pp_trie fmt (Trie (paths, tries)) =
+    let open Format in
+    pp_print_seq Path.print fmt (Path.Set.to_seq paths);
+    let pp_map fmt (id, trie) =
+      Format.fprintf fmt "@[<v 2>%s: %a@]" id pp_trie trie
+    in
+    pp_print_seq pp_map fmt (String_map.to_seq tries)
+
+  (* let empty = Trie (Path.Set.empty, String_map.empty) *)
+
+  let leaf path = Trie (Path.Set.singleton path, String_map.empty)
+
+  let trie_of_lid lid path =
+    let rec aux acc = function
+      | Longident.Lident id ->
+        let map = String_map.singleton id acc in
+        Trie (Path.Set.empty, map)
+      | Ldot (lid, id) ->
+        let acc = Trie (Path.Set.empty, String_map.singleton id acc) in
+        aux acc lid
+      | Lapply (_, _) -> assert false
+    in
+    aux (leaf path) lid
+
+  let rec union (Trie (p1, m1)) (Trie (p2, m2)) =
+    Trie
+      ( Path.Set.union p1 p2,
+        String_map.union (fun _key t1 t2 -> Some (union t1 t2)) m1 m2 )
+
+  let _ =
+    let t =
+      union
+        (trie_of_lid
+           (Ldot (Lident "A", "x"))
+           (Pident (Ident.create_persistent "totoid")))
+        (trie_of_lid
+           (Ldot (Ldot (Lident "A", "B"), "x"))
+           (Pident (Ident.create_persistent "totoid2")))
+    in
+    Format.eprintf "TRIE %a\n%!" pp_trie t
+end
