@@ -114,7 +114,14 @@ module Lid_trie = struct
           Trie (Some lid, Path.Set.empty, String_map.singleton id acc)
         in
         aux acc lid
-      | Lapply (_, _) -> assert false
+      | Lapply (lid, arg_lid) ->
+        let arg =
+          let acc =
+            Trie (Some arg_lid, Path.Set.empty, String_map.singleton ")" acc)
+          in
+          aux acc arg_lid
+        in
+        aux (Trie (Some lid, Path.Set.empty, String_map.singleton "(" arg)) lid
     in
     aux (leaf lid path) lid
 
@@ -125,6 +132,10 @@ module Lid_trie = struct
       ( lid1,
         Path.Set.union p1 p2,
         String_map.union (fun _key t1 t2 -> Some (union t1 t2)) m1 m2 )
+
+  let add lid path t =
+    let t' = trie_of_lid lid path in
+    union t t'
 
   let to_seq t =
     let rec aux (Trie (_, _, tries)) =
