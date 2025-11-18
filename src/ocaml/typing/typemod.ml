@@ -1869,13 +1869,13 @@ and transl_modtype_aux env smty =
       Discourse.use_modtype env lid path;
       mkmty (Tmty_ident (path, lid)) (Mty_ident path) env loc
         smty.pmty_attributes,
-        Discourse_types.Paths.singleton (Module_type, lid.txt, path)
+        Discourse_types.singleton lid.txt (Module_type, path)
   | Pmty_alias lid ->
       let path = transl_module_alias loc env lid.txt in
       Discourse.use_module env lid path;
       mkmty (Tmty_alias (path, lid)) (Mty_alias path) env loc
         smty.pmty_attributes,
-        Discourse_types.Paths.singleton (Module, lid.txt, path)
+        Discourse_types.singleton lid.txt (Module, path)
   | Pmty_signature ssg ->
       Env.check_no_open_quotations loc env Env.Sig_qt;
       let sg = transl_signature env [] ssg in
@@ -1914,11 +1914,11 @@ and transl_modtype_aux env smty =
           Named (id, param, arg), Types.Named (id, arg.mty_type),
           newenv, md_discourse
       in
-      let res, discourse = transl_modtype newenv sres in
+      let res = transl_modtype newenv sres in
       mkmty (Tmty_functor (t_arg, res))
         (Mty_functor(ty_arg, res.mty_type)) env loc
         smty.pmty_attributes
-        Discourse_types.Paths.union discourse arg_discourse
+      Discourse_types.union discourse arg_discourse
   | Pmty_with(sbody, constraints) ->
       let body, discourse = transl_modtype env sbody in
       let init_sg = extract_sig env sbody.pmty_loc body.mty_type in
@@ -1936,7 +1936,7 @@ and transl_modtype_aux env smty =
       let discourse =
         match tmty.mod_desc with
         | Tmod_ident (path,lid) ->
-            Discourse_types.Paths.singleton (Module, lid.txt, path)
+            Discourse_types.singleton lid.txt (Module, path)
         | _ -> empty_discourse
       in
       mkmty (Tmty_typeof tmty) mty env loc smty.pmty_attributes,
@@ -1962,7 +1962,7 @@ and transl_modtype_aux env smty =
           env
           loc
           [],
-        Discourse_types.Paths.add (Module, mod_id.txt, path) discourse
+        Discourse_types.add  mod_id.txt (Module, path) discourse
       with Includemod.Error explanation ->
         raise(Error(loc, env, Strengthening_mismatch(mod_id.txt, explanation)))
       ;
@@ -2217,7 +2217,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
             md
           else
             let md_discourse =
-              Discourse_types.Paths.singleton (Module, lid, path)
+              Discourse_types.singleton lid (Module, path)
             in
             { md_type = Mty_alias path;
               md_modalities = Mode.Modality.id;

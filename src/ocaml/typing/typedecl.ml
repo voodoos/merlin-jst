@@ -1000,7 +1000,7 @@ let transl_declaration env sdecl (id, uid) =
             (fun () -> make_cstr acc scstr)
         in
         let discourse, cstrs =
-          List.fold_left_map make_cstr Discourse_types.Paths.empty scstrs
+          List.fold_left_map make_cstr Discourse_types.empty scstrs
         in
         let tcstrs, cstrs = List.split cstrs in
         let rep, jkind =
