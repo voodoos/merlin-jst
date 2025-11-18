@@ -47,7 +47,7 @@ open Shape.Sig_component_kind
 open Discourse_types
 
 type nonrec t = { paths : t; substs : Path.Set.t Path.Map.t }
-let empty = { paths = Paths.empty; substs = Path.Map.empty }
+let empty = { paths = empty; substs = Path.Map.empty }
 let log_section = "discourse"
 let { Logger.log } = Logger.for_section log_section
 
@@ -97,7 +97,7 @@ let of_core_type env ?(acc = Discourse_types.empty) ty =
       List.fold_left (fun acc (_, ct) -> aux acc ct) acc l
     | Ptyp_constr ({ txt = lid }, params) ->
       let path, _td = Env.find_type_by_name lid env in
-      let acc = Discourse_types.Paths.add (Type, lid, path) acc in
+      let acc = Discourse_types.Lid_trie.add lid (Type, path) acc in
       List.fold_left aux acc params
     | Ptyp_object (fields, _) ->
       List.fold_left
@@ -106,7 +106,7 @@ let of_core_type env ?(acc = Discourse_types.empty) ty =
         acc fields
     | Ptyp_class ({ txt = lid; _ }, l) ->
       let path, _td = Env.find_type_by_name lid env in
-      let acc = Discourse_types.Paths.add (Type, lid, path) acc in
+      let acc = Discourse_types.Lid_trie.add lid (Type, path) acc in
       List.fold_left aux acc l
     | Ptyp_alias (ct, _, _) -> aux acc ct
     | Ptyp_variant (row, _, _) ->
@@ -119,11 +119,11 @@ let of_core_type env ?(acc = Discourse_types.empty) ty =
     | Ptyp_poly (_, ct) -> aux acc ct
     | Ptyp_package ({ txt = lid; _ }, l) ->
       let path, _td = Env.find_modtype_by_name lid env in
-      let acc = Discourse_types.Paths.add (Module_type, lid, path) acc in
+      let acc = Discourse_types.Lid_trie.add lid (Module_type, path) acc in
       List.fold_left (fun acc (_, ct) -> aux acc ct) acc l
     | Ptyp_open ({ txt = lid; _ }, ct) ->
       let path, _td = Env.find_module_by_name lid env in
-      let acc = Discourse_types.Paths.add (Module, lid, path) acc in
+      let acc = Discourse_types.Lid_trie.add lid (Module, path) acc in
       aux acc ct
     | Ptyp_of_kind _ | Ptyp_var _ -> acc
     | Ptyp_extension _ -> acc
@@ -138,7 +138,7 @@ let of_core_type env ?(acc = Discourse_types.empty) ty =
           path within it, then that module path is also in D. Should we consider
           only [Papply] paths or all path components for addition to D ?  *)
 let rec add_path_to_discourse env discourse kind lid path =
-  let paths = Paths.add (kind, lid, path) discourse.paths in
+  let paths = Lid_trie.add lid (kind, path) discourse.paths in
   let ldot id = Longident.Ldot (lid, Ident.name id) in
   let pdot id = Path.Pdot (path, Ident.name id) in
   let paths, substs =
@@ -150,7 +150,7 @@ let rec add_path_to_discourse env discourse kind lid path =
       (* D5. If a module path is in U and its module description was written then
          the paths used in that description are in D *)
       (* TODO this should call add_path_to_discourse *)
-      let paths = Paths.union paths md.md_discourse in
+      let paths = Lid_trie.union paths md.md_discourse in
       begin
         match md.md_type with
         | Mty_alias p ->
@@ -172,25 +172,22 @@ let rec add_path_to_discourse env discourse kind lid path =
           (* D3. If a module path is in U then all the paths of its subcomponents
              are in D *)
           List.fold_left
-            (fun (p, s) -> function
-              | Subst.Lazy.Sig_value (id, _, _) ->
-                (Paths.add (Value, ldot id, pdot id) p, s)
-              | Subst.Lazy.Sig_type (id, _, _, _) ->
-                (Paths.add (Type, ldot id, pdot id) p, s)
+            (fun (p, s) ->
+              let add kind id = Lid_trie.add (ldot id) (kind, pdot id) p in
+              function
+              | Subst.Lazy.Sig_value (id, _, _) -> (add Value id, s)
+              | Subst.Lazy.Sig_type (id, _, _, _) -> (add Type id, s)
               | Subst.Lazy.Sig_typext (id, _, _, _) ->
-                (Paths.add (Extension_constructor, ldot id, pdot id) p, s)
+                (add Extension_constructor id, s)
               | Subst.Lazy.Sig_module (id, _, _, _, _) ->
                 let d =
                   add_path_to_discourse env { paths = p; substs = s } Module
                     (ldot id) (pdot id)
                 in
                 (d.paths, d.substs)
-              | Subst.Lazy.Sig_modtype (id, _, _) ->
-                (Paths.add (Module_type, ldot id, pdot id) p, s)
-              | Subst.Lazy.Sig_class (id, _, _, _) ->
-                (Paths.add (Class, ldot id, pdot id) p, s)
-              | Subst.Lazy.Sig_class_type (id, _, _, _) ->
-                (Paths.add (Class_type, ldot id, pdot id) p, s))
+              | Subst.Lazy.Sig_modtype (id, _, _) -> (add Module_type id, s)
+              | Subst.Lazy.Sig_class (id, _, _, _) -> (add Class id, s)
+              | Subst.Lazy.Sig_class_type (id, _, _, _) -> (add Class_type id, s))
             (paths, substs)
             (Subst.Lazy.force_signature_once s)
         | _ -> (paths, substs)
@@ -199,18 +196,18 @@ let rec add_path_to_discourse env discourse kind lid path =
       let mtd = Env.find_modtype path env in
       (* D8. If a module type path is in U then any paths used in its definition
          are in *)
-      (Paths.union paths mtd.mtd_discourse, substs)
+      (Lid_trie.union paths mtd.mtd_discourse, substs)
     | Value ->
       (* D4. If a value path is in U and its value description was written by a user -
          as opposed to being inferred - then the paths used in that description are
          in D. *)
       let vd = Env.find_value path env in
-      (Paths.union paths vd.val_discourse, substs)
+      (Lid_trie.union paths vd.val_discourse, substs)
     | Type ->
       (* D6. If a type path is in U then any paths used in its equation or
          representation are in D. *)
       let td = Env.find_type path env in
-      (Paths.union paths td.type_discourse, substs)
+      (Lid_trie.union paths td.type_discourse, substs)
     | _ -> (paths, substs)
   in
   { paths; substs }
@@ -236,7 +233,7 @@ let define_type env lid =
     let path, _ = Env.find_type_by_name lid env in
     log ~title:"def" "Define type %a\n%!" Logger.fmt (fun fmt ->
         Path.print fmt path);
-    g := { !g with paths = Paths.add (Type, lid, path) !g.paths }
+    g := { !g with paths = Lid_trie.add lid (Type, path) !g.paths }
   end
 
 let define_module env lid =
@@ -252,7 +249,7 @@ let define_modtype env lid =
     let path, _ = Env.find_modtype_by_name lid env in
     log ~title:"def" "Define modtype %a\n%!" Logger.fmt (fun fmt ->
         Path.print fmt path);
-    g := { !g with paths = Paths.add (Module_type, lid, path) !g.paths }
+    g := { !g with paths = Lid_trie.add lid (Module_type, path) !g.paths }
   end
 
 (* Rule U1: Any path occurring in the file is in U *)
@@ -264,11 +261,11 @@ let use_value env lid path = add_used env Value lid path
 let use_constructor _env (constr : Types.constructor_description) =
   if record_usages then begin
     (* If a constructor is in U then any paths used in its type are in D. *)
-    g := { !g with paths = Paths.union !g.paths constr.cstr_discourse }
+    g := { !g with paths = Lid_trie.union !g.paths constr.cstr_discourse }
   end
 
 let use_label _env (label : _ Types.gen_label_description) =
   if record_usages then begin
     (* If a label is in U then any paths used in its type are in D. *)
-    g := { !g with paths = Paths.union !g.paths label.lbl_discourse }
+    g := { !g with paths = Lid_trie.union !g.paths label.lbl_discourse }
   end

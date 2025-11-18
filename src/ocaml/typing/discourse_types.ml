@@ -51,45 +51,36 @@ let rec compare_longidents ?(compare_strings = String.compare)
 
 module Paths = struct
   module T = struct
-    type t = Shape.Sig_component_kind.t * Longident.t * Path.t
+    type t = Shape.Sig_component_kind.t * Path.t
 
     (* Since we are versing these paths in a different structure (the
         priority queue) before shortening, it does not seems useful tu use a
         custom path comparison function here. *)
 
-    let compare (_, lid1, p1) (_, lid2, p2) =
-      let c = compare_longidents lid1 lid2 in
-      if c = 0 then compare_paths p1 p2 else c
+    let compare (_, p1) (_, p2) = compare_paths p1 p2
   end
 
   include Set.Make (T)
 end
 
-type t = Paths.t
-let empty = Paths.empty
-
-let pp ppf t =
+let pp_paths ppf t =
   let pp_sep ppf () = Format.fprintf ppf ";@;" in
-  let pp_lid_and_path ppf (lid, p) =
-    Format.fprintf ppf "%a (%a)" Pprintast.longident lid Path.print p
-  in
-  let paths = Paths.elements t |> List.map (fun (_, lid, p) -> (lid, p)) in
-  Format.pp_print_list ~pp_sep pp_lid_and_path ppf paths
+  let paths = Paths.elements t |> List.map (fun (_, p) -> p) in
+  Format.pp_print_list ~pp_sep Path.print ppf paths
 
 module String_map = Map.Make (String)
 
 module Lid_trie = struct
-  type t = Trie of Longident.t option * Path.Set.t * t String_map.t
+  type t = Trie of Longident.t option * Paths.t * t String_map.t
 
   let pp_lid_paths fmt (lid, paths) =
     let open Format in
-    fprintf fmt "(%a,[%a])" Pprintast.longident lid (pp_print_seq Path.print)
-      (Path.Set.to_seq paths)
+    fprintf fmt "(%a,[%a])" Pprintast.longident lid pp_paths paths
 
-  let rec pp_trie fmt (Trie (lid, paths, tries)) =
+  let rec pp fmt (Trie (lid, paths, tries)) =
     let open Format in
     let pp_map fmt (id, trie) =
-      Format.fprintf fmt "@[<v 2>%s: %a@]" id pp_trie trie
+      Format.fprintf fmt "@[<v 2>%s: %a@]" id pp trie
     in
     let pp_lid_paths fmt (lid, paths) =
       match lid with
@@ -99,29 +90,27 @@ module Lid_trie = struct
     Format.fprintf fmt "%a :> %a" pp_lid_paths (lid, paths)
       (pp_print_seq pp_map) (String_map.to_seq tries)
 
-  (* let empty = Trie (Path.Set.empty, String_map.empty) *)
+  let empty = Trie (None, Paths.empty, String_map.empty)
 
-  let leaf lid path = Trie (Some lid, Path.Set.singleton path, String_map.empty)
+  let leaf lid path = Trie (Some lid, Paths.singleton path, String_map.empty)
 
   let trie_of_lid lid path =
     let rec aux acc lid =
       match lid with
       | Longident.Lident id ->
         let map = String_map.singleton id acc in
-        Trie (None, Path.Set.empty, map)
+        Trie (None, Paths.empty, map)
       | Ldot (lid, id) ->
-        let acc =
-          Trie (Some lid, Path.Set.empty, String_map.singleton id acc)
-        in
+        let acc = Trie (Some lid, Paths.empty, String_map.singleton id acc) in
         aux acc lid
       | Lapply (lid, arg_lid) ->
         let arg =
           let acc =
-            Trie (Some arg_lid, Path.Set.empty, String_map.singleton ")" acc)
+            Trie (Some arg_lid, Paths.empty, String_map.singleton ")" acc)
           in
           aux acc arg_lid
         in
-        aux (Trie (Some lid, Path.Set.empty, String_map.singleton "(" arg)) lid
+        aux (Trie (Some lid, Paths.empty, String_map.singleton "(" arg)) lid
     in
     aux (leaf lid path) lid
 
@@ -130,7 +119,7 @@ module Lid_trie = struct
     (* TODO remove this assert when it's clear that this invariant holds *)
     Trie
       ( lid1,
-        Path.Set.union p1 p2,
+        Paths.union p1 p2,
         String_map.union (fun _key t1 t2 -> Some (union t1 t2)) m1 m2 )
 
   let add lid path t =
@@ -144,20 +133,28 @@ module Lid_trie = struct
     in
     aux t
     |> Seq.filter_map (fun (Trie (lid, paths, _tries)) ->
-           if Path.Set.is_empty paths then None else Some (Option.get lid, paths))
+           if Paths.is_empty paths then None else Some (Option.get lid, paths))
 
   let _ =
     let t =
-      union
-        (trie_of_lid
-           (Ldot (Lident "A", "x"))
-           (Pident (Ident.create_persistent "totoid")))
-        (trie_of_lid
-           (Ldot (Ldot (Lident "A", "B"), "x"))
-           (Pident (Ident.create_persistent "totoid2")))
+      empty
+      |> add
+           (Ldot (Lapply (Lident "F", Lident "A"), "x"))
+           (Value, Pident (Ident.create_persistent "totoid"))
+      |> add
+           (Ldot (Ldot (Lident "F", "B"), "x"))
+           (Type, Pident (Ident.create_persistent "totoid2"))
     in
-    Format.eprintf "TRIE %a\n%!" pp_trie t;
+    Format.eprintf "\nTRIE %a\n%!" pp t;
     Format.eprintf "TRIESEQ %a\n%!"
       (Format.pp_print_seq pp_lid_paths)
       (to_seq t)
 end
+
+type t = Lid_trie.t
+let empty = Lid_trie.empty
+let add = Lid_trie.add
+let union = Lid_trie.union
+let singleton = Lid_trie.trie_of_lid
+
+let pp = Lid_trie.pp
