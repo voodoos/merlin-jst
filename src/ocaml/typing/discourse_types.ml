@@ -126,6 +126,21 @@ module Lid_trie = struct
     let t' = trie_of_lid lid path in
     union t t'
 
+  let rec reach (Trie (_, _, tries) as t) lid =
+    match (lid : Longident.t) with
+    | Lident name -> String_map.find_opt name tries
+    | Ldot (lid, name) ->
+      let parent = reach t lid in
+      Option.bind parent (fun (Trie (_, _, tries)) ->
+          String_map.find_opt name tries)
+    | Lapply (lid, arg_lid) ->
+      let parent = reach t lid in
+      Option.bind parent (fun (Trie (_, _, tries)) ->
+          let arg_trie = String_map.find_opt "(" tries in
+          let arg_enc = Option.bind arg_trie (fun t -> reach t arg_lid) in
+          Option.bind arg_enc (fun (Trie (_, _, tries)) ->
+              String_map.find_opt ")" tries))
+
   let to_seq t =
     let rec aux lid_acc (Trie (_, _, tries)) =
       String_map.to_seq tries
@@ -149,21 +164,23 @@ module Lid_trie = struct
              (* There must be a lid when paths are stored. *)
              Some (Option.get lid, paths))
 
-  (*
-  let _ =
-    let t =
-      empty
-      |> add
-           (Ldot (Lapply (Lident "F", Lident "A"), "x"))
-           (Value, Pident (Ident.create_persistent "totoid"))
-      |> add
-           (Ldot (Ldot (Lident "F", "B"), "x"))
-           (Type, Pident (Ident.create_persistent "totoid2"))
-    in
-    Format.eprintf "\nTRIE %a\n%!" pp t;
-    Format.eprintf "TRIESEQ %a\n%!"
-      (Format.pp_print_seq pp_lid_paths)
-      (to_seq t) *)
+  (* let _ =
+     let t =
+       empty
+       |> add
+            (Ldot (Lapply (Lident "F", Lident "A"), "x"))
+            (Value, Pident (Ident.create_persistent "totoid"))
+       |> add
+            (Ldot (Ldot (Lident "F", "B"), "x"))
+            (Type, Pident (Ident.create_persistent "totoid2"))
+     in
+     Format.eprintf "\nTRIE %a\n%!" pp t;
+     Format.eprintf "TRIESEQ %a\n%!"
+       (Format.pp_print_seq pp_lid_paths)
+       (to_seq t);
+     Format.eprintf "TRIEACHED %a\n%!"
+       (Format.pp_print_seq pp_lid_paths)
+       (to_seq (reach t (Lapply (Lident "F", Lident "A")) |> Option.get)) *)
 end
 
 type t = Lid_trie.t
