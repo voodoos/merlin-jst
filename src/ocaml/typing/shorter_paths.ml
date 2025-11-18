@@ -190,12 +190,11 @@ let apply_substitutions substs queue =
         Some replacements
       | Lident _, _ -> None
       | Ldot (l, n), Pident id ->
-        if String.equal n (Ident.name id) then (
-          Format.eprintf "IT HAPPENDED\n%!";
+        if String.equal n (Ident.name id) then
           Some
             (Lid_set.map
                (fun (lid, _path) -> (reroot_lid ~root:l lid, path))
-               replacements))
+               replacements)
         else None
       | Ldot (l, n), Pdot (t, n') ->
         if String.equal n n' then begin

@@ -134,7 +134,7 @@ module Lid_trie = struct
     aux t
     |> Seq.filter_map (fun (Trie (lid, paths, _tries)) ->
            if Paths.is_empty paths then None else Some (Option.get lid, paths))
-
+  (*
   let _ =
     let t =
       empty
@@ -148,7 +148,7 @@ module Lid_trie = struct
     Format.eprintf "\nTRIE %a\n%!" pp t;
     Format.eprintf "TRIESEQ %a\n%!"
       (Format.pp_print_seq pp_lid_paths)
-      (to_seq t)
+      (to_seq t) *)
 end
 
 type t = Lid_trie.t
