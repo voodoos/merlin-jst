@@ -92,9 +92,10 @@ module Lid_trie = struct
 
   let empty = Trie (None, Paths.empty, String_map.empty)
 
-  let leaf lid path = Trie (Some lid, Paths.singleton path, String_map.empty)
+  let node ?(children = String_map.empty) lid paths =
+    Trie (Some lid, paths, children)
 
-  let trie_of_lid lid path =
+  let trie_of_lid ?children lid paths =
     let rec aux acc lid =
       match lid with
       | Longident.Lident id ->
@@ -112,7 +113,7 @@ module Lid_trie = struct
         in
         aux (Trie (Some lid, Paths.empty, String_map.singleton "(" arg)) lid
     in
-    aux (leaf lid path) lid
+    aux (node ?children lid paths) lid
 
   let rec union (Trie (lid1, p1, m1)) (Trie (lid2, p2, m2)) =
     assert (lid1 = lid2);
@@ -123,7 +124,7 @@ module Lid_trie = struct
         String_map.union (fun _key t1 t2 -> Some (union t1 t2)) m1 m2 )
 
   let add lid path t =
-    let t' = trie_of_lid lid path in
+    let t' = trie_of_lid lid (Paths.singleton path) in
     union t t'
 
   let rec reach (Trie (_, _, tries) as t) lid =
@@ -187,6 +188,6 @@ type t = Lid_trie.t
 let empty = Lid_trie.empty
 let add = Lid_trie.add
 let union = Lid_trie.union
-let singleton = Lid_trie.trie_of_lid
+let singleton lid path = Lid_trie.trie_of_lid lid (Paths.singleton path)
 
 let pp = Lid_trie.pp
