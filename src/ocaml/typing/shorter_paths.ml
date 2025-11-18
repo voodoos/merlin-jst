@@ -149,10 +149,14 @@ let pp_table fmt t =
 let normalize_type_path = Out_type.normalize_type_path ~cache:false
 
 let fill_with_discourse (discourse : Discourse.t) queue =
-  Discourse_types.Paths.fold
-    (fun (kind, lid, path) acc ->
-      if kind = Type then Priority_queue.add (lid, path) acc else acc)
-    discourse.paths queue
+  Discourse_types.Lid_trie.to_seq discourse.paths
+  |> Seq.fold_left
+       (fun acc (lid, paths) ->
+         Discourse_types.Paths.fold
+           (fun (kind, path) acc ->
+             if kind = Type then Priority_queue.add (lid, path) acc else acc)
+           paths acc)
+       queue
 
 let apply_substitutions substs queue =
   (* We compute the transitive closure of the queue with regard to path
@@ -382,7 +386,7 @@ let shorten ~env ~canon_path =
   in
 
   (* Empty the discourse *)
-  Discourse.set { discourse with paths = Discourse_types.Paths.empty };
+  Discourse.set { discourse with paths = Discourse_types.empty };
 
   (* Update the persistent queue and table *)
   priority_queue := new_queue;
