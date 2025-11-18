@@ -145,18 +145,18 @@ module Lid_trie = struct
   let to_seq t =
     let rec aux lid_acc (Trie (_, _, tries)) =
       String_map.to_seq tries
-      |> Seq.flat_map (fun (name, t) ->
-             let lid =
-               (* This is a it convoluted due to the handling of Lapply. *)
-               match (lid_acc, name) with
-               | None :: tl, _ -> Some (Longident.Lident name) :: tl
-               | l, "(" -> None :: l
-               | Some arg :: Some lid :: tl, ")" ->
-                 Some (Longident.Lapply (lid, arg)) :: tl
-               | Some lid :: tl, _ -> Some (Longident.Ldot (lid, name)) :: tl
-               | _ -> assert false
-             in
-             Seq.cons (List.hd lid, t) (aux lid t))
+      |> Seq.flat_map @@ fun (name, t) ->
+         let lid =
+           (* This is a it convoluted due to the handling of Lapply. *)
+           match (lid_acc, name) with
+           | None :: tl, _ -> Some (Longident.Lident name) :: tl
+           | l, "(" -> None :: l
+           | Some arg :: Some lid :: tl, ")" ->
+             Some (Longident.Lapply (lid, arg)) :: tl
+           | Some lid :: tl, _ -> Some (Longident.Ldot (lid, name)) :: tl
+           | _ -> assert false
+         in
+         Seq.cons (List.hd lid, t) (aux lid t)
     in
     aux [ None ] t
     |> Seq.filter_map (fun (lid, Trie (_lid, paths, _tries)) ->
