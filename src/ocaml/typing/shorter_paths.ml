@@ -148,6 +148,22 @@ let pp_table fmt t =
 
 let normalize_type_path = Out_type.normalize_type_path ~cache:false
 
+open Discourse_types
+
+let rec apply_one_substitution ~target ~replacements
+    (Trie (_, paths, children) as t : Discourse_types.t) =
+  match Lid_trie.reach t target with
+  | Some (Trie (_, paths, children)) ->
+    List.fold_left
+      (fun acc lid ->
+        Lid_trie.union acc @@ Lid_trie.trie_of_lid ~children lid paths)
+      Lid_trie.empty replacements
+  | None ->
+    let children =
+      String_map.map (apply_one_substitution ~target ~replacements) children
+    in
+    Trie (None, paths, children)
+
 let fill_with_discourse (discourse : Discourse.t) queue =
   Discourse_types.Lid_trie.to_seq discourse.paths
   |> Seq.fold_left
