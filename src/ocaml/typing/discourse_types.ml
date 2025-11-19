@@ -92,6 +92,8 @@ module Lid_trie = struct
 
   let empty = Trie (None, Paths.empty, String_map.empty)
 
+  let is_empty (Trie (_, _, children)) = String_map.is_empty children
+
   let node ?(children = String_map.empty) lid paths =
     Trie (Some lid, paths, children)
 
