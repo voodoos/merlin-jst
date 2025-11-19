@@ -71,81 +71,70 @@ let pp_paths ppf t =
 module String_map = Map.Make (String)
 
 module Lid_trie = struct
-  type t = Trie of Longident.t option * Paths.t * t String_map.t
+  type t = Trie of Paths.t * t String_map.t
 
-  let pp_lid_paths fmt (lid, paths) =
+  let pp_paths fmt paths =
     let open Format in
-    fprintf fmt "(%a,[%a])" Pprintast.longident lid pp_paths paths
+    fprintf fmt "[%a]" pp_paths paths
 
-  let rec pp fmt (Trie (lid, paths, tries)) =
+  let rec pp fmt (Trie (paths, tries)) =
     let open Format in
     let pp_map fmt (id, trie) =
       Format.fprintf fmt "@[<v 2>%s: %a@]" id pp trie
     in
-    let pp_lid_paths fmt (lid, paths) =
-      match lid with
-      | None -> Format.fprintf fmt "Root"
-      | Some lid -> pp_lid_paths fmt (lid, paths)
-    in
-    Format.fprintf fmt "%a :> %a" pp_lid_paths (lid, paths)
-      (pp_print_seq pp_map) (String_map.to_seq tries)
+    Format.fprintf fmt "%a :> %a" pp_paths paths (pp_print_seq pp_map)
+      (String_map.to_seq tries)
 
-  let empty = Trie (None, Paths.empty, String_map.empty)
+  let empty = Trie (Paths.empty, String_map.empty)
 
-  let is_empty (Trie (_, _, children)) = String_map.is_empty children
+  let is_empty (Trie (_, children)) = String_map.is_empty children
 
-  let node ?(children = String_map.empty) lid paths =
-    Trie (Some lid, paths, children)
+  let node ?(children = String_map.empty) paths = Trie (paths, children)
 
   let trie_of_lid ?children lid paths =
     let rec aux acc lid =
       match lid with
       | Longident.Lident id ->
         let map = String_map.singleton id acc in
-        Trie (None, Paths.empty, map)
+        Trie (Paths.empty, map)
       | Ldot (lid, id) ->
-        let acc = Trie (Some lid, Paths.empty, String_map.singleton id acc) in
+        let acc = Trie (Paths.empty, String_map.singleton id acc) in
         aux acc lid
       | Lapply (lid, arg_lid) ->
         let arg =
-          let acc =
-            Trie (Some arg_lid, Paths.empty, String_map.singleton ")" acc)
-          in
+          let acc = Trie (Paths.empty, String_map.singleton ")" acc) in
           aux acc arg_lid
         in
-        aux (Trie (Some lid, Paths.empty, String_map.singleton "(" arg)) lid
+        aux (Trie (Paths.empty, String_map.singleton "(" arg)) lid
     in
-    aux (node ?children lid paths) lid
+    aux (node ?children paths) lid
 
-  let rec union (Trie (lid1, p1, m1)) (Trie (lid2, p2, m2)) =
-    assert (lid1 = lid2);
-    (* TODO remove this assert when it's clear that this invariant holds *)
+  let rec union (Trie (p1, m1)) (Trie (p2, m2)) =
     Trie
-      ( lid1,
-        Paths.union p1 p2,
+      ( Paths.union p1 p2,
         String_map.union (fun _key t1 t2 -> Some (union t1 t2)) m1 m2 )
 
   let add lid path t =
     let t' = trie_of_lid lid (Paths.singleton path) in
     union t t'
 
-  let rec reach (Trie (_, _, tries) as t) lid =
+  let rec reach (Trie (_, tries) as t) lid =
     match (lid : Longident.t) with
     | Lident name -> String_map.find_opt name tries
     | Ldot (lid, name) ->
       let parent = reach t lid in
-      Option.bind parent (fun (Trie (_, _, tries)) ->
+      Option.bind parent (fun (Trie (_, tries)) ->
           String_map.find_opt name tries)
     | Lapply (lid, arg_lid) ->
       let parent = reach t lid in
-      Option.bind parent (fun (Trie (_, _, tries)) ->
+      Option.bind parent (fun (Trie (_, tries)) ->
           let arg_trie = String_map.find_opt "(" tries in
           let arg_enc = Option.bind arg_trie (fun t -> reach t arg_lid) in
-          Option.bind arg_enc (fun (Trie (_, _, tries)) ->
+          Option.bind arg_enc (fun (Trie (_, tries)) ->
               String_map.find_opt ")" tries))
 
   let to_seq t =
-    let rec aux lid_acc (Trie (_, _, tries)) =
+    let rec aux lid_acc (Trie (_, tries)) =
       String_map.to_seq tries
       |> Seq.flat_map @@ fun (name, t) ->
          let lid =
@@ -161,7 +150,7 @@ module Lid_trie = struct
          Seq.cons (List.hd lid, t) (aux lid t)
     in
     aux [ None ] t
-    |> Seq.filter_map (fun (lid, Trie (_lid, paths, _tries)) ->
+    |> Seq.filter_map (fun (lid, Trie (paths, _tries)) ->
            if Paths.is_empty paths then None
            else
              (* There must be a lid when paths are stored. *)

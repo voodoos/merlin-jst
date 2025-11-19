@@ -151,9 +151,9 @@ let normalize_type_path = Out_type.normalize_type_path ~cache:false
 open Discourse_types
 
 let rec apply_one_substitution ~target ~replacements
-    (Trie (_, paths, children) as t : Discourse_types.t) =
+    (Trie (paths, children) as t : Discourse_types.t) =
   match Lid_trie.reach t target with
-  | Some (Trie (_, paths, children)) ->
+  | Some (Trie (paths, children)) ->
     List.fold_left
       (fun acc lid ->
         Lid_trie.union acc @@ Lid_trie.trie_of_lid ~children lid paths)
@@ -166,7 +166,7 @@ let rec apply_one_substitution ~target ~replacements
           if Lid_trie.is_empty result then None else Some result)
         children
     in
-    Trie (None, paths, children)
+    Trie (paths, children)
 
 let apply_substitutions substs t =
   List.fold_left
