@@ -156,6 +156,12 @@ module Lid_trie = struct
              (* There must be a lid when paths are stored. *)
              Some (Option.get lid, paths))
 
+  let size t =
+    let rec aux acc (Trie (_, tries)) =
+      String_map.fold (fun _ t acc -> aux (1 + acc) t) tries acc
+    in
+    aux 0 t
+
   (* let _ =
      let t =
        empty

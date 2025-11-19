@@ -334,14 +334,18 @@ $ $MERLIN single type-enclosing -position 6:4 \
     "notifications": []
   }
 
-Open + Subst
+Test with a module aliases "loop":
 
-$ cat >open.ml <<EOF
-> module A = struct module B = struct module C = struct type a = V end end end
-> module X = A.B.C
-> open A.B.C
-> let x = (V : X.a)
-> EOF
+  $ cat >loop.ml <<EOF
+  > module N = struct type t = int end
+  > module M = N
+  > module X = struct 
+  >   module M = struct type t = int end
+  >   module N = M
+  > end
+  > let x : N.t = 5
+  > EOF 
 
-$ $MERLIN single type-enclosing -position 4:4 \
-> -log-file - -filename open.ml <open.ml 
+  $ $MERLIN single type-enclosing -position 7:4 \
+  > -filename loop.ml <loop.ml | jq '.value[0].type'
+  "int"
