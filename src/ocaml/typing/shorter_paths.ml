@@ -186,9 +186,11 @@ let apply_substitutions_fixpoint t substs =
   let rec aux acc t =
     let new_lids = apply_substitutions substs t in
     if Lid_trie.is_empty new_lids then acc
-    else
+    else begin
+      let acc_length = Lid_trie.size acc in
       let acc = Lid_trie.union acc new_lids in
-      aux acc new_lids
+      if acc_length = Lid_trie.size acc then acc else aux acc new_lids
+    end
   in
   aux t t
 
