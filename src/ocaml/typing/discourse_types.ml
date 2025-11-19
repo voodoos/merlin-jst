@@ -135,7 +135,7 @@ module Lid_trie = struct
 
   let to_seq t =
     let rec aux lid_acc (Trie (paths, tries)) seq =
-      let seq =
+      let seq () =
         String_map.fold
           (fun name t acc ->
             let lid =
@@ -151,10 +151,10 @@ module Lid_trie = struct
           tries seq
       in
       if not (Paths.is_empty paths) then
-        Seq.cons (Option.get (List.hd lid_acc), paths) seq
-      else seq
+        Seq.Cons ((Option.get (List.hd lid_acc), paths), seq)
+      else seq ()
     in
-    aux [ None ] t Seq.empty
+    fun () -> aux [ None ] t Seq.Nil
 
   let size t =
     let rec aux acc (Trie (_, tries)) =
