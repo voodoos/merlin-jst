@@ -7,8 +7,10 @@ module Path : sig
     env:Env.t ->
     ?name:string ->
     env_check:(Longident.t -> Env.t -> 'a) ->
-    Path.t ->
+    Longident.t ->
     Longident.t
+
+  val maybe_replace_name : ?name:string -> Longident.t -> Longident.t
 end = struct
   let opens env =
     let rec aux acc = function
@@ -21,11 +23,11 @@ end = struct
 
   let is_opened env path = List.mem path ~set:(opens (Env.summary env))
 
-  let rec to_shortest_lid ~(opens : Path.t list) = function
-    | Path.Pdot (path, name) when List.exists ~f:(Path.same path) opens ->
+  let rec to_shortest_lid ~(opens : Longident.t list) = function
+    | Longident.Ldot (path, name) when List.exists ~f:(( = ) path) opens ->
       Longident.Lident name
-    | Path.Pdot (path, name) -> Ldot (to_shortest_lid ~opens path, name)
-    | Pident ident -> Lident (Ident.name ident)
+    | Ldot (path, name) -> Ldot (to_shortest_lid ~opens path, name)
+    | Lident ident -> Lident ident
     | _ -> assert false
 
   let maybe_replace_name ?name lid =
@@ -36,13 +38,14 @@ end = struct
         | Ldot (lid, _) -> Ldot (lid, name)
         | _ -> assert false)
 
-  let to_shortest_lid ~env ?name ~env_check path =
+  let to_shortest_lid ~env ?name ~env_check lid =
     let opens = opens (Env.summary env) in
-    let lid = to_shortest_lid ~opens path |> maybe_replace_name ?name in
+    let opens = List.map ~f:Untypeast.lident_of_path opens in
+    let lid = to_shortest_lid ~opens lid |> maybe_replace_name ?name in
     try
       env_check lid env |> ignore;
       lid
-    with Not_found -> maybe_replace_name ?name (Untypeast.lident_of_path path)
+    with Not_found -> maybe_replace_name ?name lid
 end
 
 let parenthesize_name name =

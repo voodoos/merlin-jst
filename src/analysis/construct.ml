@@ -61,7 +61,8 @@ module Util = struct
     tbl
 
   let prefix env ~env_check path name =
-    to_shortest_lid ~env ~env_check ~name path
+    let lid = Untypeast.lident_of_path path in
+    to_shortest_lid ~env ~env_check ~name lid
 
   let maybe_prefix env ~env_check path name =
     match Warnings.is_active (Disambiguated_name "") with

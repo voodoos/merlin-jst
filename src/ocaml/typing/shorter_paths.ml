@@ -352,14 +352,16 @@ let shorten ~env ~canon_path =
   canon_table := new_table;
 
   match best_lid with
-  | None -> canon_path
+  | None -> lid_of_path canon_path
   | Some (lid, path) ->
     log ~title:"shorten" "%a" Logger.fmt (fun fmt ->
         Format.fprintf fmt "Masking path %a with lid %a" Path.print path
           Pprintast.longident lid);
-    path_mask path lid
+    (*path_mask path*) lid
 
-let find_type env path : Short_paths.type_result =
+type type_result = Nth of int | Path of int list option * Longident.t
+
+let find_type env path : type_result =
   match normalize_type_path env path with
   | _, Nth i -> Nth i
   | canon_path, Id -> Path (None, shorten ~env ~canon_path)
@@ -379,5 +381,5 @@ let find_type_simple env path =
       Path.print fmt canon_path);
   let short = shorten ~env ~canon_path in
   log ~title:"find_type_simple" "Short: %a\n%!" Logger.fmt (fun fmt ->
-      Path.print fmt short);
+      Pprintast.longident fmt short);
   short
