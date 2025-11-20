@@ -582,17 +582,6 @@ let tree_of_path namespace = function
 let tree_of_path namespace p =
   tree_of_path namespace (rewrite_double_underscore_paths !printing_env p)
 
-let rec tree_of_lid = function
-  | Lident printed_name -> Oide_ident { printed_name }
-  | Ldot (Lident "Stdlib", printed_name) ->
-      (* TODO This is wrong is the Stdlib was shadowed. *)
-      Oide_ident ( Naming_context.pervasives_name (Some Type) printed_name )
-  | Ldot (lid, s) -> Oide_dot (tree_of_lid lid, s)
-  | Lapply (lid, lid') -> Oide_apply (tree_of_lid lid, tree_of_lid lid')
-
-let tree_of_lid l =
-  tree_of_lid (rewrite_double_underscore_longidents !printing_env l)
-
 let path ppf p =
   !Oprint.out_ident ppf (tree_of_path None p)
 
@@ -811,9 +800,9 @@ let wrap_printing_env_error env f =
     source = err.source
   }
 
-type type_result = Shorter_paths.type_result =
+type type_result = Short_paths.type_result =
   | Nth of int
-  | Path of int list option * Longident.t
+  | Path of int list option * Path.t
 
 type type_resolution = Short_paths.type_resolution =
   | Nth of int
@@ -833,7 +822,7 @@ let apply_nth n args =
 
 let best_type_path p =
   if !Clflags.real_paths || !printing_env == Env.empty
-  then Path(None, Shorter_paths.lid_of_path p)
+  then Path(None, p)
   else Shorter_paths.find_type !printing_env p
 
 let best_type_path_resolution p =
@@ -843,7 +832,7 @@ let best_type_path_resolution p =
 
 let best_type_path_simple p =
   if !Clflags.real_paths || !printing_env == Env.empty
-  then Shorter_paths.lid_of_path p
+  then p
   else Shorter_paths.find_type_simple !printing_env p
 
 let best_module_type_path p =
@@ -1511,11 +1500,10 @@ let rec tree_of_modal_typexp mode modal ty =
     | Tconstr(p, tyl, _abbrev) -> begin
         match best_type_path p with
         | Nth n -> tree_of_typexp mode Alloc.Const.legacy (apply_nth n tyl)
-        | Path(nso, lid) ->
-            (* TODO we are still missing a path here... *)
-            (* Internal_names.add p'; *)
+        | Path(nso, p') ->
+            Internal_names.add p';
             let tyl' = apply_subst_opt nso tyl in
-            Otyp_constr (tree_of_lid lid, tree_of_typlist mode tyl')
+            Otyp_constr (tree_of_path (Some Type) p', tree_of_typlist mode tyl')
       end
     | Tvariant row ->
         let { fields; name; closed; present; all_present; tags } =
@@ -1526,8 +1514,8 @@ let rec tree_of_modal_typexp mode modal ty =
             let out_variant =
               match best_type_path p with
               | Nth n -> tree_of_typexp mode Alloc.Const.legacy (apply_nth n tyl)
-              | Path(s, lid) ->
-                let id = tree_of_lid lid in
+              | Path(s, p) ->
+                let id = tree_of_path (Some Type) p in
                 let args = tree_of_typlist mode (apply_subst_opt s tyl) in
                 Otyp_constr (id, args)
             in
@@ -1716,8 +1704,8 @@ and tree_of_typobject mode fi nm =
       Otyp_object {fields; open_row}
   | Some (p, _ty :: tyl) ->
       let args = tree_of_typlist mode tyl in
-      let lid = best_type_path_simple p in
-      Otyp_class (tree_of_lid lid, args)
+      let p' = best_type_path_simple p in
+      Otyp_class (tree_of_path (Some Type) p', args)
   | _ ->
       fatal_error "Printtyp.tree_of_typobject"
   end
@@ -2164,8 +2152,8 @@ let add_extension_constructor_to_preparation ext =
 let prepared_tree_of_extension_constructor
     id ext es
   =
-  let type_lid = best_type_path_simple ext.ext_type_path in
-  let ty_name = Longident.last type_lid in
+  let type_path = best_type_path_simple ext.ext_type_path in
+  let ty_name = Path.name type_path in
   let ty_params = filter_params ext.ext_type_params in
   let type_param =
     function
@@ -2836,7 +2824,7 @@ let same_path t t' =
   | Tconstr(p,tl,_), Tconstr(p',tl',_) -> begin
       match best_type_path p, best_type_path p' with
       | Nth n, Nth n' when n = n' -> true
-      | Path(nso, p), Path(nso', p') when p = p' ->
+      | Path(nso, p), Path(nso', p') when Path.same p p' ->
           let tl = apply_subst_opt nso tl in
           let tl' = apply_subst_opt nso' tl' in
           List.length tl = List.length tl' &&

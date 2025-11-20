@@ -17,13 +17,11 @@ module Path : sig
     env:Env.t ->
     ?name:string ->
     env_check:(Longident.t -> Env.t -> 'a) ->
-    Longident.t ->
+    Path.t ->
     Longident.t
 
   (* Return whether the given path is opened in the given environment *)
   val is_opened : Env.t -> Path.t -> bool
-
-  val maybe_replace_name : ?name:string -> Longident.t -> Longident.t
 end
 
 (** [parse_identifier] attempts to re-parse a longident so that we get
