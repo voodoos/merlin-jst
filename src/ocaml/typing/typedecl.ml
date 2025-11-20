@@ -3807,7 +3807,7 @@ let check_unboxable env loc ty =
     (fun p () ->
        let p = Printtyp.shorten_type_path env p in
        Location.prerr_warning loc
-         (Warnings.Unboxable_type_in_prim_decl (Path.name p))
+         (Warnings.Unboxable_type_in_prim_decl (Longident.last p))
     )
     all_unboxable_types
     ()
