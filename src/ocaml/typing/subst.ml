@@ -742,6 +742,7 @@ let class_declaration' copy_scope s decl =
     cty_loc = loc s decl.cty_loc;
     cty_attributes = attrs s decl.cty_attributes;
     cty_uid = decl.cty_uid;
+    cty_discourse = decl.cty_discourse;
   }
 
 let class_declaration s decl =
@@ -756,6 +757,7 @@ let cltype_declaration' copy_scope s decl =
     clty_loc = loc s decl.clty_loc;
     clty_attributes = attrs s decl.clty_attributes;
     clty_uid = decl.clty_uid;
+    clty_discourse = decl.clty_discourse;
   }
 
 let cltype_declaration s decl =
