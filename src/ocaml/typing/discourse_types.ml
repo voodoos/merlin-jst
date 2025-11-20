@@ -93,8 +93,8 @@ module Lid_trie = struct
 
   let trie_of_lid ?children lid paths =
     let rec aux acc lid =
-      match lid with
-      | Longident.Lident id ->
+      match (lid : Longident.t) with
+      | Lident id ->
         let map = String_map.singleton id acc in
         Trie (Paths.empty, map)
       | Ldot (lid, id) ->

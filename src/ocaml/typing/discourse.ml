@@ -216,9 +216,10 @@ let rec add_path_to_discourse env discourse kind lid path =
 let add_used env kind lid path =
   let mkloc l = Location.mkloc l lid.Location.loc in
   let rec loop acc kind lid path =
-    let () = log_usage ~loc:lid.Location.loc kind path in
-    let acc = add_path_to_discourse env acc kind lid.txt path in
-    match ((path : Path.t), (lid.txt : Longident.t)) with
+    let lid, loc = (lid.Location.txt, lid.Location.loc) in
+    let () = log_usage ~loc kind path in
+    let acc = add_path_to_discourse env acc kind lid path in
+    match ((path : Path.t), (lid : Longident.t)) with
     | Pdot (path, _), Ldot (lid, _) -> loop acc Module (mkloc lid) path
     | Papply (p1, p2), Lapply (l1, l2) ->
       let acc = loop acc Module (mkloc l1) p1 in
