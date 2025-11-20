@@ -7459,6 +7459,7 @@ let nondep_class_declaration env ids decl =
       cty_loc = decl.cty_loc;
       cty_attributes = decl.cty_attributes;
       cty_uid = decl.cty_uid;
+      cty_discourse = decl.cty_discourse;
     }
   in
   clear_hash ();
@@ -7475,6 +7476,7 @@ let nondep_cltype_declaration env ids decl =
       clty_loc = decl.clty_loc;
       clty_attributes = decl.clty_attributes;
       clty_uid = decl.clty_uid;
+      clty_discourse = decl.clty_discourse;
     }
   in
   clear_hash ();

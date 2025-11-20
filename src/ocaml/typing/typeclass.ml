@@ -1669,6 +1669,7 @@ let initial_env define_class approx
      cty_loc = Location.none;
      cty_attributes = [];
      cty_uid = uid;
+     cty_discourse = Discourse_types.empty;
     }
   in
   let env =
@@ -1681,6 +1682,7 @@ let initial_env define_class approx
        clty_loc = Location.none;
        clty_attributes = [];
        clty_uid = uid;
+       clty_discourse = Discourse_types.empty;
       }
       (
         if define_class then
@@ -1810,6 +1812,7 @@ let class_infos define_class kind
      clty_loc = cl.pci_loc;
      clty_attributes = cl.pci_attributes;
      clty_uid = dummy_class.cty_uid;
+     clty_discourse = Discourse_types.empty;
     }
   and clty =
     {cty_params = params; cty_type = typ;
@@ -1823,6 +1826,7 @@ let class_infos define_class kind
      cty_loc = cl.pci_loc;
      cty_attributes = cl.pci_attributes;
      cty_uid = dummy_class.cty_uid;
+     cty_discourse = Discourse_types.empty;
     }
   in
   dummy_class.cty_type <- typ;
@@ -1849,6 +1853,7 @@ let class_infos define_class kind
      cty_loc = cl.pci_loc;
      cty_attributes = cl.pci_attributes;
      cty_uid = dummy_class.cty_uid;
+     cty_discourse = Discourse_types.empty;
     }
   in
   let obj_abbr =
@@ -1890,6 +1895,7 @@ let class_infos define_class kind
      clty_loc = cl.pci_loc;
      clty_attributes = cl.pci_attributes;
      clty_uid = dummy_class.cty_uid;
+     clty_discourse = Discourse_types.empty;
     }
   in
   ((cl, id, clty, ty_id, cltydef, obj_id, obj_abbr, ci_params,
