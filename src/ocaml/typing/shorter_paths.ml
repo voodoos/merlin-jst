@@ -181,8 +181,6 @@ let apply_substitutions_fixpoint t substs =
            ( lid_of_path target,
              Path.Set.elements replacements |> List.map lid_of_path ))
   in
-  (* TODO: there is probably a configuration were this is going to loop forever.
-           We need a proper check. M -> N and N/2 -> M/2*)
   let rec aux acc t =
     let new_lids = apply_substitutions substs t in
     if Lid_trie.is_empty new_lids then acc
