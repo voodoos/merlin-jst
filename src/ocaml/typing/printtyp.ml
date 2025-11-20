@@ -823,17 +823,17 @@ let apply_nth n args =
 let best_type_path p =
   if !Clflags.real_paths || !printing_env == Env.empty
   then Path(None, p)
-  else Shorter_paths.find_type ~env:!printing_env p
+  else Shorter_paths.find_type !printing_env p
 
 let best_type_path_resolution p =
   if !Clflags.real_paths || !printing_env == Env.empty
   then Id
-  else Short_paths.find_type_resolution (Env.short_paths !printing_env) p
+  else Shorter_paths.find_type_resolution !printing_env p
 
 let best_type_path_simple p =
   if !Clflags.real_paths || !printing_env == Env.empty
   then p
-  else Shorter_paths.find_type_simple ~env:!printing_env p
+  else Shorter_paths.find_type_simple !printing_env p
 
 let best_module_type_path p =
   if !Clflags.real_paths || !printing_env == Env.empty

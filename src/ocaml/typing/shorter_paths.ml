@@ -361,13 +361,19 @@ let shorten ~env ~canon_path =
           Pprintast.longident lid);
     path_mask path lid
 
-let find_type ~env path : Short_paths.type_result =
+let find_type env path : Short_paths.type_result =
   match normalize_type_path env path with
   | _, Nth i -> Nth i
   | canon_path, Id -> Path (None, shorten ~env ~canon_path)
   | canon_path, Map l -> Path (Some l, shorten ~env ~canon_path)
 
-let find_type_simple ~env path =
+let find_type_resolution env path : Short_paths.type_resolution =
+  match normalize_type_path env path with
+  | _, Nth i -> Nth i
+  | _, Id -> Id
+  | _, Map l -> Subst l
+
+let find_type_simple env path =
   log ~title:"find_type_simple" "Initial: %a\n%!" Logger.fmt (fun fmt ->
       Path.print fmt path);
   let canon_path, _subst = normalize_type_path env path in
