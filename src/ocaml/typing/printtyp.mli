@@ -59,7 +59,7 @@ val wrap_printing_env_error :
 (* Call the function using the environment for type path shortening *)
 (* This affects all the printing functions below *)
 (* Also, if [~error:true], then disable the loading of cmis *)
-val shorten_type_path: Env.t -> Path.t -> Longident.t
+val shorten_type_path: Env.t -> Path.t -> Path.t
 val shorten_module_type_path: Env.t -> Path.t -> Path.t
 val shorten_module_path: Env.t -> Path.t -> Path.t
 val shorten_class_type_path: Env.t -> Path.t -> Path.t
