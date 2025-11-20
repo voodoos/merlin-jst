@@ -60,7 +60,7 @@ module Out_type = struct
   let rec normalize_type_path ?(cache = false) env p =
     let open Types in
     try
-      let params, ty, _ =
+      let params (* type_params *), ty (* type_manifest *), _ =
         (* Find the manifest type associated to a type when appropriate:
            - the type should be public or should have a private row,
            - the type should have an associated manifest type. *)
@@ -360,6 +360,12 @@ let shorten ~env ~canon_path =
         Format.fprintf fmt "Masking path %a with lid %a" Path.print path
           Pprintast.longident lid);
     path_mask path lid
+
+let find_type ~env path : Short_paths.type_result =
+  match normalize_type_path env path with
+  | _, Nth i -> Nth i
+  | canon_path, Id -> Path (None, shorten ~env ~canon_path)
+  | canon_path, Map l -> Path (Some l, shorten ~env ~canon_path)
 
 let find_type_simple ~env path =
   log ~title:"find_type_simple" "Initial: %a\n%!" Logger.fmt (fun fmt ->
