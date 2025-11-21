@@ -90,8 +90,9 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   > let x : A.B.C.t = assert false
   > EOF
 
-$ $MERLIN single type-enclosing -position 6:4 \
-> -log-file - -log-section short-paths -filename substs.ml < substs.ml 
+  $ $MERLIN single type-enclosing -position 6:4 \
+  >  -filename substs.ml < substs.ml  | jq '.value[].type'
+  "W.M.t"
 
   $ $MERLIN single type-enclosing -position 8:4 \
   > -filename substs.ml < substs.ml | jq '.value[].type'
