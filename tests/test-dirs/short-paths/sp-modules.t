@@ -59,7 +59,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
           "line": 8,
           "col": 14
         },
-        "type": "type u = u",
+        "type": "type u = Bar.t",
         "tail": "no"
       }
     ],
