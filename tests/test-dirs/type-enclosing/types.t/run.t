@@ -94,7 +94,7 @@ FIXED: small enclosing was incorrect?
     }
   ]
 
-FIXME A type with a type param shouldn't equal itself - aliasing a list type
+FIXME: A type with a type param shouldn't equal itself - aliasing a list type
 
   $ $MERLIN single type-enclosing -short-paths -position 11:9 -verbosity 0 \
   > -filename ./types.ml < ./types.ml | jq ".value"
