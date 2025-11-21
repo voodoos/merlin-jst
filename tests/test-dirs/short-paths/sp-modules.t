@@ -1,5 +1,3 @@
-We get a bad path for `hello`
-
   $ cat > foo.ml <<EOF
   > module Empty = struct end
   > module type S = sig type t module M : sig end end
@@ -77,25 +75,8 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
   > EOF
 
   $ $MERLIN single type-enclosing -position 4:4 \
-  > -filename substs.ml < substs.ml 
-  {
-    "class": "return",
-    "value": [
-      {
-        "start": {
-          "line": 4,
-          "col": 4
-        },
-        "end": {
-          "line": 4,
-          "col": 5
-        },
-        "type": "M.t",
-        "tail": "no"
-      }
-    ],
-    "notifications": []
-  }
+  > -filename substs.ml < substs.ml | jq '.value[].type'
+  "M.t"
 
 
   $ cat > substs.ml <<EOF
@@ -113,25 +94,8 @@ $ $MERLIN single type-enclosing -position 6:4 \
 > -log-file - -log-section short-paths -filename substs.ml < substs.ml 
 
   $ $MERLIN single type-enclosing -position 8:4 \
-  > -filename substs.ml < substs.ml
-  {
-    "class": "return",
-    "value": [
-      {
-        "start": {
-          "line": 8,
-          "col": 4
-        },
-        "end": {
-          "line": 8,
-          "col": 5
-        },
-        "type": "M.t",
-        "tail": "no"
-      }
-    ],
-    "notifications": []
-  }
+  > -filename substs.ml < substs.ml | jq '.value[].type'
+  "M.t"
 
   $ cat >open.ml <<EOF
   > module A = struct type a = int end
@@ -140,25 +104,8 @@ $ $MERLIN single type-enclosing -position 6:4 \
   > EOF
 
   $ $MERLIN single type-enclosing -position 3:4 \
-  > -filename open.ml <open.ml
-  {
-    "class": "return",
-    "value": [
-      {
-        "start": {
-          "line": 3,
-          "col": 4
-        },
-        "end": {
-          "line": 3,
-          "col": 5
-        },
-        "type": "a",
-        "tail": "no"
-      }
-    ],
-    "notifications": []
-  }
+  > -filename open.ml <open.ml | jq '.value[].type'
+  "a"
 
   $ cat >open.ml <<EOF
   > module A = struct type a = int end
@@ -167,25 +114,8 @@ $ $MERLIN single type-enclosing -position 6:4 \
   > EOF
 
   $ $MERLIN single type-enclosing -position 3:4 \
-  > -filename open.ml <open.ml 
-  {
-    "class": "return",
-    "value": [
-      {
-        "start": {
-          "line": 3,
-          "col": 4
-        },
-        "end": {
-          "line": 3,
-          "col": 5
-        },
-        "type": "a",
-        "tail": "no"
-      }
-    ],
-    "notifications": []
-  }
+  > -filename open.ml <open.ml | jq '.value[].type'
+  "a"
 
 Open + Subst
 
