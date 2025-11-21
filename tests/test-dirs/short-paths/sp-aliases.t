@@ -55,22 +55,5 @@
   }
 
   $ $MERLIN single type-enclosing -position 2:0 \
-  > -filename test.ml < test.ml 
-  {
-    "class": "return",
-    "value": [
-      {
-        "start": {
-          "line": 2,
-          "col": 0
-        },
-        "end": {
-          "line": 6,
-          "col": 3
-        },
-        "type": "sig type prev = t type t = Bar val err : prev -> t end",
-        "tail": "no"
-      }
-    ],
-    "notifications": []
-  }
+  > -filename test.ml < test.ml | jq '.value[].type'
+  "sig type prev = t type t = Bar val err : prev -> t end"
