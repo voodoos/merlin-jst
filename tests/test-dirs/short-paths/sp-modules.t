@@ -187,6 +187,20 @@ $ $MERLIN single type-enclosing -position 6:4 \
     "notifications": []
   }
 
+Open + Subst
+
+  $ cat >open.ml <<EOF
+  > module A = struct module B = struct module C = struct type a = V end end end
+  > module X = A.B.C
+  > open A.B.C
+  > let x = (V : X.a)
+  > EOF
+
+FIXME: should be a and not X.a because of the open
+  $ $MERLIN single type-enclosing -position 4:4 \
+  > -filename open.ml <open.ml | jq '.value[].type'
+  "X.a"
+
 Test with a module aliases "loop":
 
   $ cat >loop.ml <<EOF
