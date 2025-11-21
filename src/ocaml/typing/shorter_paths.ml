@@ -2,42 +2,8 @@ let log_section = "short-paths"
 let { Logger.log } = Logger.for_section log_section
 let { Logger.log = log_dbg } = Logger.for_section (log_section ^ "-dbg")
 
-(* Here we want a compare function that is really based on path lengths.
-    TODO the shortest path is not always the one expected by the user. *)
-
-let compare_strings s1 s2 =
-  let length_diff = String.length s1 - String.length s2 in
-  if length_diff <> 0 then length_diff else String.compare s1 s2
-
-let compare_longidents l1 l2 =
-  Discourse_types.compare_longidents ~compare_strings l1 l2
-
-module Lid_set = struct
-  module T = struct
-    type t = Longident.t * Path.t
-
-    let compare (l1, p1) (l2, p2) =
-      let c = compare_longidents l1 l2 in
-      if c = 0 then Path.compare p1 p2 else c
-  end
-  let pp_elt fmt (l, p) =
-    Format.fprintf fmt "%a (%a)" Pprintast.longident l Path.print p
-
-  include Set.Make (T)
-end
-
-module Priority_queue = Lid_set
-
 module Out_type = struct
   (* This part is copied from upstream's [Out_type] *)
-  let find_double_underscore s =
-    let len = String.length s in
-    let rec loop i =
-      if i + 1 >= len then None
-      else if s.[i] = '_' && s.[i + 1] = '_' then Some i
-      else loop (i + 1)
-    in
-    loop 0
 
   (* Normalize paths *)
 
@@ -91,23 +57,54 @@ module Out_type = struct
         (Fun.flip Path.print p);
       (Env.normalize_type_path None env p, Id)
 
+  let find_double_underscore s =
+    let len = String.length s in
+    let rec loop i =
+      if i + 1 >= len then None
+      else if s.[i] = '_' && s.[i + 1] = '_' then Some i
+      else loop (i + 1)
+    in
+    loop 0
+
   let penalty s =
     if s <> "" && s.[0] = '_' then 10
     else
       match find_double_underscore s with
       | None -> 1
       | Some _ -> 10
-
-  let rec path_size = function
-    | Path.Pident id -> (penalty (Ident.name id), -Ident.scope id)
-    | Pdot (p, _) | Pextra_ty (p, Pcstr_ty _) ->
-      let l, b = path_size p in
-      (1 + l, b)
-    | Papply (p1, p2) ->
-      let l, b = path_size p1 in
-      (l + fst (path_size p2), b)
-    | Pextra_ty (p, _) -> path_size p
 end
+
+let rec longident_cost = function
+  | Longident.Lident id -> Out_type.penalty id
+  | Ldot (l, _) -> 1 + longident_cost l
+  | Lapply (l1, l2) -> longident_cost l1 + longident_cost l2
+
+let compare_strings s1 s2 =
+  let length_diff = String.length s1 - String.length s2 in
+  if length_diff <> 0 then length_diff else String.compare s1 s2
+
+let compare_longidents l1 l2 =
+  let l1_cost = longident_cost l1 in
+  let l2_cost = longident_cost l2 in
+  let cost_diff = l1_cost - l2_cost in
+  if cost_diff <> 0 then cost_diff
+  else Discourse_types.compare_longidents ~compare_strings l1 l2
+
+module Lid_set = struct
+  module T = struct
+    type t = Longident.t * Path.t
+
+    let compare (l1, p1) (l2, p2) =
+      let c = compare_longidents l1 l2 in
+      if c = 0 then Path.compare p1 p2 else c
+  end
+  let pp_elt fmt (l, p) =
+    Format.fprintf fmt "%a (%a)" Pprintast.longident l Path.print p
+
+  include Set.Make (T)
+end
+
+module Priority_queue = Lid_set
 
 (* To shorten paths we will build a table that maps "canonical paths" - i.e. a
    path which is not itself an alias - to a set of paths from D that are aliases
@@ -197,10 +194,6 @@ let fill_queue (paths : Lid_trie.t) queue =
            paths acc)
        queue
 
-let compare_length l1 l2 =
-  let compare_strings s1 s2 = String.length s1 - String.length s2 in
-  Discourse_types.compare_longidents ~compare_strings l1 l2
-
 let find_best_lid env ~canon_path table =
   (* TODO it might be worth it to memoïze this function *)
   let is_valid (lid, path) =
@@ -230,10 +223,10 @@ let process_queue env state ~canon_path best_lid =
       let best_path = improve_lid env ~canon_path state.table best_lid in
       (best_path, state)
     | Seq.Cons ((lid, path), next) ->
-      let next_level = compare lid < 0 in
+      let next_level = compare lid > 0 in
       if next_level then begin
         match improve_lid env ~canon_path state.table best_lid with
-        | Some (lid, path) when compare lid >= 0 ->
+        | Some (lid, path) when compare lid <= 0 ->
           log ~title:"fill_by_level"
             "Finished level and found a name shorter than the previous level:\n\
             \ %a (%a)" Logger.fmt
@@ -294,16 +287,16 @@ let process_queue env state ~canon_path best_lid =
           Logger.fmt (fun fmt -> Pprintast.longident fmt lid);
         state
     in
-    fill_by_level ~compare:(compare_length lid) next state best_lid
+    fill_by_level ~compare:(compare_longidents lid) next state best_lid
   in
   match (Priority_queue.min_elt_opt state.queue, best_lid) with
   | None, _ -> (best_lid, state)
-  | Some (shortest_lid, _path), Some (best_lid', _)
-    when compare_length shortest_lid best_lid' > 0 ->
+  | Some (shortest_lid_in_queue, _path), Some (best_lid', _)
+    when compare_longidents best_lid' shortest_lid_in_queue > 0 ->
     (* There cannot be a better candidate in the queue *)
     (best_lid, state)
   | Some (shortest_lid, _path), best_lid ->
-    let compare = compare_length shortest_lid in
+    let compare = compare_longidents shortest_lid in
     let seq = Priority_queue.to_seq state.queue in
     fill_by_level ~compare seq state best_lid
 
