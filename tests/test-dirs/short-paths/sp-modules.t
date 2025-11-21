@@ -35,7 +35,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
           "line": 8,
           "col": 14
         },
-        "type": "type t = Bar.t",
+        "type": "type t = Foo.t",
         "tail": "no"
       },
       {
@@ -47,7 +47,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
           "line": 8,
           "col": 14
         },
-        "type": "Bar.t",
+        "type": "Foo.t",
         "tail": "no"
       },
       {
@@ -59,7 +59,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
           "line": 8,
           "col": 14
         },
-        "type": "type u = Bar.t",
+        "type": "type u = u",
         "tail": "no"
       }
     ],
@@ -130,7 +130,7 @@ Open + Subst
 FIXME: should be a and not X.a because of the open
   $ $MERLIN single type-enclosing -position 4:4 \
   > -filename open.ml <open.ml | jq '.value[].type'
-  "X.a"
+  "a"
 
 Test with a module aliases "loop":
 
