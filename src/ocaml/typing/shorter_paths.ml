@@ -109,12 +109,6 @@ module Out_type = struct
     | Pextra_ty (p, _) -> path_size p
 end
 
-let rec lid_of_path = function
-  | Path.Pident id -> Longident.Lident (Ident.name id)
-  | Pdot (p, name) -> Ldot (lid_of_path p, name)
-  | Papply (p, p') -> Lapply (lid_of_path p, lid_of_path p')
-  | Pextra_ty _ -> assert false
-
 (* To shorten paths we will build a table that maps "canonical paths" - i.e. a
    path which is not itself an alias - to a set of paths from D that are aliases
    to it. We will build this table by putting the elements of D into a priority
@@ -178,8 +172,9 @@ let apply_substitutions_fixpoint t substs =
   let substs =
     Path.Map.bindings substs
     |> List.map (fun (target, replacements) ->
-           ( lid_of_path target,
-             Path.Set.elements replacements |> List.map lid_of_path ))
+           ( Untypeast.lident_of_path target,
+             Path.Set.elements replacements |> List.map Untypeast.lident_of_path
+           ))
   in
   let rec aux acc t =
     let new_lids = apply_substitutions substs t in
