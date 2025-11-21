@@ -211,16 +211,15 @@ let find_best_lid env ~canon_path table =
   let is_valid (lid, path) =
     (* This prevents "shadowing" issues by finding "by name" in the env *)
     match Env.find_type_by_name lid env with
-    | exception Not_found -> false
-    | path', _ ->
+    | exception Not_found -> None
+    | path_in_env, _ ->
       let path, _ = normalize_type_path env path in
-      let path', _ = normalize_type_path env path' in
-      let path_comp = Path.compare path path' in
-      path_comp == 0
+      let path', _ = normalize_type_path env path_in_env in
+      if Path.compare path path' == 0 then Some (lid, path_in_env) else None
   in
   match Path.Map.find_opt canon_path table with
   | None -> None
-  | Some lids -> Lid_set.to_seq lids |> Seq.find is_valid
+  | Some lids -> Lid_set.to_seq lids |> Seq.find_map is_valid
 
 let improve_lid env ~canon_path table lid =
   find_best_lid env ~canon_path table |> Option.fold ~none:lid ~some:Option.some
@@ -242,7 +241,9 @@ let process_queue env state ~canon_path best_lid =
         | Some (lid, path) when compare lid >= 0 ->
           log ~title:"fill_by_level"
             "Finished level and found a name shorter than the previous level:\n\
-            \ %a" Logger.fmt (fun fmt -> Pprintast.longident fmt lid);
+            \ %a (%a)" Logger.fmt
+            (fun fmt -> Pprintast.longident fmt lid)
+            Logger.fmt (Fun.flip Path.print path);
           (Some (lid, path), state)
         | best_lid ->
           log ~title:"fill_by_level" "Finished a level. Current best: %a"
