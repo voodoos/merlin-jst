@@ -3502,6 +3502,7 @@ and type_open_decl_aux ?used_slot ?toplevel funct_body names env od =
       type_open_ ?used_slot ?toplevel od.popen_override env loc lid
     in
     Discourse.use_module env lid path;
+    Discourse.open_module newenv lid.txt;
     let md = { mod_desc = Tmod_ident (path, lid);
                mod_type = Mty_alias path;
                mod_mode = mode, Some (locks, lid.txt, lid.loc);
@@ -3527,6 +3528,7 @@ and type_open_decl_aux ?used_slot ?toplevel funct_body names env od =
       Env.enter_signature ~scope ~mod_shape
         (extract_sig_open env md.mod_loc md.mod_type) ~mode env
     in
+    let () = Discourse.define_signature newenv sg in
     let info, visibility =
       match toplevel with
       | Some false | None -> Some `From_open, Hidden

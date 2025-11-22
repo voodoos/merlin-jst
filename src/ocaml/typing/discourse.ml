@@ -137,9 +137,15 @@ let of_core_type env ?(acc = Discourse_types.empty) ty =
     TODO:Q what about rule D11 ? If a path is in D and it includes another module
           path within it, then that module path is also in D. Should we consider
           only [Papply] paths or all path components for addition to D ?  *)
-let rec add_path_to_discourse env discourse kind lid path =
+let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
+  log ~title:"add_path_to_discourse" "Adding %s %a %a"
+    (Shape.Sig_component_kind.to_string kind)
+    Logger.fmt
+    (fun fmt -> Pprintast.longident fmt lid)
+    Logger.fmt
+    (fun fmt -> Path.print fmt path);
   let paths = Lid_trie.add lid (kind, path) discourse.paths in
-  let ldot id = Longident.Ldot (lid, Ident.name id) in
+  let ldot id = if for_open then lid else Longident.Ldot (lid, Ident.name id) in
   let pdot id = Path.Pdot (path, Ident.name id) in
   let paths, substs =
     let substs = discourse.substs in
@@ -173,7 +179,13 @@ let rec add_path_to_discourse env discourse kind lid path =
              are in D *)
           List.fold_left
             (fun (p, s) ->
-              let add kind id = Lid_trie.add (ldot id) (kind, pdot id) p in
+              let add kind id =
+                log ~title:"add_path_to_discourse"
+                  "Adding signature component %s %a"
+                  (Shape.Sig_component_kind.to_string kind) Logger.fmt
+                  (fun fmt -> Ident.print fmt id);
+                Lid_trie.add (ldot id) (kind, pdot id) p
+              in
               function
               | Subst.Lazy.Sig_value (id, _, _) -> (add Value id, s)
               | Subst.Lazy.Sig_type (id, _, _, _) -> (add Type id, s)
@@ -181,6 +193,8 @@ let rec add_path_to_discourse env discourse kind lid path =
                 (add Extension_constructor id, s)
               | Subst.Lazy.Sig_module (id, _, _, _, _) ->
                 let d =
+                  (* TODO with the loop in add_used this means everything gets
+                     added twice... *)
                   add_path_to_discourse env { paths = p; substs = s } Module
                     (ldot id) (pdot id)
                 in
@@ -243,6 +257,9 @@ let define_value = define Value Env.find_value_by_name
 let define_module = define Module Env.find_module_by_name
 let define_modtype = define Module_type Env.find_modtype_by_name
 
+(* Rule U3: All paths for things “defined” using include or open in the current
+   file are in U. *)
+
 let define_signature env sg =
   let lident id = Longident.Lident (Ident.name id) in
   List.iter
@@ -255,6 +272,12 @@ let define_signature env sg =
       | Types.Sig_class (_, _, _, _) | Types.Sig_class_type (_, _, _, _) ->
         (* TODO *) ())
     sg
+
+let open_module env lid =
+  let _path, md = Env.find_module_by_name lid env in
+  match md.md_type with
+  | Mty_signature sg -> define_signature env sg
+  | _ -> ()
 
 (* Rule U1: Any path occurring in the file is in U *)
 let use_module env lid path = add_used env Module lid path
