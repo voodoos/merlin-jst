@@ -3599,6 +3599,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
       Env.enter_signature_and_shape ~scope ~parent_shape:shape_map
         modl_shape sg ~mode env
     in
+    let () = Discourse.define_signature new_env sg in
     let new_env = Env.update_short_paths new_env in
     let sg = rebase_modalities ~loc ~env ~md_mode ~mode sg in
     Signature_group.iter (Signature_names.check_sig_item names loc) sg;
