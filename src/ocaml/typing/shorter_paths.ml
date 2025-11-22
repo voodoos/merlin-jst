@@ -302,15 +302,28 @@ let process_queue env state ~canon_path best_lid =
 
 (* Given a Path and a Longident that represents a suffix  of that path,
    [path_mask] returns the paths corresponding to that suffix. *)
+
+(* This cache prevent the same ident to be given different stamps in the same query *)
+(* todo: we should probably store the masking in the table instead. *)
+let path_masks_cache : (Longident.t * Path.t, Path.t) Hashtbl.t =
+  Hashtbl.create 32
+
 let rec path_mask (path : Path.t) (lid : Longident.t) : Path.t =
-  match (path, lid) with
-  | Pident id, Lident _ -> Pident id
-  | Pdot (p, s), Ldot (l, _) -> Pdot (path_mask p l, s)
-  | Papply (p1, p2), Lapply (l1, _) -> Papply (path_mask p1 l1, p2)
-  | (Pdot _ | Papply _), Lident s ->
-    let scope = Path.scope path in
-    Pident (Ident.create_scoped ~scope s)
-  | _ -> assert false
+  match Hashtbl.find_opt path_masks_cache (lid, path) with
+  | Some path -> path
+  | None ->
+    let masked_path : Path.t =
+      match (path, lid) with
+      | Pident id, Lident _ -> Pident id
+      | Pdot (p, s), Ldot (l, _) -> Pdot (path_mask p l, s)
+      | Papply (p1, p2), Lapply (l1, _) -> Papply (path_mask p1 l1, p2)
+      | (Pdot _ | Papply _), Lident s ->
+        let scope = Path.scope path in
+        Pident (Ident.create_scoped ~scope s)
+      | _ -> assert false
+    in
+    Hashtbl.add path_masks_cache (lid, path) masked_path;
+    masked_path
 
 let shorten ~env ~canon_path =
   let discourse = Discourse.get () in
