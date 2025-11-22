@@ -42,4 +42,4 @@ It seems to be related to shadowing somehow. This works:
   > EOF
 
   $ $MERLIN single type-enclosing -position 13:5 -filename foo.ml < foo.ml | jq .value[0].type -r
-  Foo.t
+  Baz.t

@@ -45,4 +45,4 @@ Mix and match of alias and primitive types with opening
   $ $MERLIN single type-enclosing -short-paths -position 13:5 -filename sample.ml < sample.ml \
   > | tr '\r\n' ' ' \
   > | jq .value[0].type
-  "new_int -> new_int * new_int * new_string * new_string -> (new_int, new_string) result -> t"
+  "i -> i * i * s * s -> (i, s) result -> t"

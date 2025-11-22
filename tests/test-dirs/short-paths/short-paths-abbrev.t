@@ -13,7 +13,7 @@ Alias on  virtual classes
 
   $ $MERLIN single type-enclosing -short-paths -position 5:5 -filename sample.ml < sample.ml \
   > | jq .value[0].type -r
-  t -> int -> int
+  a -> int -> int
 
 Alias on concrete classes
 
@@ -31,4 +31,4 @@ Alias on concrete classes
 
   $ $MERLIN single type-enclosing -short-paths -position 6:5 -filename sample.ml < sample.ml \
   > | jq .value[0].type -r
-  int -> t
+  int -> a
