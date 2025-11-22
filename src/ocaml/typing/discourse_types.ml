@@ -128,6 +128,13 @@ module Lid_trie = struct
     in
     aux 0 t
 
+  let pp_lid_paths ppf (lid, paths) =
+    Format.fprintf ppf "%a %a" Pprintast.longident lid pp_paths paths
+  let pp_seq fmt t =
+    let pp_sep fmt () = Format.fprintf fmt ";@ " in
+    Format.fprintf fmt "%a"
+      (Format.pp_print_seq ~pp_sep pp_lid_paths)
+      (to_seq t)
   (* let _ =
      let t =
        empty
@@ -161,4 +168,4 @@ let add = Lid_trie.add
 let union = Lid_trie.union
 let singleton lid path = Lid_trie.trie_of_lid lid (Paths.singleton path)
 
-let pp = Lid_trie.pp
+let pp = Lid_trie.pp_seq
