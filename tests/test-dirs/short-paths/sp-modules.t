@@ -35,7 +35,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
           "line": 8,
           "col": 14
         },
-        "type": "type t = Foo.t",
+        "type": "type t = Bar.t",
         "tail": "no"
       },
       {
@@ -47,7 +47,7 @@ $ $MERLIN single dump -what parsetree -filename foo.ml < foo.ml
           "line": 8,
           "col": 14
         },
-        "type": "Foo.t",
+        "type": "Bar.t",
         "tail": "no"
       },
       {
