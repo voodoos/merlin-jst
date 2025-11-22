@@ -229,29 +229,32 @@ let add_used env kind lid path =
   if record_usages then g := loop !g kind lid path
 
 (* Rule U2: All paths for definitions in the current file are in U *)
-let define_type env lid =
+let define kind env_lookup env lid =
   if record_usages then begin
-    let path, _ = Env.find_type_by_name lid env in
-    log ~title:"def" "Define type %a\n%!" Logger.fmt (fun fmt ->
+    let path, _ = env_lookup lid env in
+    log ~title:"def" "Define %s %a\n%!"
+      (Shape.Sig_component_kind.to_string kind) Logger.fmt (fun fmt ->
         Path.print fmt path);
-    g := { !g with paths = Lid_trie.add lid (Type, path) !g.paths }
+    g := add_path_to_discourse env !g kind lid path
   end
 
-let define_module env lid =
-  if record_usages then begin
-    let path, _ = Env.find_module_by_name lid env in
-    log ~title:"def" "Define module %a\n%!" Logger.fmt (fun fmt ->
-        Path.print fmt path);
-    g := add_path_to_discourse env !g Module lid path
-  end
+let define_type = define Type Env.find_type_by_name
+let define_value = define Value Env.find_value_by_name
+let define_module = define Module Env.find_module_by_name
+let define_modtype = define Module_type Env.find_modtype_by_name
 
-let define_modtype env lid =
-  if record_usages then begin
-    let path, _ = Env.find_modtype_by_name lid env in
-    log ~title:"def" "Define modtype %a\n%!" Logger.fmt (fun fmt ->
-        Path.print fmt path);
-    g := { !g with paths = Lid_trie.add lid (Module_type, path) !g.paths }
-  end
+let define_signature env sg =
+  let lident id = Longident.Lident (Ident.name id) in
+  List.iter
+    (function
+      | Types.Sig_type (id, _, _, _) -> define_type env (lident id)
+      | Types.Sig_value (id, _, _) -> define_value env (lident id)
+      | Types.Sig_typext (_, _, _, _) -> ()
+      | Types.Sig_module (id, _, _, _, _) -> define_module env (lident id)
+      | Types.Sig_modtype (id, _, _) -> define_module env (lident id)
+      | Types.Sig_class (_, _, _, _) | Types.Sig_class_type (_, _, _, _) ->
+        (* TODO *) ())
+    sg
 
 (* Rule U1: Any path occurring in the file is in U *)
 let use_module env lid path = add_used env Module lid path
