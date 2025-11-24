@@ -95,6 +95,7 @@ Some variation on partial opening
   > | jq .value[0].type -r
   string -> A.B.t -> A.B.C.t * A.B.C.t
 
+This should not be t -> t -> ... because in this env t is A.B.C.t not A.B.t
   $ $MERLIN single type-enclosing -short-paths -position 16:5 -filename sample.ml < sample.ml \
   > | jq .value[0].type -r
-  t -> t -> c * c
+  string -> string -> c * c
