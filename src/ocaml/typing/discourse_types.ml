@@ -135,31 +135,6 @@ module Lid_trie = struct
     Format.fprintf fmt "%a"
       (Format.pp_print_seq ~pp_sep pp_lid_paths)
       (to_seq t)
-  (* let _ =
-     let t =
-       empty
-       |> add (Lident "F") (Value, Pident (Ident.create_persistent "F"))
-       |> add
-            (Ldot (Lapply (Lident "F", Lident "A"), "x"))
-            (Value, Pident (Ident.create_persistent "totoid"))
-       |> add
-            (Ldot (Ldot (Lident "F", "B"), "x"))
-            (Type, Pident (Ident.create_persistent "totoid2"))
-     in
-     let _pp_lid_paths ppf (lid, paths) =
-       Format.fprintf ppf "%a -> %a" Pprintast.longident lid pp_paths paths
-     in
-     Format.eprintf "\nTRIE %a\n%!" pp t;
-     let _seq = to_seq t in
-     ignore (Format.eprintf "%a\n" (Format.pp_print_seq _pp_lid_paths) _seq);
-     Format.eprintf "\nEND TEST PRINT\n%!" *)
-
-  (* Format.eprintf "TRIESEQ %a\n%!"
-     (Format.pp_print_seq _pp_lid_paths)
-     (to_seq t); *)
-  (* Format.eprintf "TRIEACHED %a\n%!"
-     (Format.pp_print_seq _pp_lid_paths)
-     (to_seq (reach t (Lapply (Lident "F", Lident "A")) |> Option.get)) *)
 end
 
 type t = Lid_trie.t
