@@ -127,7 +127,7 @@ let of_core_type env ?(acc = Discourse_types.empty) ty =
       let newenv = Env.open_signature_by_path path env in
       aux newenv acc ct
     | Ptyp_of_kind _ | Ptyp_var _ -> acc
-    | Ptyp_extension _ -> acc
+    | Ptyp_extension _ | Ptyp_quote _ | Ptyp_splice _ -> acc
   in
   aux env acc ty
 
