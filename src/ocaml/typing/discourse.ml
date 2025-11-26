@@ -234,7 +234,9 @@ let add_used env kind lid path =
   let rec loop acc kind lid path =
     let lid, loc = (lid.Location.txt, lid.Location.loc) in
     let () = log_usage ~loc kind path in
-    let acc = add_path_to_discourse env acc kind lid path in
+    let acc =
+      try add_path_to_discourse env acc kind lid path with Not_found -> acc
+    in
     match ((path : Path.t), (lid : Longident.t)) with
     | Pdot (path, _), Ldot (lid, _) -> loop acc Module (mkloc lid) path
     | Papply (p1, p2), Lapply (l1, l2) ->
@@ -247,11 +249,13 @@ let add_used env kind lid path =
 (* Rule U2: All paths for definitions in the current file are in U *)
 let define kind env_lookup env lid =
   if record_usages then begin
-    let path, _ = env_lookup lid env in
-    log ~title:"def" "Define %s %a\n%!"
-      (Shape.Sig_component_kind.to_string kind) Logger.fmt (fun fmt ->
-        Path.print fmt path);
-    g := add_path_to_discourse env !g kind lid path
+    try
+      let path, _ = env_lookup lid env in
+      log ~title:"def" "Define %s %a\n%!"
+        (Shape.Sig_component_kind.to_string kind) Logger.fmt (fun fmt ->
+          Path.print fmt path);
+      g := add_path_to_discourse env !g kind lid path
+    with Not_found -> ()
   end
 
 let define_type = define Type Env.find_type_by_name
@@ -278,10 +282,12 @@ let define_signature env sg =
 
 let open_module ~env ~newenv lid =
   if record_usages then
-    let _path, md = Env.find_module_by_name lid env in
-    match md.md_type with
-    | Mty_signature sg -> define_signature newenv sg
-    | _ -> ()
+    try
+      let _path, md = Env.find_module_by_name lid env in
+      match md.md_type with
+      | Mty_signature sg -> define_signature newenv sg
+      | _ -> ()
+    with Not_found -> ()
 
 (* Rule U1: Any path occurring in the file is in U *)
 let use_module env lid path = add_used env Module lid path
