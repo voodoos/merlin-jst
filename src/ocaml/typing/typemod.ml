@@ -3420,7 +3420,7 @@ and type_open_decl_aux ?used_slot ?toplevel funct_body names env od =
       type_open_ ?used_slot ?toplevel od.popen_override env loc lid
     in
     Discourse.use_module env lid path;
-    Discourse.open_module newenv lid.txt;
+    Discourse.open_module ~env ~newenv lid.txt;
     let md = { mod_desc = Tmod_ident (path, lid);
                mod_type = Mty_alias path;
                mod_mode = mode, Some (locks, lid.txt, lid.loc);
