@@ -5,7 +5,7 @@
   > module P = struct type 'a t = 'a end 
   > module X = M.N 
   > let x : M.N.t P.t = A 42
-  > EOF 
+  > EOF
 
 The shortest path is `X.t`
   $ $MERLIN single type-enclosing -position 4:4 \

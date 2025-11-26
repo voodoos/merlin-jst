@@ -142,7 +142,7 @@ Test with a module aliases "loop":
   >   module N = M
   > end
   > let x : N.t = 5
-  > EOF 
+  > EOF
 
   $ $MERLIN single type-enclosing -position 7:4 \
   > -filename loop.ml <loop.ml | jq '.value[0].type'
