@@ -87,48 +87,49 @@ let log_usage ?loc kind path =
    paths should be added to the domain of discourse when this value / type is
    used. *)
 let of_core_type env ?(acc = Discourse_types.empty) ty =
-  let rec aux acc (ct : Parsetree.core_type) =
+  let rec aux env acc (ct : Parsetree.core_type) =
     match ct.ptyp_desc with
     | Ptyp_any _ -> acc
     | Ptyp_arrow (_, ct1, ct2, _, _) ->
-      let acc = aux acc ct1 in
-      aux acc ct2
+      let acc = aux env acc ct1 in
+      aux env acc ct2
     | Ptyp_tuple l | Ptyp_unboxed_tuple l ->
-      List.fold_left (fun acc (_, ct) -> aux acc ct) acc l
+      List.fold_left (fun acc (_, ct) -> aux env acc ct) acc l
     | Ptyp_constr ({ txt = lid }, params) ->
       let path, _td = Env.find_type_by_name lid env in
       let acc = Discourse_types.Lid_trie.add lid (Type, path) acc in
-      List.fold_left aux acc params
+      List.fold_left (aux env) acc params
     | Ptyp_object (fields, _) ->
       List.fold_left
         (fun acc { Parsetree.pof_desc = Otag (_, ct) | Oinherit ct; _ } ->
-          aux acc ct)
+          aux env acc ct)
         acc fields
     | Ptyp_class ({ txt = lid; _ }, l) ->
       let path, _td = Env.find_type_by_name lid env in
       let acc = Discourse_types.Lid_trie.add lid (Type, path) acc in
-      List.fold_left aux acc l
-    | Ptyp_alias (ct, _, _) -> aux acc ct
+      List.fold_left (aux env) acc l
+    | Ptyp_alias (ct, _, _) -> aux env acc ct
     | Ptyp_variant (row, _, _) ->
       List.fold_left
         (fun acc { Parsetree.prf_desc; _ } ->
           match prf_desc with
-          | Rtag (_, _, l) -> List.fold_left aux acc l
-          | Rinherit ct -> aux acc ct)
+          | Rtag (_, _, l) -> List.fold_left (aux env) acc l
+          | Rinherit ct -> aux env acc ct)
         acc row
-    | Ptyp_poly (_, ct) -> aux acc ct
+    | Ptyp_poly (_, ct) -> aux env acc ct
     | Ptyp_package ({ txt = lid; _ }, l) ->
       let path, _td = Env.find_modtype_by_name lid env in
       let acc = Discourse_types.Lid_trie.add lid (Module_type, path) acc in
-      List.fold_left (fun acc (_, ct) -> aux acc ct) acc l
+      List.fold_left (fun acc (_, ct) -> aux env acc ct) acc l
     | Ptyp_open ({ txt = lid; _ }, ct) ->
       let path, _td = Env.find_module_by_name lid env in
       let acc = Discourse_types.Lid_trie.add lid (Module, path) acc in
-      aux acc ct
+      let newenv = Env.open_signature_by_path path env in
+      aux newenv acc ct
     | Ptyp_of_kind _ | Ptyp_var _ -> acc
     | Ptyp_extension _ -> acc
   in
-  aux acc ty
+  aux env acc ty
 
 (** [add_path_to_discourse] adds one path from U to the Discourse, eventually adding the
     additionnal paths described by the rules for D. TODO this could and probably
