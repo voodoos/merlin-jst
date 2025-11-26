@@ -129,7 +129,8 @@ let of_core_type env ?(acc = Discourse_types.empty) ty =
     | Ptyp_of_kind _ | Ptyp_var _ -> acc
     | Ptyp_extension _ | Ptyp_quote _ | Ptyp_splice _ -> acc
   in
-  aux env acc ty
+  (* TODO do we want finer recovery here ? *)
+  try aux env acc ty with Not_found -> acc
 
 (** [add_path_to_discourse] adds one path from U to the Discourse, eventually adding the
     additionnal paths described by the rules for D. TODO this could and probably
