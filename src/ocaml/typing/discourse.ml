@@ -261,23 +261,25 @@ let define_modtype = define Module_type Env.find_modtype_by_name
    file are in U. *)
 
 let define_signature env sg =
-  let lident id = Longident.Lident (Ident.name id) in
-  List.iter
-    (function
-      | Types.Sig_type (id, _, _, _) -> define_type env (lident id)
-      | Types.Sig_value (id, _, _) -> define_value env (lident id)
-      | Types.Sig_typext (_, _, _, _) -> ()
-      | Types.Sig_module (id, _, _, _, _) -> define_module env (lident id)
-      | Types.Sig_modtype (id, _, _) -> define_module env (lident id)
-      | Types.Sig_class (_, _, _, _) | Types.Sig_class_type (_, _, _, _) ->
-        (* TODO *) ())
-    sg
+  if record_usages then
+    let lident id = Longident.Lident (Ident.name id) in
+    List.iter
+      (function
+        | Types.Sig_type (id, _, _, _) -> define_type env (lident id)
+        | Types.Sig_value (id, _, _) -> define_value env (lident id)
+        | Types.Sig_typext (_, _, _, _) -> ()
+        | Types.Sig_module (id, _, _, _, _) -> define_module env (lident id)
+        | Types.Sig_modtype (id, _, _) -> define_module env (lident id)
+        | Types.Sig_class (_, _, _, _) | Types.Sig_class_type (_, _, _, _) ->
+          (* TODO *) ())
+      sg
 
-let open_module env lid =
-  let _path, md = Env.find_module_by_name lid env in
-  match md.md_type with
-  | Mty_signature sg -> define_signature env sg
-  | _ -> ()
+let open_module ~env ~newenv lid =
+  if record_usages then
+    let _path, md = Env.find_module_by_name lid env in
+    match md.md_type with
+    | Mty_signature sg -> define_signature newenv sg
+    | _ -> ()
 
 (* Rule U1: Any path occurring in the file is in U *)
 let use_module env lid path = add_used env Module lid path
