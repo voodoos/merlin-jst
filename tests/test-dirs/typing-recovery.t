@@ -537,7 +537,7 @@ And now, with an error deep in a submodule:
         []
     signature_item (test2.mli[12,154+0]..test2.mli[12,154+21])
       Tsig_value
-      value_description foo3/282 (test2.mli[12,154+0]..test2.mli[12,154+21])
+      value_description foo3/285 (test2.mli[12,154+0]..test2.mli[12,154+21])
         core_type (test2.mli[12,154+11]..test2.mli[12,154+21])
           Ttyp_tuple
           [
