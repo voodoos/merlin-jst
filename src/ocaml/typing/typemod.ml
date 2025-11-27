@@ -2029,7 +2029,6 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
       Builtin_attributes.warning_scope sincl.pincl_attributes
         (fun () -> transl_modtype env smty)
     in
-    (* TODO Discourse for include *)
     let mty = tmty.mty_type in
     let scope = Ctype.create_scope () in
     let incl_kind, sg =
