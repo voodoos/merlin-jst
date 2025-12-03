@@ -126,7 +126,17 @@ module Priority_queue = Lid_set
 
 let priority_queue : Priority_queue.t ref =
   Local_store.s_ref Priority_queue.empty
+let not_in_env : Priority_queue.t ref = Local_store.s_ref Priority_queue.empty
 let canon_table : Lid_set.t Path.Map.t ref = Local_store.s_ref Path.Map.empty
+
+(* This function should be called before any attempt to [shorten] paths in an
+   environment different that the one of the previous attempt.
+
+   This is called after any function wrapped with [Printyp.wrap_printing_env].
+*)
+let restore_ignored_paths () =
+  priority_queue := Priority_queue.union !not_in_env !priority_queue;
+  not_in_env := Priority_queue.empty
 
 let pp_table fmt t =
   Path.Map.iter
@@ -212,7 +222,11 @@ let find_best_lid env ~canon_path table =
 let improve_lid env ~canon_path table lid =
   find_best_lid env ~canon_path table |> Option.fold ~none:lid ~some:Option.some
 
-type state = { queue : Priority_queue.t; table : Lid_set.t Path.Map.t }
+type state =
+  { queue : Priority_queue.t;
+    not_in_env : Priority_queue.t;
+    table : Lid_set.t Path.Map.t
+  }
 let process_queue env state ~canon_path best_lid =
   let rec fill_by_level ~compare seq state best_lid =
     log ~title:"fill_by_level" "Current best: %a" Logger.fmt (fun f ->
@@ -280,12 +294,18 @@ let process_queue env state ~canon_path best_lid =
         in
         (* And remove it from the queue *)
         let queue = Priority_queue.remove (lid, path) state.queue in
-        { queue; table }
+        { state with queue; table }
       with Not_found ->
-        (* Elements not valid in the current environement are left in the queue*)
         log ~title:"fill_by_level" "Name: %a invalid in the current env"
           Logger.fmt (fun fmt -> Pprintast.longident fmt lid);
-        state
+
+        (* Elements not valid in the current environement are kept in a separate
+           queue. This prevent uselessly re-testing them when [shorten] is
+           called multiple times with the same environment. This notably happens
+           when printing module signatures, and they can be quite large. *)
+        let queue = Priority_queue.remove (lid, path) state.queue in
+        let not_in_env = Priority_queue.add (lid, path) state.not_in_env in
+        { state with queue; not_in_env }
     in
     fill_by_level ~compare:(compare_longidents lid) next state best_lid
   in
@@ -342,16 +362,18 @@ let shorten ~env ~canon_path =
   let best_lid = find_best_lid env ~canon_path table in
 
   (* Is there a better one in the queue ? *)
-  let best_lid, { queue = new_queue; table = new_table } =
-    process_queue env { queue; table } ~canon_path best_lid
+  let best_lid, { queue = queue'; not_in_env = not_in_env'; table = table' } =
+    let not_in_env = !not_in_env in
+    process_queue env { queue; not_in_env; table } ~canon_path best_lid
   in
 
   (* Empty the discourse *)
   Discourse.set { discourse with paths = Discourse_types.empty };
 
-  (* Update the persistent queue and table *)
-  priority_queue := new_queue;
-  canon_table := new_table;
+  (* Update the persistent queues and table *)
+  priority_queue := queue';
+  not_in_env := not_in_env';
+  canon_table := table';
 
   match best_lid with
   | None -> canon_path

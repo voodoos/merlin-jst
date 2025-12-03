@@ -780,7 +780,9 @@ let wrap_mutation f =
 
 let wrap_printing_env env f =
   set_printing_env (Env.update_short_paths env); reset_naming_context ();
-  try_finally f ~always:(fun () -> set_printing_env Env.empty)
+  try_finally f ~always:(fun () ->
+    set_printing_env Env.empty;
+    Shorter_paths.restore_ignored_paths ();)
 
 let wrap_printing_env ?error:_ env f =
   Env.without_cmis (wrap_printing_env env) f
