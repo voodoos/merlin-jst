@@ -248,7 +248,10 @@ let extract_sig_functor_open funct_body env loc mty sig_acc =
 (* Compute the environment after opening a module *)
 
 let type_open_ ?(used_slot=ref false) ?(toplevel=false) ovf env loc lid =
-  Env.open_signature ~loc ~used_slot ~toplevel ovf lid env
+  let path, mode, newenv = Env.open_signature ~loc ~used_slot ~toplevel ovf lid env in
+  Discourse.use_module env lid path;
+  Discourse.open_module ~env ~newenv lid.txt;
+  path, mode, newenv
 
 let initial_env ~loc ~initially_opened_module
     ~open_implicit_modules =
@@ -3418,8 +3421,6 @@ and type_open_decl_aux ?used_slot ?toplevel funct_body names env od =
     let path, (mode, locks), newenv =
       type_open_ ?used_slot ?toplevel od.popen_override env loc lid
     in
-    Discourse.use_module env lid path;
-    Discourse.open_module ~env ~newenv lid.txt;
     let md = { mod_desc = Tmod_ident (path, lid);
                mod_type = Mty_alias path;
                mod_mode = mode, Some (locks, lid.txt, lid.loc);

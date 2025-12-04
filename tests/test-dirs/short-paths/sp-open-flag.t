@@ -22,7 +22,7 @@
   > FLG -short-paths -open Import
   > EOF
 
-FIXME: the shortest path is `u`
+The shortest path is `u`
   $ $MERLIN single type-enclosing -position 2:7 \
   > -filename test.ml < test.ml | jq '.value[0].type'
-  "A.B.t"
+  "u"
