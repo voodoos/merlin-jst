@@ -12,4 +12,4 @@
 FIXME: sig type t = Long.Path.t val x : t end
   $ $MERLIN single type-enclosing -position 6:7 \
   > -filename test.ml < test.ml | jq '.value[0].type'
-  "sig type t = M.t val x : M.t end"
+  "sig type t = M.t val x : t end"
