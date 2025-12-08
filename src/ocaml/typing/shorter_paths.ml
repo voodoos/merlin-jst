@@ -312,8 +312,11 @@ let process_queue env state ~canon_path best_lid =
   match (Priority_queue.min_elt_opt state.queue, best_lid) with
   | None, _ -> (best_lid, state)
   | Some (shortest_lid_in_queue, _path), Some (best_lid', _)
-    when compare_longidents best_lid' shortest_lid_in_queue > 0 ->
+    when compare_longidents shortest_lid_in_queue best_lid' > 0 ->
     (* There cannot be a better candidate in the queue *)
+    log ~title:"process_queue" "No shorter longidents in the queue. (> %a)"
+      Logger.fmt
+    @@ Fun.flip Pprintast.longident shortest_lid_in_queue;
     (best_lid, state)
   | Some (shortest_lid, _path), best_lid ->
     let compare = compare_longidents shortest_lid in
