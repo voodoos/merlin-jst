@@ -15,6 +15,11 @@ let rec compare_longidents ?(compare_strings = String.compare)
   | Ldot _, Lapply _ -> -1
   | Lapply _, Ldot _ -> 1
 
+module Lid_set = Set.Make (struct
+  type t = Longident.t
+  let compare a b = compare_longidents a b
+end)
+
 module Paths = struct
   module T = struct
     type t = Shape.Sig_component_kind.t * Path.t

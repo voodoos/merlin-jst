@@ -46,7 +46,7 @@ We call D the domain of discourse:
 open Shape.Sig_component_kind
 open Discourse_types
 
-type nonrec t = { paths : t; substs : Path.Set.t Path.Map.t }
+type nonrec t = { paths : t; substs : Lid_set.t Path.Map.t }
 let empty = { paths = empty; substs = Path.Map.empty }
 let log_section = "discourse"
 let { Logger.log } = Logger.for_section log_section
@@ -62,12 +62,11 @@ let pp_substs fmt substs =
   let pp_sep ppf () = Format.fprintf ppf ";@;" in
   let pp_v fmt (p, s) =
     Format.fprintf fmt "%a -> [%a]" Path.print p
-      (Format.pp_print_list ~pp_sep Path.print)
+      (Format.pp_print_list ~pp_sep Pprintast.longident)
       s
   in
   let substs =
-    Path.Map.bindings substs
-    |> List.map (fun (p, s) -> (p, Path.Set.elements s))
+    Path.Map.bindings substs |> List.map (fun (p, s) -> (p, Lid_set.elements s))
   in
   Format.pp_print_list ~pp_sep pp_v fmt substs
 
@@ -171,8 +170,8 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
           let substs =
             Path.Map.update p
               (function
-                | None -> Some (Path.Set.singleton path)
-                | Some paths -> Some (Path.Set.add path paths))
+                | None -> Some (Lid_set.singleton lid)
+                | Some lids -> Some (Lid_set.add lid lids))
               substs
           in
           (paths, substs)
