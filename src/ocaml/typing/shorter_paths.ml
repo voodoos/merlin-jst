@@ -356,7 +356,12 @@ let shorten ~env ~canon_path =
       pp_table fmt table);
 
   let queue =
-    let paths = apply_substitutions_fixpoint discourse.paths discourse.substs in
+    let paths =
+      add
+        (Untypeast.lident_of_path canon_path)
+        (Type, canon_path) discourse.paths
+    in
+    let paths = apply_substitutions_fixpoint paths discourse.substs in
     fill_queue paths queue
   in
 
