@@ -280,10 +280,12 @@ let define_signature env sg =
           (* TODO *) ())
       sg
 
-let open_module ~env ~newenv lid =
+let open_module ~env ~newenv path =
   if record_usages then
     try
-      let _path, md = Env.find_module_by_name lid env in
+      (* When opening we need to traverse the aliases to get the components *)
+      let path = Env.normalize_module_path None env path in
+      let md = Env.find_module path env in
       match md.md_type with
       | Mty_signature sg -> define_signature newenv sg
       | _ -> ()

@@ -300,7 +300,7 @@ let extract_sig_functor_open funct_body env loc mty sig_acc md_mode =
 let type_open_ ?(used_slot=ref false) ?(toplevel=false) ovf env loc lid =
   let path, mode, newenv = Env.open_signature ~loc ~used_slot ~toplevel ovf lid env in
   Discourse.use_module env lid path;
-  Discourse.open_module ~env ~newenv lid.txt;
+  Discourse.open_module ~env ~newenv path;
   path, mode, newenv
 
 let initial_env ~loc ~initially_opened_module
