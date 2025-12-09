@@ -90,7 +90,7 @@ let compare_longidents l1 l2 =
   if cost_diff <> 0 then cost_diff
   else Discourse_types.compare_longidents ~compare_strings l1 l2
 
-module Lid_set = struct
+module Lid_path_set = struct
   module T = struct
     type t = Longident.t * Path.t
 
@@ -104,7 +104,7 @@ module Lid_set = struct
   include Set.Make (T)
 end
 
-module Priority_queue = Lid_set
+module Priority_queue = Lid_path_set
 
 (* To shorten paths we will build a table that maps "canonical paths" - i.e. a
    path which is not itself an alias - to a set of paths from D that are aliases
@@ -127,7 +127,8 @@ module Priority_queue = Lid_set
 let priority_queue : Priority_queue.t ref =
   Local_store.s_ref Priority_queue.empty
 let not_in_env : Priority_queue.t ref = Local_store.s_ref Priority_queue.empty
-let canon_table : Lid_set.t Path.Map.t ref = Local_store.s_ref Path.Map.empty
+let canon_table : Lid_path_set.t Path.Map.t ref =
+  Local_store.s_ref Path.Map.empty
 
 (* This function should be called before any attempt to [shorten] paths in an
    environment different that the one of the previous attempt.
@@ -141,9 +142,9 @@ let restore_ignored_paths () =
 let pp_table fmt t =
   Path.Map.iter
     (fun p lids ->
-      let lids = Lid_set.to_list lids in
+      let lids = Lid_path_set.to_list lids in
       Format.fprintf fmt "@;%a -> {%a}" Path.print p
-        (Format.pp_print_list ~pp_sep:Format.pp_print_space Lid_set.pp_elt)
+        (Format.pp_print_list ~pp_sep:Format.pp_print_space Lid_path_set.pp_elt)
         lids)
     t
 
@@ -179,9 +180,7 @@ let apply_substitutions_fixpoint t substs =
   let substs =
     Path.Map.bindings substs
     |> List.map (fun (target, replacements) ->
-           ( Untypeast.lident_of_path target,
-             Path.Set.elements replacements |> List.map Untypeast.lident_of_path
-           ))
+           (Untypeast.lident_of_path target, Lid_set.elements replacements))
   in
   let rec aux acc t =
     let new_lids = apply_substitutions substs t in
@@ -217,7 +216,7 @@ let find_best_lid env ~canon_path table =
   in
   match Path.Map.find_opt canon_path table with
   | None -> None
-  | Some lids -> Lid_set.to_seq lids |> Seq.find_map is_valid
+  | Some lids -> Lid_path_set.to_seq lids |> Seq.find_map is_valid
 
 let improve_lid env ~canon_path table lid =
   find_best_lid env ~canon_path table |> Option.fold ~none:lid ~some:Option.some
@@ -225,12 +224,12 @@ let improve_lid env ~canon_path table lid =
 type state =
   { queue : Priority_queue.t;
     not_in_env : Priority_queue.t;
-    table : Lid_set.t Path.Map.t
+    table : Lid_path_set.t Path.Map.t
   }
 let process_queue env state ~canon_path best_lid =
   let rec fill_by_level ~compare seq state best_lid =
     log ~title:"fill_by_level" "Current best: %a" Logger.fmt (fun f ->
-        Format.pp_print_option Lid_set.pp_elt f best_lid);
+        Format.pp_print_option Lid_path_set.pp_elt f best_lid);
     match seq () with
     | Seq.Nil ->
       log ~title:"fill_by_level" "Empty queue";
@@ -250,7 +249,7 @@ let process_queue env state ~canon_path best_lid =
         | best_lid ->
           log ~title:"fill_by_level" "Finished a level. Current best: %a"
             Logger.fmt (fun f ->
-              Format.pp_print_option Lid_set.pp_elt f best_lid);
+              Format.pp_print_option Lid_path_set.pp_elt f best_lid);
           add_lid_to_table state (lid, path) next best_lid
       end
       else add_lid_to_table state (lid, path) next best_lid
@@ -288,8 +287,8 @@ let process_queue env state ~canon_path best_lid =
         let table =
           Path.Map.update canon
             (function
-              | None -> Some (Lid_set.singleton (lid, path))
-              | Some set -> Some (Lid_set.add (lid, path) set))
+              | None -> Some (Lid_path_set.singleton (lid, path))
+              | Some set -> Some (Lid_path_set.add (lid, path) set))
             state.table
         in
         (* And remove it from the queue *)
