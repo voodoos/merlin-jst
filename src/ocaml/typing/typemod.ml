@@ -2798,7 +2798,7 @@ let check_recmodule_inclusion env bindings =
       let bindings1 =
         List.map
           (fun (id, _name, _mty_decl, _modl,
-                mty_actual, _mmode, _attrs, _loc, shape, _uid) ->
+                mty_actual, _mmode, _attrs, _loc, shape, _uid, _discourse) ->
              let ids =
                Option.map
                  (fun id -> (id, Ident.create_scoped ~scope (Ident.name id))) id
@@ -2835,7 +2835,7 @@ let check_recmodule_inclusion env bindings =
          and insert coercion if needed *)
       let check_inclusion
             (id, name, mty_decl, modl, mty_actual, mode_decl, attrs, loc, shape
-            ,uid) =
+            , uid, _discourse) =
         let mty_decl' = Subst.modtype (Rescope scope) s mty_decl.mty_type
         and mty_actual' = subst_and_strengthen scope s id mty_actual in
         let modes : Includemod.modes =
@@ -3011,11 +3011,8 @@ let simplify_app_summary app_view = match app_view.arg with
     | false, None   -> Includemod.Error.Anonymous, mty, mode
 
 let rec type_module ?alias sttn funct_body anchor env ?expected_mode smod =
-  let md, shape =
-    type_module_maybe_hold_locks ?alias ~hold_locks:false sttn funct_body anchor
-      env ?expected_mode smod
-  in
-  md, shape
+  type_module_maybe_hold_locks ?alias ~hold_locks:false sttn funct_body anchor
+    env ?expected_mode smod
 
 and type_module_maybe_hold_locks ?(alias=false) ~hold_locks sttn funct_body
   anchor env ?expected_mode smod =
@@ -3035,7 +3032,7 @@ and type_module_maybe_hold_locks ?(alias=false) ~hold_locks sttn funct_body
       mod_env = env;
       mod_attributes = Msupport.flush_saved_types () @ smod.pmod_attributes;
       mod_loc = smod.pmod_loc },
-      Shape.dummy_mod
+      Shape.dummy_mod, Discourse_types.empty
 
 and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
   ?expected_mode smod =
@@ -3045,14 +3042,16 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
   - If [hold_locks] is [false], the locks are walked.
 
   If the module is not an identifier, [hold_locks] has no effect. *)
+  let empty_discourse = Discourse_types.empty in
   match smod.pmod_desc with
     Pmod_ident lid ->
       let path, mode_with_locks =
         Env.lookup_module_path ~load:(not alias) ~loc:smod.pmod_loc lid.txt env
       in
       Discourse.use_module env lid path;
-      type_module_path_aux ~alias ~hold_locks sttn env path mode_with_locks lid
-        smod
+      let me, shape =  type_module_path_aux ~alias ~hold_locks
+        sttn env path mode_with_locks lid smod in
+      me, shape, Discourse_types.singleton lid.txt (Module, path)
   | Pmod_structure sstr ->
       Env.check_no_open_quotations smod.pmod_loc env Env.Struct_qt;
       let (str, sg, mode, names, shape, _finalenv) =
@@ -3071,7 +3070,7 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
         wrap_constraint_with_shape env false md
           (Mty_signature sg') mode shape Tmodtype_implicit
       in
-      md, shape
+      md, shape, empty_discourse
   | Pmod_functor(arg_opt, sbody) ->
       let alloc_mode, mode = register_allocation () in
       Option.iter (fun x -> Value.submode_exn mode x) expected_mode;
@@ -3086,7 +3085,7 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
           (* unspecified mode axes defaults to legacy *)
           let tmode = Typemode.transl_alloc_mode smode in
           let mode = Alloc.of_const tmode.mode_modes in
-          let mty, md_discourse = transl_modtype_functor_arg env smty in
+          let mty, mtd_discourse = transl_modtype_functor_arg env smty in
           let scope = Ctype.create_scope () in
           let (id, newenv, var) =
             match param.txt with
@@ -3099,7 +3098,7 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
                   md_attributes = [];
                   md_loc = param.loc;
                   md_uid;
-                  md_discourse;
+                  md_discourse = mtd_discourse;
                 }
               in
               let id = Ident.create_scoped ~scope name in
@@ -3114,7 +3113,7 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
           newenv, var, true
       in
 
-      let body, body_shape = type_module true funct_body None newenv sbody in
+      let body, body_shape, discourse = type_module true funct_body None newenv sbody in
       let body_mode = mode_without_locks_exn body.mod_mode in
       let ret_mode = Alloc.newvar () in
       Value.submode_exn body_mode (ret_mode |> alloc_as_value);
@@ -3134,7 +3133,8 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
         mod_env = env;
         mod_attributes = smod.pmod_attributes;
         mod_loc = smod.pmod_loc },
-      Shape.abs funct_shape_param body_shape
+      Shape.abs funct_shape_param body_shape,
+      discourse
   | Pmod_apply _ | Pmod_apply_unit _ ->
       type_application smod.pmod_loc sttn funct_body env smod
   | Pmod_constraint(sarg, smty, smode) ->
@@ -3144,13 +3144,13 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
       let mode =
         { tmode with mode_modes = new_mode_var_from_annots tmode.mode_modes }
       in
-      let arg, arg_shape =
+      let arg, arg_shape, discourse =
         type_module_maybe_hold_locks ~alias ~hold_locks true funct_body
           anchor env ~expected_mode:(mode.mode_modes |> Value.disallow_left)
           sarg
       in
       begin try
-        let md, final_shape =
+        let (md, final_shape), discourse =
           match smty with
           | None ->
               (* CR zqian: Ideally, we want to call [wrap_constraint_with_shape]
@@ -3160,18 +3160,20 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
               RHS. *)
               let arg_mode = Typedtree.mode_without_locks_exn arg.mod_mode in
               submode ~loc:sarg.pmod_loc ~env arg_mode mode.mode_modes;
-              { arg with mod_mode = (Mode.Value.disallow_right mode.mode_modes, None)},
-              arg_shape
+              ({ arg with mod_mode = (Mode.Value.disallow_right mode.mode_modes, None)},
+              arg_shape), Discourse_types.empty
           | Some smty ->
               let mty, _discourse = transl_modtype env smty in
               wrap_constraint_with_shape env true arg mty.mty_type mode.mode_modes
-                arg_shape (Tmodtype_explicit (mty, mode))
+                arg_shape (Tmodtype_explicit (mty, mode)),
+              discourse
         in
         { md with
           mod_loc = smod.pmod_loc;
           mod_attributes = smod.pmod_attributes;
         },
-        final_shape
+        final_shape,
+        discourse
       with exn ->
        (* [merlin] For better Construct error messages we need to keep holes
           in the recovered typedtree *)
@@ -3186,7 +3188,8 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
               mod_env = env;
               mod_attributes = sarg.pmod_attributes;
             },
-            Shape.dummy_mod
+            Shape.dummy_mod,
+            discourse
         | _ -> raise exn
       end
   | Pmod_unpack sexp ->
@@ -3225,7 +3228,8 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
         mod_env = env;
         mod_attributes = smod.pmod_attributes;
         mod_loc = smod.pmod_loc },
-      Shape.leaf_for_unpack
+      Shape.leaf_for_unpack,
+      empty_discourse
   | Pmod_extension ({ txt; _ }, _) when txt = Ast_helper.hole_txt ->
       { mod_desc = Tmod_typed_hole;
         mod_type = Mty_for_hole;
@@ -3233,7 +3237,8 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
         mod_env = env;
         mod_attributes = smod.pmod_attributes;
         mod_loc = smod.pmod_loc },
-      Shape.dummy_mod
+      Shape.dummy_mod,
+      empty_discourse
   | Pmod_extension ext ->
       raise (Error_forward (Builtin_attributes.error_of_extension ext))
   | Pmod_instance glob ->
@@ -3251,8 +3256,10 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
         in
         Location.(mkloc (Lident name) (ghostify smod.pmod_loc))
       in
-      type_module_path_aux ~alias ~hold_locks sttn env path mode_with_locks lid
-        smod
+      let md, shape =
+        type_module_path_aux ~alias ~hold_locks sttn env path mode_with_locks
+          lid smod in
+      md, shape, empty_discourse
 
 and type_module_path_aux ~alias ~hold_locks sttn env path
   (mode, locks) (lid : _ loc) smod =
@@ -3299,10 +3306,10 @@ and type_module_path_aux ~alias ~hold_locks sttn env path
   md, shape
 
 and type_application loc strengthen funct_body env smod =
-  let rec extract_application funct_body env sargs smod =
+  let rec extract_application funct_body env discourse sargs smod =
     match smod.pmod_desc with
     | Pmod_apply(f, sarg) ->
-        let arg, shape =
+        let arg, shape, discourse =
           type_module_maybe_hold_locks ~hold_locks:true true funct_body None env
             sarg
         in
@@ -3317,7 +3324,7 @@ and type_application loc strengthen funct_body env smod =
             shape;
           }
         } in
-        extract_application funct_body env (summary::sargs) f
+        extract_application funct_body env discourse (summary::sargs) f
     | Pmod_apply_unit f ->
         let summary = {
           loc = smod.pmod_loc;
@@ -3325,11 +3332,13 @@ and type_application loc strengthen funct_body env smod =
           f_loc = f.pmod_loc;
           arg = None
         } in
-        extract_application funct_body env (summary::sargs) f
-    | _ -> smod, sargs
+        extract_application funct_body env discourse (summary::sargs) f
+    | _ -> smod, sargs, discourse
   in
-  let sfunct, args = extract_application funct_body env [] smod in
-  let funct, funct_shape =
+  let sfunct, args, discourse =
+    extract_application funct_body env Discourse_types.empty [] smod
+  in
+  let funct, funct_shape, discourse' =
     let has_path { arg } = match arg with
       | None | Some { path = None } -> false
       | Some { path = Some _ } -> true
@@ -3337,9 +3346,11 @@ and type_application loc strengthen funct_body env smod =
     let strengthen = strengthen && List.for_all has_path args in
     type_module strengthen funct_body None env sfunct
   in
-  List.fold_left
+  let me, shape = List.fold_left
     (type_one_application ~ctx:(loc, sfunct, funct, args) funct_body env)
     (funct, funct_shape) args
+  in
+  me, shape, Discourse_types.union discourse discourse'
 
 and type_one_application ~ctx:(apply_loc,sfunct,md_f,args)
     funct_body env (funct, funct_shape) app_view =
@@ -3525,7 +3536,7 @@ and type_open_decl_aux ?used_slot ?toplevel funct_body names env od =
     } in
     open_descr, Mode.Value.(max |> disallow_right), [], newenv
   | _ ->
-    let md, mod_shape = type_module true funct_body None env od.popen_expr in
+    let md, mod_shape, _discourse = type_module true funct_body None env od.popen_expr in
     let mode = mode_without_locks_exn md.mod_mode in
     let scope = Ctype.create_scope () in
     let sg, newenv =
@@ -3582,7 +3593,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
 
   let type_str_include ~loc env shape_map sincl sig_acc =
     let smodl = sincl.pincl_mod in
-    let modl, modl_shape =
+    let modl, modl_shape, _discourse =
       Builtin_attributes.warning_scope sincl.pincl_attributes
         (fun () -> type_module true funct_body None env smodl)
     in
@@ -3764,7 +3775,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
                   } ->
         let outer_scope = Ctype.get_current_level () in
         let scope = Ctype.create_scope () in
-        let modl, md_shape =
+        let modl, md_shape, md_discourse =
           Builtin_attributes.warning_scope attrs
             (fun () ->
                type_module ~alias:true true funct_body
@@ -3779,14 +3790,13 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
         let md_uid = Uid.mk ~current_unit:(Env.get_unit_name ()) in
         let mode = mode_without_locks_exn modl.mod_mode in
         let md_modalities = infer_modalities ~loc:pmb_loc ~env ~md_mode ~mode in
-        let md_discourse = Discourse.of_module_expr env ~alias:true smodl in
         let md =
           { md_type = enrich_module_type anchor name.txt modl.mod_type env;
             md_modalities;
             md_attributes = attrs;
             md_loc = pmb_loc;
             md_uid;
-            md_discourse ;
+            md_discourse;
           }
         in
         let md_shape = Shape.set_uid_if_none md_shape md_uid in
@@ -3855,7 +3865,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
           List.map2
             (fun ({md_id=id; md_type=mty}, mode, uid, _prev_shape)
                  (name, _, _, smodl, attrs, loc) ->
-               let modl, shape =
+               let modl, shape, discourse =
                  Builtin_attributes.warning_scope attrs
                    (fun () ->
                       type_module true funct_body (anchor_recmodule id)
@@ -3866,11 +3876,12 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
                  enrich_module_type anchor name.txt modl.mod_type newenv
                in
                (id, name, mty, modl, mty', Option.get mode, attrs, loc, shape,
-                uid))
+                uid, discourse))
             decls sbind in
         let newenv = (* allow aliasing recursive modules from outside *)
           List.fold_left
-            (fun env (id_opt, _, mty, _, _, mode, attrs, loc, shape, uid) ->
+            (fun env (id_opt, _, mty, _, _, mode, attrs, loc, shape, uid,
+               discourse) ->
                match id_opt with
                | None -> env
                | Some id ->
@@ -3881,7 +3892,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
                        md_attributes = attrs;
                        md_loc = loc;
                        md_uid = uid;
-                       md_discourse = Discourse_types.empty;
+                       md_discourse = discourse;
                      }
                    in
                    Env.add_module_declaration ~check:true ~shape
@@ -4127,7 +4138,7 @@ let type_module_type_of env smod =
           mod_attributes = smod.pmod_attributes;
           mod_loc = smod.pmod_loc }
     | _ ->
-        let me, _shape = type_module env smod in
+        let me, _shape, _discourse = type_module env smod in
         me
   in
   let mty = Mtype.scrape_for_type_of ~remove_aliases env tmty.mod_type in
@@ -4185,7 +4196,7 @@ let type_package env m p fl =
     Typetexp.TyVarEnv.with_local_scope begin fun () ->
       (* type the module and create a scope in a raised level *)
       Ctype.with_local_level begin fun () ->
-        let modl, _mod_shape =
+        let modl, _mod_shape, _discourse =
           type_module_maybe_hold_locks ~hold_locks:true env m
         in
         let scope = Ctype.create_scope () in
