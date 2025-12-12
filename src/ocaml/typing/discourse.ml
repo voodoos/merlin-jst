@@ -81,11 +81,10 @@ let log_usage ?loc kind path =
         (fun fmt -> Format.pp_print_option Location.print_loc fmt)
         loc)
 
-(* TODO: [Discourse.of_core_type] and [of_module_expr] could be entangled in the
-   typer directly. This will make these changes more invasive and difficult to
-   reason about but we could do it if the current implementation has issues.
-   Notably, all the environment lookups are already done at some point in the
-   typer.
+(* TODO: [Discourse.of_core_type] could be entangled in the typer directly. This
+   will make these changes more invasive and difficult to reason about but we
+   could do it if the current implementation has issues. Notably, all the
+   environment lookups are already done at some point in the typer.
 
    We probably want to do change the typemod and typetexp implementation for the
    final implementation. Careful environement manupilation would  be done only
