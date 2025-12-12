@@ -2702,9 +2702,15 @@ and tree_of_sigitem ?abbrev = function
   | Sig_value(id, decl, _) ->
       tree_of_value_description id decl
   | Sig_type(id, decl, rs, _) ->
-      tree_of_type_declaration id decl rs
+    Shorter_paths.log ~title:"pt" "DBG PRINT TYPE\n%!";
+      (* TODO this is not a satisfing fix to the environement issue *)
+      let tree = tree_of_type_declaration id decl rs in
+      Shorter_paths.restore_ignored_paths ();
+      tree
   | Sig_typext(id, ext, es, _) ->
-      tree_of_extension_constructor id ext es
+      let tree = tree_of_extension_constructor id ext es in
+      Shorter_paths.restore_ignored_paths ();
+      tree
   | Sig_module(id, _, md, rs, _) ->
       let abbrev =
         if List.exists (function
@@ -2714,9 +2720,14 @@ and tree_of_sigitem ?abbrev = function
           then Some (Abbrev.ellipsis ())
           else abbrev
       in
-      tree_of_module ?abbrev id md rs
+      let tree =
+      tree_of_module ?abbrev id md rs in
+      Shorter_paths.restore_ignored_paths ();
+      tree
   | Sig_modtype(id, decl, _) ->
-      tree_of_modtype_declaration ?abbrev id decl
+      let tree = tree_of_modtype_declaration ?abbrev id decl in
+      Shorter_paths.restore_ignored_paths ();
+      tree
   | Sig_class(id, decl, rs, _) ->
       tree_of_class_declaration id decl rs
   | Sig_class_type(id, decl, rs, _) ->
