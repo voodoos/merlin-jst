@@ -81,6 +81,17 @@ let log_usage ?loc kind path =
         (fun fmt -> Format.pp_print_option Location.print_loc fmt)
         loc)
 
+(* TODO: [Discourse.of_core_type] and [of_module_expr] could be entangled in the
+   typer directly. This will make these changes more invasive and difficult to
+   reason about but we could do it if the current implementation has issues.
+   Notably, all the environment lookups are already done at some point in the
+   typer.
+
+   We probably want to do change the typemod and typetexp implementation for the
+   final implementation. Careful environement manupilation would  be done only
+   once and the visibility of discourses construction might encourage
+   maintainers to take it into account when making changes. *)
+
 (* [Discourse.of_core_type] lookup paths appearing in core_types. This is meant
    to gather user-written paths associated to a value or type declaration. These
    paths should be added to the domain of discourse when this value / type is
@@ -120,20 +131,84 @@ let of_core_type env ?(acc = Discourse_types.empty) ty =
       let path, _td = Env.find_modtype_by_name lid env in
       let acc = Discourse_types.Lid_trie.add lid (Module_type, path) acc in
       List.fold_left (fun acc (_, ct) -> aux env acc ct) acc l
-    | Ptyp_open ({ txt = lid; _ }, ct) ->
-      let path, _td = Env.find_module_by_name lid env in
-      let acc = Discourse_types.Lid_trie.add lid (Module, path) acc in
-      let newenv = Env.open_signature_by_path path env in
+    | Ptyp_open (lid, ct) ->
+      let path, _, newenv =
+        Env.open_signature ~used_slot:(ref false) ~toplevel:false ~loc:lid.loc
+          Asttypes.Fresh lid env
+      in
+      let acc = Discourse_types.Lid_trie.add lid.txt (Module, path) acc in
       aux newenv acc ct
     | Ptyp_of_kind _ | Ptyp_var _ -> acc
     | Ptyp_extension _ | Ptyp_quote _ | Ptyp_splice _ -> acc
   in
   (* TODO do we want finer recovery here ? *)
-  try aux env acc ty with Not_found -> acc
+  try aux env acc ty with Not_found | Env.Error (Lookup_error _) -> acc
 
-(** [add_path_to_discourse] adds one path from U to the Discourse, eventually adding the
-    additionnal paths described by the rules for D. TODO this could and probably
-    should be done lazily.
+let rec of_module_expr env ?(acc = Discourse_types.empty) ?(alias = false)
+    (pmb_expr : Parsetree.module_expr) =
+  match pmb_expr.pmod_desc with
+  | Pmod_ident lid -> (
+    try
+      let path, _ =
+        Env.lookup_module_path ~load:(not alias) ~loc:lid.loc lid.txt env
+      in
+      Discourse_types.Lid_trie.add lid.txt (Module, path) acc
+    with Not_found | Env.Error (Lookup_error _) -> acc)
+  | Pmod_functor (_param, body) ->
+    (* TODO: this is not the correct environement, lookups for the functor's
+       parameter will fail. Do we need want these parameters in the Discourse? *)
+    of_module_expr env ~acc body
+  | Pmod_apply (f, arg) ->
+    let acc = of_module_expr env ~acc arg in
+    of_module_expr env ~acc f
+  | Pmod_apply_unit f -> of_module_expr env ~acc f
+  | Pmod_constraint (me, mt, _) ->
+    let acc = Option.fold ~none:acc ~some:(of_module_type env ~acc) mt in
+    of_module_expr env ~acc me
+  | Pmod_unpack _ -> (* TODO ?*) acc
+  | Pmod_structure _ | Pmod_extension _ | Pmod_instance _ -> acc
+
+and of_module_type env ?(acc = Discourse_types.empty) mt =
+  match mt.pmty_desc with
+  | Pmty_ident lid -> (
+    try
+      let path = Env.lookup_modtype_path ~use:false ~loc:lid.loc lid.txt env in
+      Discourse_types.Lid_trie.add lid.txt (Module_type, path) acc
+    with Not_found | Env.Error (Lookup_error _) -> acc)
+  | Pmty_functor (_, mt, _) ->
+    (* TODO: this is not the correct environement, lookups for the functor's
+       parameter will fail. Do we need want these parameters in the Discourse? *)
+    of_module_type env ~acc mt
+  | Pmty_typeof me -> of_module_expr env ~acc me
+  | Pmty_alias lid -> (
+    try
+      let path, _ = Env.find_module_by_name lid.txt env in
+      Discourse_types.Lid_trie.add lid.txt (Module, path) acc
+    with Not_found | Env.Error (Lookup_error _) -> acc)
+  | Pmty_with (mt, wcs) ->
+    let acc =
+      List.fold_left
+        (fun acc -> function
+          | Parsetree.Pwith_type (_, { ptype_manifest })
+          | Pwith_typesubst (_, { ptype_manifest }) ->
+            (* TODO ptype_kind ? *)
+            Option.fold ~none:acc ~some:(of_core_type env ~acc) ptype_manifest
+          | Pwith_modtype (_, mt) | Pwith_modtypesubst (_, mt) ->
+            of_module_type env ~acc mt
+          | Pwith_module (_, lid) | Pwith_modsubst (_, lid) -> (
+            try
+              let path, _ = Env.find_module_by_name lid.txt env in
+              Discourse_types.Lid_trie.add lid.txt (Module, path) acc
+            with Not_found | Env.Error (Lookup_error _) -> acc))
+        acc wcs
+    in
+    of_module_type env ~acc mt
+  | Pmty_strengthen (mt, _) -> of_module_type env ~acc mt
+  | Pmty_extension _ | Pmty_signature _ -> acc
+
+(** [add_path_to_discourse] adds one path from U to the Discourse, eventually
+    adding the additionnal paths described by the rules for D. TODO this could
+    and probably should be done lazily.
 
     TODO:Q what about rule D11 ? If a path is in D and it includes another module
           path within it, then that module path is also in D. Should we consider
