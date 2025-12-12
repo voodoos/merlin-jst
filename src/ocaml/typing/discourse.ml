@@ -246,7 +246,8 @@ let add_used env kind lid path =
     let lid, loc = (lid.Location.txt, lid.Location.loc) in
     let () = log_usage ~loc kind path in
     let acc =
-      try add_path_to_discourse env acc kind lid path with Not_found -> acc
+      try add_path_to_discourse env acc kind lid path
+      with Not_found | Env.Error (Lookup_error _) -> acc
     in
     match ((path : Path.t), (lid : Longident.t)) with
     | Pdot (path, _), Ldot (lid, _) -> loop acc Module (mkloc lid) path
@@ -266,7 +267,7 @@ let define kind env_lookup env lid =
         (Shape.Sig_component_kind.to_string kind) Logger.fmt (fun fmt ->
           Path.print fmt path);
       g := add_path_to_discourse env !g kind lid path
-    with Not_found -> ()
+    with Not_found | Env.Error (Lookup_error _) -> ()
   end
 
 let define_type = define Type Env.find_type_by_name
