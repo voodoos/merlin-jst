@@ -3694,14 +3694,14 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
         let md_uid = Uid.mk ~current_unit:(Env.get_unit_name ()) in
         let mode = mode_without_locks_exn modl.mod_mode in
         let md_modalities = infer_modalities ~loc:pmb_loc ~env ~md_mode ~mode in
+        let md_discourse = Discourse.of_module_expr env ~alias:true smodl in
         let md =
           { md_type = enrich_module_type anchor name.txt modl.mod_type env;
             md_modalities;
             md_attributes = attrs;
             md_loc = pmb_loc;
             md_uid;
-            (* TODO*)
-            md_discourse = Discourse_types.empty;
+            md_discourse ;
           }
         in
         let md_shape = Shape.set_uid_if_none md_shape md_uid in
