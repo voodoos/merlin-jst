@@ -1914,13 +1914,13 @@ and transl_modtype_aux env smty =
       Discourse.use_modtype env lid path;
       mkmty (Tmty_ident (path, lid)) (Mty_ident path) env loc
         smty.pmty_attributes,
-        Discourse_types.singleton lid.txt (Module_type, path)
+      Discourse_types.singleton lid.txt (Module_type, path)
   | Pmty_alias lid ->
       let path = transl_module_alias loc env lid.txt in
       Discourse.use_module env lid path;
       mkmty (Tmty_alias (path, lid)) (Mty_alias path) env loc
         smty.pmty_attributes,
-        Discourse_types.singleton lid.txt (Module, path)
+      Discourse_types.singleton lid.txt (Module, path)
   | Pmty_signature ssg ->
       Env.check_no_open_quotations loc env Env.Sig_qt;
       let sg = transl_signature env [] ssg in
@@ -1971,13 +1971,13 @@ and transl_modtype_aux env smty =
       let body, discourse = transl_modtype env sbody in
       let init_sg = extract_sig env sbody.pmty_loc body.mty_type in
       let remove_aliases = has_remove_aliases_attribute smty.pmty_attributes in
-      let (rev_tcstrs, final_sg) =
+      let (rev_tcstrs, final_sg, discourse) =
         List.fold_left (transl_with ~loc:smty.pmty_loc env remove_aliases)
-        ([],init_sg) constraints in
+          ([],init_sg,discourse) constraints in
       let scope = Ctype.create_scope () in
       mkmty (Tmty_with ( body, List.rev rev_tcstrs))
         (Mtype.freshen ~scope (Mty_signature final_sg)) env loc
-        smty.pmty_attributes, discourse (* TODO discourse from constraints *)
+        smty.pmty_attributes, discourse
   | Pmty_typeof smod ->
       let env = Env.in_signature false env in
       let tmty, mty = !type_module_type_of_fwd env smod in
@@ -2015,9 +2015,9 @@ and transl_modtype_aux env smty =
         raise(Error(loc, env, Strengthening_mismatch(mod_id.txt, explanation)))
       ;
 
-and transl_with ~loc env remove_aliases (rev_tcstrs, sg) constr =
+and transl_with ~loc env remove_aliases (rev_tcstrs, sg, discourse) constr =
   let destructive = Merge.is_destructive constr in
-  let constr, (path, lid, sg) = match constr with
+  let constr, (path, lid, sg), discourse = match constr with
     | Pwith_type (l, decl)
     | Pwith_typesubst (l, decl) ->
         let tdecl, merge_res =
@@ -2028,7 +2028,8 @@ and transl_with ~loc env remove_aliases (rev_tcstrs, sg) constr =
           else
             (Twith_type tdecl)
         in
-        (constr, merge_res)
+        (* TODO Discourse *)
+        (constr, merge_res, discourse)
 
     | Pwith_module (l, l')
     | Pwith_modsubst (l,l') ->
@@ -2040,20 +2041,23 @@ and transl_with ~loc env remove_aliases (rev_tcstrs, sg) constr =
             (Twith_module (path, l'))
         in
         (constr,
-         Merge.merge_module ~destructive env loc sg l md path remove_aliases)
+         Merge.merge_module ~destructive env loc sg l md path remove_aliases,
+         Discourse_types.add l'.txt (Module, path) discourse)
 
     | Pwith_modtype (l,smty)
     | Pwith_modtypesubst (l,smty) ->
-        let tmty, _discourse = transl_modtype env smty in
+        let tmty, discourse' = transl_modtype env smty in
         let constr = if destructive then
             (Twith_modtypesubst tmty)
           else
             (Twith_modtype tmty)
         in
-        (constr, Merge.merge_modtype ~destructive env loc sg l tmty.mty_type)
+        (constr,
+         Merge.merge_modtype ~destructive env loc sg l tmty.mty_type,
+         Discourse_types.union discourse discourse')
 
   in
-  ((path, lid, constr) :: rev_tcstrs, sg)
+  ((path, lid, constr) :: rev_tcstrs, sg, discourse)
 
 (* In the real compiler, there is no notion of incrementally checking a signature,
    as there is for structures when using the toplevel.  So this function doesn't
@@ -3805,7 +3809,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
                          md_attributes = attrs;
                          md_loc = pmb_loc;
                          md_uid;
-                         md_discourse = Discourse_types.empty;
+                         md_discourse;
                         }, Trec_not, Exported)]
         in
         let shape_map = match id with
