@@ -14,9 +14,9 @@
 
   $ $OCAMLC -c -o Base__Or_error or_error.ml
 
-  $ $OCAMLC -c -nopervasives -nostdlib -no-alias-deps base__.ml
+  $ $OCAMLC -c base__.ml
 
-  $ $OCAMLC -c -no-alias-deps -open Base__ test.ml
+  $ $OCAMLC -c -open Base__ test.ml
 
   $ ls
   Base__Or_error.cmi
