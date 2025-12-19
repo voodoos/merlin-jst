@@ -256,6 +256,7 @@ let type_open_ ?(used_slot=ref false) ?(toplevel=false) ovf env loc lid =
 let initial_env ~loc ~initially_opened_module
     ~open_implicit_modules =
   let env = Lazy.force Env.initial in
+  Discourse.add_initial_discourse ();
   let open_module env m =
     let open Asttypes in
     let lid = {loc; txt = Longident.parse m } in

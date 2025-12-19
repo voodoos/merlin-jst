@@ -58,6 +58,10 @@ let reset () = g := empty
 
 let record_usages = Config.merlin
 
+let add_initial_discourse () =
+  let d = !g in
+  g := { d with paths = Lid_trie.union (Predef.discourse ()) d.paths }
+
 let pp_substs fmt substs =
   let pp_sep ppf () = Format.fprintf ppf ";@;" in
   let pp_v fmt (p, s) =
