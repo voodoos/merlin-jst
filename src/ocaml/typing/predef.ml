@@ -353,6 +353,7 @@ let list_argument_sort = Jkind_types.Sort.Const.value
 let list_argument_jkind = Jkind.Builtin.value_or_null ~why:(
   Type_argument {parent_path = path_list; position = 1; arity = 1})
 
+let discourse = ref Discourse_types.empty
 let mk_add_type add_type =
   let add_type_with_jkind
       ?manifest type_ident
@@ -360,6 +361,10 @@ let mk_add_type add_type =
       ~jkind
       ?unboxed_jkind
       env =
+    let () =
+    let lid = Longident.Lident (Ident.name type_ident) in
+    let path = Pident type_ident in
+    discourse := Discourse_types.add lid (Type, path) !discourse in
     let type_uid = Uid.of_predef_id type_ident in
     let type_unboxed_version = match unboxed_jkind with
       | None -> None
@@ -837,3 +842,5 @@ let builtin_values =
   List.map (fun id -> (Ident.name id, id)) all_predef_exns
 
 let builtin_idents = List.rev !builtin_idents
+
+let discourse () = !discourse
