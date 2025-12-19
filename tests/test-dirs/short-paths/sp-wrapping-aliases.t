@@ -35,4 +35,4 @@
 
   $ $MERLIN single type-enclosing -position 1:4 \
   > -filename test.ml < test.ml | jq '.value[0].type'
-  "int Base__.Or_error.t"
+  "int Or_error.t"

@@ -165,6 +165,12 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
     match kind with
     | Module ->
       (* TODO This should probably be done lazily *)
+      (* We have to follow aliases to be able to add module components tot
+         the discourse.
+
+         TODO this makes the ident counter explode, is that fine ? Or should
+              we do this lazily ? *)
+      let path = Env.normalize_module_path None env path in
       let md = Env.find_module_lazy path env in
       (* D5. If a module path is in U and its module description was written then
          the paths used in that description are in D *)
