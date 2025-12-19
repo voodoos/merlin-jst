@@ -352,6 +352,12 @@ let shorten ~env ~canon_path =
   let queue, table = (!priority_queue, !canon_table) in
   log_dbg ~title:"shorten" "Current discourse: %a" Logger.fmt (fun fmt ->
       Discourse.debug_print fmt);
+  log_dbg ~title:"shorten" "Current queue: %a" Logger.fmt (fun fmt ->
+      Format.pp_print_seq ~pp_sep:Format.pp_print_space Lid_path_set.pp_elt fmt
+        (Priority_queue.to_seq queue));
+  log_dbg ~title:"shorten" "Current notinenv: %a" Logger.fmt (fun fmt ->
+      Format.pp_print_seq ~pp_sep:Format.pp_print_space Lid_path_set.pp_elt fmt
+        (Priority_queue.to_seq !not_in_env));
   log_dbg ~title:"shorten" "Current table: %a" Logger.fmt (fun fmt ->
       pp_table fmt table);
 
@@ -367,6 +373,9 @@ let shorten ~env ~canon_path =
 
   (* Do we already have a candidate ? *)
   let best_lid = find_best_lid env ~canon_path table in
+
+  log ~title:"shorten" "Initial best: %a" Logger.fmt (fun f ->
+      Format.pp_print_option Lid_path_set.pp_elt f best_lid);
 
   (* Is there a better one in the queue ? *)
   let best_lid, { queue = queue'; not_in_env = not_in_env'; table = table' } =
@@ -391,6 +400,8 @@ let shorten ~env ~canon_path =
     path_mask path lid
 
 let find_type env path : Short_paths.type_result =
+  log ~title:"find_type" "Initial: %a\n%!" Logger.fmt (fun fmt ->
+      Path.print fmt path);
   match normalize_type_path env path with
   | _, Nth i -> Nth i
   | canon_path, Id -> Path (None, shorten ~env ~canon_path)
