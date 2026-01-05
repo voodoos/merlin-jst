@@ -780,10 +780,10 @@ let wrap_mutation f =
 
 let wrap_printing_env env f =
   let prev_env = !printing_env in
-  Shorter_paths.restore_ignored_paths ();
+  Shorter_paths.restore_ignored_paths None;
   set_printing_env env; reset_naming_context ();
   try_finally f ~always:(fun () ->
-    Shorter_paths.restore_ignored_paths ();
+    Shorter_paths.restore_ignored_paths None;
     set_printing_env prev_env)
 
 let wrap_printing_env ?error:_ env f =
@@ -2707,11 +2707,11 @@ and tree_of_sigitem ?abbrev = function
     Shorter_paths.log ~title:"pt" "DBG PRINT TYPE\n%!";
       (* TODO this is not a satisfing fix to the environement issue *)
       let tree = tree_of_type_declaration id decl rs in
-      Shorter_paths.restore_ignored_paths ();
+      Shorter_paths.restore_ignored_paths (Some id);
       tree
   | Sig_typext(id, ext, es, _) ->
       let tree = tree_of_extension_constructor id ext es in
-      Shorter_paths.restore_ignored_paths ();
+      Shorter_paths.restore_ignored_paths (Some id);
       tree
   | Sig_module(id, _, md, rs, _) ->
       let abbrev =
@@ -2724,11 +2724,11 @@ and tree_of_sigitem ?abbrev = function
       in
       let tree =
       tree_of_module ?abbrev id md rs in
-      Shorter_paths.restore_ignored_paths ();
+      Shorter_paths.restore_ignored_paths (Some id);
       tree
   | Sig_modtype(id, decl, _) ->
       let tree = tree_of_modtype_declaration ?abbrev id decl in
-      Shorter_paths.restore_ignored_paths ();
+      Shorter_paths.restore_ignored_paths (Some id);
       tree
   | Sig_class(id, decl, rs, _) ->
       tree_of_class_declaration id decl rs

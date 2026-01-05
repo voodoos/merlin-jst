@@ -133,15 +133,6 @@ let not_in_env : Lid_trie.t ref = Local_store.s_ref Lid_trie.empty
 let canon_table : Lid_path_set.t Path.Map.t ref =
   Local_store.s_ref Path.Map.empty
 
-(* This function should be called before any attempt to [shorten] paths in an
-   environment different that the one of the previous attempt.
-
-   This is called after any function wrapped with [Printyp.wrap_printing_env].
-*)
-let restore_ignored_paths () =
-  priority_queue := Priority_queue.union !not_in_env !priority_queue;
-  not_in_env := Priority_queue.empty
-
 let pp_table fmt t =
   Path.Map.iter
     (fun p lids ->
@@ -203,6 +194,23 @@ let fill_queue (paths : Lid_trie.t) queue =
              if kind = Type then Priority_queue.add (lid, path) acc else acc)
            paths acc)
        queue
+
+(* This function should be called before any attempt to [shorten] paths in an
+   environment different that the one of the previous attempt.
+
+   This is called after any function wrapped with [Printyp.wrap_printing_env].
+*)
+let restore_ignored_paths id =
+  match id with
+  | None ->
+    priority_queue := fill_queue !not_in_env !priority_queue;
+    not_in_env := Lid_trie.empty
+  | Some ident -> (
+    match Lid_trie.take (Ident.name ident) !not_in_env with
+    | None, _ -> ()
+    | Some t, remaining ->
+      priority_queue := fill_queue t !priority_queue;
+      not_in_env := remaining)
 
 let find_best_lid env ~canon_path table =
   (* TODO it might be worth it to memoïze this function *)
@@ -308,7 +316,9 @@ let process_queue env state ~canon_path best_lid =
            called multiple times with the same environment. This notably happens
            when printing module signatures, and they can be quite large. *)
         let queue = Priority_queue.remove (lid, path) state.queue in
-        let not_in_env = Priority_queue.add (lid, path) state.not_in_env in
+        let not_in_env =
+          Discourse_types.add lid (Type, path) state.not_in_env
+        in
         { state with queue; not_in_env }
     in
     fill_by_level ~compare:(compare_longidents lid) next state best_lid
@@ -361,8 +371,7 @@ let shorten ~env ~canon_path =
       Format.pp_print_seq ~pp_sep:Format.pp_print_space Lid_path_set.pp_elt fmt
         (Priority_queue.to_seq queue));
   log_dbg ~title:"shorten" "Current notinenv: %a" Logger.fmt (fun fmt ->
-      Format.pp_print_seq ~pp_sep:Format.pp_print_space Lid_path_set.pp_elt fmt
-        (Priority_queue.to_seq !not_in_env));
+      Discourse_types.Lid_trie.pp_seq fmt !not_in_env);
   log_dbg ~title:"shorten" "Current table: %a" Logger.fmt (fun fmt ->
       pp_table fmt table);
 
