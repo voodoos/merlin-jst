@@ -323,7 +323,7 @@
         "type": "typer",
         "sub": [],
         "valid": true,
-        "message": "Modules do not match: sig type t = Int.t val foo : 'a -> Arg.doc end
+        "message": "Modules do not match: sig type t = int val foo : 'a -> string end
   is not included in S
   Values do not match: val foo : 'a -> string is not included in val foo : t -> t
   The type t -> string is not compatible with the type t -> t

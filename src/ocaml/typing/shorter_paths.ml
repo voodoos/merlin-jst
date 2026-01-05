@@ -105,6 +105,9 @@ module Lid_path_set = struct
 end
 
 module Priority_queue = Lid_path_set
+module Lid_trie = Discourse_types.Lid_trie
+module Lid_set = Discourse_types.Lid_set
+module String_map = Discourse_types.String_map
 
 (* To shorten paths we will build a table that maps "canonical paths" - i.e. a
    path which is not itself an alias - to a set of paths from D that are aliases
@@ -126,7 +129,7 @@ module Priority_queue = Lid_path_set
 
 let priority_queue : Priority_queue.t ref =
   Local_store.s_ref Priority_queue.empty
-let not_in_env : Priority_queue.t ref = Local_store.s_ref Priority_queue.empty
+let not_in_env : Lid_trie.t ref = Local_store.s_ref Lid_trie.empty
 let canon_table : Lid_path_set.t Path.Map.t ref =
   Local_store.s_ref Path.Map.empty
 
@@ -149,8 +152,6 @@ let pp_table fmt t =
     t
 
 let normalize_type_path = Out_type.normalize_type_path ~cache:false
-
-open Discourse_types
 
 let rec apply_one_substitution ~target ~replacements
     (Trie (paths, children) as t : Discourse_types.t) =
@@ -223,7 +224,7 @@ let improve_lid env ~canon_path table lid =
 
 type state =
   { queue : Priority_queue.t;
-    not_in_env : Priority_queue.t;
+    not_in_env : Discourse_types.t;
     table : Lid_path_set.t Path.Map.t
   }
 let process_queue env state ~canon_path best_lid =
@@ -235,24 +236,24 @@ let process_queue env state ~canon_path best_lid =
       log ~title:"fill_by_level" "Empty queue";
       let best_path = improve_lid env ~canon_path state.table best_lid in
       (best_path, state)
-    | Seq.Cons ((lid, path), next) ->
-      let next_level = compare lid > 0 in
+    | Seq.Cons ((next_lid, path), next) ->
+      let next_level = compare next_lid < 0 in
       if next_level then begin
         match improve_lid env ~canon_path state.table best_lid with
-        | Some (lid, path) when compare lid <= 0 ->
+        | Some (best_lid, path) when compare_longidents best_lid next_lid < 0 ->
           log ~title:"fill_by_level"
             "Finished level and found a name shorter than the previous level:\n\
             \ %a (%a)" Logger.fmt
-            (fun fmt -> Pprintast.longident fmt lid)
+            (fun fmt -> Pprintast.longident fmt best_lid)
             Logger.fmt (Fun.flip Path.print path);
-          (Some (lid, path), state)
+          (Some (best_lid, path), state)
         | best_lid ->
           log ~title:"fill_by_level" "Finished a level. Current best: %a"
             Logger.fmt (fun f ->
               Format.pp_print_option Lid_path_set.pp_elt f best_lid);
-          add_lid_to_table state (lid, path) next best_lid
+          add_lid_to_table state (next_lid, path) next best_lid
       end
-      else add_lid_to_table state (lid, path) next best_lid
+      else add_lid_to_table state (next_lid, path) next best_lid
   and add_lid_to_table state (lid, path) next best_lid =
     log ~title:"fill_by_level" "Treating %a (%a)" Logger.fmt
       (fun fmt -> Pprintast.longident fmt lid)
@@ -317,10 +318,10 @@ let process_queue env state ~canon_path best_lid =
       Logger.fmt
     @@ Fun.flip Pprintast.longident shortest_lid_in_queue;
     (best_lid, state)
-  | Some (shortest_lid, _path), best_lid ->
+  | Some (shortest_lid, _path), best ->
     let compare = compare_longidents shortest_lid in
     let seq = Priority_queue.to_seq state.queue in
-    fill_by_level ~compare seq state best_lid
+    fill_by_level ~compare seq state best
 
 (* Given a Path and a Longident that represents a suffix  of that path,
    [path_mask] returns the paths corresponding to that suffix. *)
@@ -363,7 +364,9 @@ let shorten ~env ~canon_path =
 
   let queue =
     let paths =
-      add
+      (* The canonical name is a candidate but is not always valid in the
+         current environment. Eg. If it comes from a hidden dep. *)
+      Lid_trie.add
         (Untypeast.lident_of_path canon_path)
         (Type, canon_path) discourse.paths
     in

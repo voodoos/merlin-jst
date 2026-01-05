@@ -89,6 +89,11 @@ module Lid_trie = struct
     let t' = trie_of_lid lid (Paths.singleton path) in
     union t t'
 
+  let take name (Trie (paths, tries)) =
+    let l, t, r = String_map.split name tries in
+    let t = Option.map (fun t -> Trie (paths, String_map.singleton name t)) t in
+    (t, Trie (paths, String_map.union (fun _ _ _ -> assert false) l r))
+
   let rec reach (Trie (_, tries) as t) lid =
     match (lid : Longident.t) with
     | Lident name -> String_map.find_opt name tries
