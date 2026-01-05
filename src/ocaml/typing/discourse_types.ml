@@ -39,7 +39,7 @@ let pp_paths ppf t =
   let paths = Paths.elements t |> List.map (fun (_, p) -> p) in
   Format.pp_print_list ~pp_sep Path.print ppf paths
 
-module String_map = Map.Make (String)
+module String_map = Misc_stdlib.String.Map
 
 module Lid_trie = struct
   type t = Trie of Paths.t * t String_map.t
