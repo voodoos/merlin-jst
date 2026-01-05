@@ -2440,7 +2440,7 @@ let cltype_declaration id ppf cl =
 
 let wrap_env fenv ftree arg =
   let env = !printing_env in
-  let env' = Env.update_short_paths (fenv env) in
+  let env' = fenv env in
   set_printing_env env';
   let tree = ftree arg in
   set_printing_env env;
