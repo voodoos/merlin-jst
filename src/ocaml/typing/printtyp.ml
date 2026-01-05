@@ -779,10 +779,12 @@ let wrap_mutation f =
   try_finally f ~always:(fun () -> Btype.backtrack snap)
 
 let wrap_printing_env env f =
-  set_printing_env (Env.update_short_paths env); reset_naming_context ();
+  let prev_env = !printing_env in
+  Shorter_paths.restore_ignored_paths ();
+  set_printing_env env; reset_naming_context ();
   try_finally f ~always:(fun () ->
-    set_printing_env Env.empty;
-    Shorter_paths.restore_ignored_paths ();)
+    Shorter_paths.restore_ignored_paths ();
+    set_printing_env prev_env)
 
 let wrap_printing_env ?error:_ env f =
   Env.without_cmis (wrap_printing_env env) f
