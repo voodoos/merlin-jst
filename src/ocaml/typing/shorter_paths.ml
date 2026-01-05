@@ -211,9 +211,11 @@ let find_best_lid env ~canon_path table =
     match Env.find_type_by_name lid env with
     | exception Not_found -> None
     | path_in_env, _ ->
-      let path, _ = normalize_type_path env path in
-      let path', _ = normalize_type_path env path_in_env in
-      if Path.compare path path' == 0 then Some (lid, path_in_env) else None
+      if Path.compare path path_in_env == 0 then Some (lid, path_in_env)
+      else
+        let path, _ = normalize_type_path env path in
+        let path', _ = normalize_type_path env path_in_env in
+        if Path.compare path path' == 0 then Some (lid, path_in_env) else None
   in
   match Path.Map.find_opt canon_path table with
   | None -> None
@@ -274,13 +276,15 @@ let process_queue env state ~canon_path best_lid =
             Logger.fmt
             (fun fmt -> Path.print fmt path');
 
-          let p, _ = normalize_type_path env path in
-          let p', _ = normalize_type_path env path' in
-          log ~title:"fill_by_level" "find_type_by_name %a <>? %a" Logger.fmt
-            (fun fmt -> Path.print fmt p)
-            Logger.fmt
-            (fun fmt -> Path.print fmt p');
-          if p' <> p then raise Not_found
+          if path <> path' then begin
+            let p, _ = normalize_type_path env path in
+            let p', _ = normalize_type_path env path' in
+            log ~title:"fill_by_level" "find_type_by_name %a <>? %a" Logger.fmt
+              (fun fmt -> Path.print fmt p)
+              Logger.fmt
+              (fun fmt -> Path.print fmt p');
+            if p' <> p then raise Not_found
+          end
         in
         let canon, _ = normalize_type_path env path in
         log ~title:"fill_by_level" "Found canonical path %a" Logger.fmt
