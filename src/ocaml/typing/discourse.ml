@@ -169,12 +169,6 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
     match kind with
     | Module ->
       (* TODO This should probably be done lazily *)
-      (* We have to follow aliases to be able to add module components tot
-         the discourse.
-
-         TODO this makes the ident counter explode, is that fine ? Or should
-              we do this lazily ? *)
-      let path = Env.normalize_module_path None env path in
       let md = Env.find_module_lazy path env in
       (* D5. If a module path is in U and its module description was written then
          the paths used in that description are in D *)
@@ -189,14 +183,20 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
 
              We accumulate such substitution and will apply them when shortening
              a path. *)
+          (* We have to follow aliases to be able to add module components to
+             the discourse.
+
+             TODO this makes the ident counter explode, is that fine ? Or should
+                  we do this lazily ? *)
+          let discourse = add_path_to_discourse env discourse Module lid p in
           let substs =
             Path.Map.update p
               (function
                 | None -> Some (Lid_set.singleton lid)
                 | Some lids -> Some (Lid_set.add lid lids))
-              substs
+              discourse.substs
           in
-          (paths, substs)
+          (discourse.paths, substs)
         | Mty_signature s ->
           (* D3. If a module path is in U then all the paths of its subcomponents
              are in D *)
