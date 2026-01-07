@@ -45,12 +45,12 @@ module Out_type = struct
           cache
           || List.length params <= List.length tyl
           || not (uniq (List.map get_id tyl))
-        then (p, Id)
+        then (Env.normalize_type_path None env p, Id)
         else
           let l1 = List.map (index params) tyl in
           let p2, s2 = normalize_type_path ~cache env p1 in
           (p2, compose l1 s2)
-      | _ -> (p, Nth (index params ty))
+      | _ -> (Env.normalize_type_path None env p, Nth (index params ty))
     with Not_found ->
       log ~title:"normalize_type_path"
         "Calling [Env.normalize_type_path] for %a" Logger.fmt
