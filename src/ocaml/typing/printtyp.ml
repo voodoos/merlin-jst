@@ -838,7 +838,7 @@ let best_module_type_path p =
 let best_module_path p =
   if !Clflags.real_paths || !printing_env == Env.empty
   then p
-  else Short_paths.find_module (Env.short_paths !printing_env) p
+  else Shorter_paths.find_module !printing_env p
 
 let best_class_type_path p =
   if !Clflags.real_paths || !printing_env == Env.empty

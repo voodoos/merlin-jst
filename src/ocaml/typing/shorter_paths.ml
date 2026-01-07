@@ -90,16 +90,18 @@ let compare_longidents l1 l2 =
   if cost_diff <> 0 then cost_diff
   else Discourse_types.compare_longidents ~compare_strings l1 l2
 
+type kind = Type | Module | Module_type
 module Lid_path_set = struct
   module T = struct
-    type t = Longident.t * Path.t
+    type t = kind * Longident.t * Path.t
 
-    let compare (l1, p1) (l2, p2) =
+    let compare (_, l1, p1) (_, l2, p2) =
       let c = compare_longidents l1 l2 in
       if c = 0 then Path.compare p1 p2 else c
   end
-  let pp_elt fmt (l, p) =
+  let pp_lid_path fmt (l, p) =
     Format.fprintf fmt "%a (%a)" Pprintast.longident l Path.print p
+  let pp_elt fmt (_, l, p) = pp_lid_path fmt (l, p)
 
   include Set.Make (T)
 end
@@ -191,7 +193,11 @@ let fill_queue (paths : Lid_trie.t) queue =
        (fun acc (lid, paths) ->
          Discourse_types.Paths.fold
            (fun (kind, path) acc ->
-             if kind = Type then Priority_queue.add (lid, path) acc else acc)
+             match kind with
+             | Type -> Priority_queue.add (Type, lid, path) acc
+             | Module -> Priority_queue.add (Module, lid, path) acc
+             | Module_type -> Priority_queue.add (Module_type, lid, path) acc
+             | _ -> acc)
            paths acc)
        queue
 
@@ -212,44 +218,67 @@ let restore_ignored_paths id =
       priority_queue := fill_queue t !priority_queue;
       not_in_env := remaining)
 
-let find_best_lid env ~canon_path table =
+let find_path_in_env env (kind, lid, path) =
   (* TODO it might be worth it to memoïze this function *)
-  let is_valid (lid, path) =
-    (* This prevents "shadowing" issues by finding "by name" in the env *)
-    match Env.find_type_by_name lid env with
+  let aux env ~find ~normalize lid path =
+    match find lid env with
     | exception Not_found -> None
-    | path_in_env, _ ->
+    | path_in_env ->
       if Path.compare path path_in_env == 0 then Some (lid, path_in_env)
       else
-        let path, _ = normalize_type_path env path in
-        let path', _ = normalize_type_path env path_in_env in
+        let path = normalize env path in
+        let path' = normalize env path_in_env in
+        log ~title:"find_path_in_env" "%a <>? %a" Logger.fmt
+          (Fun.flip Path.print path) Logger.fmt
+          (Fun.flip Path.print path');
         if Path.compare path path' == 0 then Some (lid, path_in_env) else None
   in
+  let find_type l e = fst (Env.find_type_by_name l e) in
+  let norm_type e p = fst (normalize_type_path e p) in
+  let find_mod l e = fst (Env.find_module_by_name l e) in
+  let find_modtype l e = fst (Env.find_modtype_by_name l e) in
+  let find, normalize =
+    match kind with
+    | Type -> (find_type, norm_type)
+    | Module -> (find_mod, Env.normalize_module_path None)
+    | Module_type -> (find_modtype, Env.normalize_modtype_path)
+  in
+  aux env ~find ~normalize lid path
+
+let check_validity env item = Option.is_some @@ find_path_in_env env item
+
+let find_best_lid env ~canon_path table target_kind =
   match Path.Map.find_opt canon_path table with
   | None -> None
-  | Some lids -> Lid_path_set.to_seq lids |> Seq.find_map is_valid
+  | Some lids ->
+    Lid_path_set.to_seq lids
+    |> Seq.find_map (fun ((kind, _, _) as item) ->
+           if kind <> target_kind then None else find_path_in_env env item)
 
-let improve_lid env ~canon_path table lid =
-  find_best_lid env ~canon_path table |> Option.fold ~none:lid ~some:Option.some
+let improve_lid env ~canon_path table kind lid =
+  find_best_lid env ~canon_path table kind
+  |> Option.fold ~none:lid ~some:Option.some
 
 type state =
   { queue : Priority_queue.t;
     not_in_env : Discourse_types.t;
     table : Lid_path_set.t Path.Map.t
   }
-let process_queue env state ~canon_path best_lid =
+let process_queue env state ~canon_path target_kind best =
   let rec fill_by_level ~compare seq state best_lid =
     log ~title:"fill_by_level" "Current best: %a" Logger.fmt (fun f ->
-        Format.pp_print_option Lid_path_set.pp_elt f best_lid);
+        Format.pp_print_option Lid_path_set.pp_lid_path f best_lid);
     match seq () with
     | Seq.Nil ->
       log ~title:"fill_by_level" "Empty queue";
-      let best_path = improve_lid env ~canon_path state.table best_lid in
+      let best_path =
+        improve_lid env ~canon_path state.table target_kind best_lid
+      in
       (best_path, state)
-    | Seq.Cons ((next_lid, path), next) ->
+    | Seq.Cons ((kind, next_lid, path), next) ->
       let next_level = compare next_lid < 0 in
       if next_level then begin
-        match improve_lid env ~canon_path state.table best_lid with
+        match improve_lid env ~canon_path state.table kind best_lid with
         | Some (best_lid, path) when compare_longidents best_lid next_lid < 0 ->
           log ~title:"fill_by_level"
             "Finished level and found a name shorter than the previous level:\n\
@@ -260,54 +289,39 @@ let process_queue env state ~canon_path best_lid =
         | best_lid ->
           log ~title:"fill_by_level" "Finished a level. Current best: %a"
             Logger.fmt (fun f ->
-              Format.pp_print_option Lid_path_set.pp_elt f best_lid);
-          add_lid_to_table state (next_lid, path) next best_lid
+              Format.pp_print_option Lid_path_set.pp_lid_path f best_lid);
+          add_lid_to_table state (kind, next_lid, path) next best_lid
       end
-      else add_lid_to_table state (next_lid, path) next best_lid
-  and add_lid_to_table state (lid, path) next best_lid =
+      else add_lid_to_table state (kind, next_lid, path) next best_lid
+  and add_lid_to_table state ((kind, lid, path) as item) next best_lid =
     log ~title:"fill_by_level" "Treating %a (%a)" Logger.fmt
       (fun fmt -> Pprintast.longident fmt lid)
       Logger.fmt
       (fun fmt -> Path.print fmt path);
     let state =
-      try
-        let _check_validity =
-          (* In the presence of `open` statements the Discourse contains partial
-             paths that cannot be looked-up in the environement directly. We can
-             find by name instead. However we must then check that we did actually
-             find the type we were looking (same ident) for and not an homonym. *)
-          let path', _ = Env.find_type_by_name lid env in
-          log ~title:"fill_by_level" "find_type_by_name %a (%a) = %a" Logger.fmt
-            (fun fmt -> Pprintast.longident fmt lid)
-            Logger.fmt
-            (fun fmt -> Path.print fmt path)
-            Logger.fmt
-            (fun fmt -> Path.print fmt path');
-
-          if path <> path' then begin
-            let p, _ = normalize_type_path env path in
-            let p', _ = normalize_type_path env path' in
-            log ~title:"fill_by_level" "find_type_by_name %a <>? %a" Logger.fmt
-              (fun fmt -> Path.print fmt p)
-              Logger.fmt
-              (fun fmt -> Path.print fmt p');
-            if p' <> p then raise Not_found
-          end
-        in
+      let is_valid_in_current_env =
+        (* In the presence of `open` statements the Discourse contains partial
+           paths that cannot be looked-up in the environement directly. We can
+           find by name instead. However we must then check that we did actually
+           find the type we were looking (same ident) for and not an homonym. *)
+        check_validity env (kind, lid, path)
+      in
+      if is_valid_in_current_env then begin
         let canon, _ = normalize_type_path env path in
         log ~title:"fill_by_level" "Found canonical path %a" Logger.fmt
           (fun fmt -> Path.print fmt canon);
         let table =
           Path.Map.update canon
             (function
-              | None -> Some (Lid_path_set.singleton (lid, path))
-              | Some set -> Some (Lid_path_set.add (lid, path) set))
+              | None -> Some (Lid_path_set.singleton item)
+              | Some set -> Some (Lid_path_set.add item set))
             state.table
         in
         (* And remove it from the queue *)
-        let queue = Priority_queue.remove (lid, path) state.queue in
+        let queue = Priority_queue.remove item state.queue in
         { state with queue; table }
-      with Not_found ->
+      end
+      else begin
         log ~title:"fill_by_level" "Name: %a invalid in the current env"
           Logger.fmt (fun fmt -> Pprintast.longident fmt lid);
 
@@ -315,24 +329,25 @@ let process_queue env state ~canon_path best_lid =
            queue. This prevent uselessly re-testing them when [shorten] is
            called multiple times with the same environment. This notably happens
            when printing module signatures, and they can be quite large. *)
-        let queue = Priority_queue.remove (lid, path) state.queue in
+        let queue = Priority_queue.remove item state.queue in
         let not_in_env =
           Discourse_types.add lid (Type, path) state.not_in_env
         in
         { state with queue; not_in_env }
+      end
     in
     fill_by_level ~compare:(compare_longidents lid) next state best_lid
   in
-  match (Priority_queue.min_elt_opt state.queue, best_lid) with
-  | None, _ -> (best_lid, state)
-  | Some (shortest_lid_in_queue, _path), Some (best_lid', _)
-    when compare_longidents shortest_lid_in_queue best_lid' > 0 ->
+  match (Priority_queue.min_elt_opt state.queue, best) with
+  | None, _ -> (best, state)
+  | Some (_kind, shortest_lid_in_queue, _path), Some (best', _)
+    when compare_longidents shortest_lid_in_queue best' > 0 ->
     (* There cannot be a better candidate in the queue *)
     log ~title:"process_queue" "No shorter longidents in the queue. (> %a)"
       Logger.fmt
     @@ Fun.flip Pprintast.longident shortest_lid_in_queue;
-    (best_lid, state)
-  | Some (shortest_lid, _path), best ->
+    (best, state)
+  | Some (_kind, shortest_lid, _path), best ->
     let compare = compare_longidents shortest_lid in
     let seq = Priority_queue.to_seq state.queue in
     fill_by_level ~compare seq state best
@@ -388,15 +403,16 @@ let shorten ~env ~canon_path =
   in
 
   (* Do we already have a candidate ? *)
-  let best_lid = find_best_lid env ~canon_path table in
+  let best = find_best_lid env ~canon_path table kind in
 
   log ~title:"shorten" "Initial best: %a" Logger.fmt (fun f ->
-      Format.pp_print_option Lid_path_set.pp_elt f best_lid);
+      let best = Option.map (fun (l, p) -> (kind, l, p)) best in
+      Format.pp_print_option Lid_path_set.pp_elt f best);
 
   (* Is there a better one in the queue ? *)
   let best_lid, { queue = queue'; not_in_env = not_in_env'; table = table' } =
     let not_in_env = !not_in_env in
-    process_queue env { queue; not_in_env; table } ~canon_path best_lid
+    process_queue env { queue; not_in_env; table } ~canon_path kind best
   in
 
   (* Empty the discourse *)
@@ -419,9 +435,9 @@ let find_type env path : Short_paths.type_result =
   log ~title:"find_type" "Initial: %a\n%!" Logger.fmt (fun fmt ->
       Path.print fmt path);
   match normalize_type_path env path with
-  | _, Nth i -> Nth i
-  | canon_path, Id -> Path (None, shorten ~env ~canon_path)
-  | canon_path, Map l -> Path (Some l, shorten ~env ~canon_path)
+  | _, Nth i -> (* TODO, this looks like this is incorrect *) Nth i
+  | canon_path, Id -> Path (None, shorten ~env ~canon_path Type)
+  | canon_path, Map l -> Path (Some l, shorten ~env ~canon_path Type)
 
 let find_type_resolution env path : Short_paths.type_resolution =
   match normalize_type_path env path with
@@ -435,7 +451,13 @@ let find_type_simple env path =
   let canon_path, _subst = normalize_type_path env path in
   log ~title:"find_type_simple" "Canon: %a\n%!" Logger.fmt (fun fmt ->
       Path.print fmt canon_path);
-  let short = shorten ~env ~canon_path in
+  let short = shorten ~env ~canon_path Type in
   log ~title:"find_type_simple" "Short: %a\n%!" Logger.fmt (fun fmt ->
       Path.print fmt short);
   short
+
+let find_module env path =
+  log ~title:"find_module" "Initial: %a\n%!" Logger.fmt (fun fmt ->
+      Path.print fmt path);
+  let canon_path = Env.normalize_module_path None env path in
+  shorten ~env ~canon_path Module
