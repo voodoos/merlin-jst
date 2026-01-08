@@ -377,7 +377,7 @@ let rec path_mask (path : Path.t) (lid : Longident.t) : Path.t =
     Hashtbl.add !path_masks_cache (lid, path) masked_path;
     masked_path
 
-let shorten ~env ~canon_path =
+let shorten ~env ~canon_path kind =
   let discourse = Discourse.get () in
   let queue, table = (!priority_queue, !canon_table) in
   log_dbg ~title:"shorten" "Current discourse: %a" Logger.fmt (fun fmt ->
