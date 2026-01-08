@@ -36,3 +36,8 @@
   $ $MERLIN single type-enclosing -position 1:4 \
   > -filename test.ml < test.ml | jq '.value[0].type'
   "int Or_error.t"
+
+  $ $MERLIN single type-enclosing -index 0 \
+  > -log-file log  -position 1:11 \
+  > -filename test.ml < test.ml | jq '.value[0].type'
+  "(module Or_error)"
