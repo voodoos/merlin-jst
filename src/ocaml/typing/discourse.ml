@@ -154,7 +154,8 @@ let of_core_type env ?(acc = Discourse_types.empty) ty =
     TODO:Q what about rule D11 ? If a path is in D and it includes another module
           path within it, then that module path is also in D. Should we consider
           only [Papply] paths or all path components for addition to D ?  *)
-let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
+let rec add_path_to_discourse_aux ?(for_open = false) env discourse kind lid
+    path =
   log ~title:"add_path_to_discourse" "Adding %s %a %a"
     (Shape.Sig_component_kind.to_string kind)
     Logger.fmt
@@ -162,8 +163,6 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
     Logger.fmt
     (fun fmt -> Path.print fmt path);
   let paths = Lid_trie.add lid (kind, path) discourse.paths in
-  let ldot id = if for_open then lid else Longident.Ldot (lid, Ident.name id) in
-  let pdot id = Path.Pdot (path, Ident.name id) in
   let paths, substs =
     let substs = discourse.substs in
     match kind with
@@ -188,7 +187,10 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
 
              TODO this makes the ident counter explode, is that fine ? Or should
                   we do this lazily ? *)
-          let discourse = add_path_to_discourse env discourse Module lid p in
+          let discourse =
+            let lid = Untypeast.lident_of_path p in
+            add_path_to_discourse env { paths; substs } Module lid p
+          in
           let substs =
             Path.Map.update p
               (function
@@ -198,6 +200,10 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
           in
           (discourse.paths, substs)
         | Mty_signature s ->
+          let ldot id =
+            if for_open then lid else Longident.Ldot (lid, Ident.name id)
+          in
+          let pdot id = Path.Pdot (path, Ident.name id) in
           (* D3. If a module path is in U then all the paths of its subcomponents
              are in D *)
           List.fold_left
@@ -248,6 +254,17 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
     | _ -> (paths, substs)
   in
   { paths; substs }
+
+and add_path_to_discourse ?for_open env discourse kind lid path =
+  match Lid_trie.reach discourse.paths lid with
+  | Some (Trie (paths, _)) when Paths.mem (kind, path) paths ->
+    log ~title:"add_path_to_discourse" "Path already in discourse: %a %a"
+      Logger.fmt
+      (fun fmt -> Pprintast.longident fmt lid)
+      Logger.fmt
+      (fun fmt -> Path.print fmt path);
+    discourse
+  | _ -> add_path_to_discourse_aux ?for_open env discourse kind lid path
 
 (** [add_used] adds all parts of a used path to the Discourse (U1, D2) *)
 let add_used env kind lid path =
