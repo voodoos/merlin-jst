@@ -461,3 +461,9 @@ let find_module env path =
       Path.print fmt path);
   let canon_path = Env.normalize_module_path None env path in
   shorten ~env ~canon_path Module
+
+let find_module_type env path =
+  log ~title:"find_module_type" "Initial: %a\n%!" Logger.fmt (fun fmt ->
+      Path.print fmt path);
+  let canon_path = Env.normalize_module_path None env path in
+  shorten ~env ~canon_path Module_type
