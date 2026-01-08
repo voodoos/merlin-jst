@@ -357,11 +357,11 @@ let process_queue env state ~canon_path target_kind best =
 
 (* This cache prevent the same ident to be given different stamps in the same query *)
 (* todo: we should probably store the masking in the table instead. *)
-let path_masks_cache : (Longident.t * Path.t, Path.t) Hashtbl.t =
-  Hashtbl.create 32
+let path_masks_cache : (Longident.t * Path.t, Path.t) Hashtbl.t ref =
+  Local_store.s_table Hashtbl.create 32
 
 let rec path_mask (path : Path.t) (lid : Longident.t) : Path.t =
-  match Hashtbl.find_opt path_masks_cache (lid, path) with
+  match Hashtbl.find_opt !path_masks_cache (lid, path) with
   | Some path -> path
   | None ->
     let masked_path : Path.t =
@@ -374,7 +374,7 @@ let rec path_mask (path : Path.t) (lid : Longident.t) : Path.t =
         Pident (Ident.create_scoped ~scope s)
       | _ -> assert false
     in
-    Hashtbl.add path_masks_cache (lid, path) masked_path;
+    Hashtbl.add !path_masks_cache (lid, path) masked_path;
     masked_path
 
 let shorten ~env ~canon_path =
