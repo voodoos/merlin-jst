@@ -298,6 +298,12 @@ let process_queue env state ~canon_path target_kind best =
       (fun fmt -> Pprintast.longident fmt lid)
       Logger.fmt
       (fun fmt -> Path.print fmt path);
+    if Longident.head lid = "Or_error" then
+      Env.fold_types
+        (fun _ p _ () ->
+          log ~title:"fill_by_level" "In env: %a" Logger.fmt (fun fmt ->
+              Path.print fmt p))
+        None env ();
     let state =
       let is_valid_in_current_env =
         (* In the presence of `open` statements the Discourse contains partial
@@ -377,10 +383,10 @@ let rec path_mask (path : Path.t) (lid : Longident.t) : Path.t =
     Hashtbl.add !path_masks_cache (lid, path) masked_path;
     masked_path
 
-let shorten ~env ~canon_path kind =
+let shorten ~env ~initial ~canon_path kind =
   let discourse = Discourse.get () in
   let queue, table = (!priority_queue, !canon_table) in
-  log_dbg ~title:"shorten" "Current discourse: %a" Logger.fmt (fun fmt ->
+  log_dbg ~title:"shorten" "Current discourse: %a\n%!" Logger.fmt (fun fmt ->
       Discourse.debug_print fmt);
   log_dbg ~title:"shorten" "Current queue: %a" Logger.fmt (fun fmt ->
       Format.pp_print_seq ~pp_sep:Format.pp_print_space Lid_path_set.pp_elt fmt
@@ -405,7 +411,8 @@ let shorten ~env ~canon_path kind =
   (* Do we already have a candidate ? *)
   let best = find_best_lid env ~canon_path table kind in
 
-  log ~title:"shorten" "Initial best: %a" Logger.fmt (fun f ->
+  log ~title:"shorten" "Initial: %a; current best: %a" Logger.fmt
+    (Fun.flip Path.print initial) Logger.fmt (fun f ->
       let best = Option.map (fun (l, p) -> (kind, l, p)) best in
       Format.pp_print_option Lid_path_set.pp_elt f best);
 
@@ -424,20 +431,21 @@ let shorten ~env ~canon_path kind =
   canon_table := table';
 
   match best_lid with
-  | None -> canon_path
+  | None ->
+    log ~title:"shorten" "Falling-back on initial path %a" Logger.fmt
+      (Fun.flip Path.print initial);
+    initial
   | Some (lid, path) ->
     log ~title:"shorten" "%a" Logger.fmt (fun fmt ->
         Format.fprintf fmt "Masking path %a with lid %a" Path.print path
           Pprintast.longident lid);
     path_mask path lid
 
-let find_type env path : Short_paths.type_result =
-  log ~title:"find_type" "Initial: %a\n%!" Logger.fmt (fun fmt ->
-      Path.print fmt path);
-  match normalize_type_path env path with
+let find_type env initial : Short_paths.type_result =
+  match normalize_type_path env initial with
   | _, Nth i -> (* TODO, this looks like this is incorrect *) Nth i
-  | canon_path, Id -> Path (None, shorten ~env ~canon_path Type)
-  | canon_path, Map l -> Path (Some l, shorten ~env ~canon_path Type)
+  | canon_path, Id -> Path (None, shorten ~env ~initial ~canon_path Type)
+  | canon_path, Map l -> Path (Some l, shorten ~env ~initial ~canon_path Type)
 
 let find_type_resolution env path : Short_paths.type_resolution =
   match normalize_type_path env path with
@@ -445,25 +453,15 @@ let find_type_resolution env path : Short_paths.type_resolution =
   | _, Id -> Id
   | _, Map l -> Subst l
 
-let find_type_simple env path =
-  log ~title:"find_type_simple" "Initial: %a\n%!" Logger.fmt (fun fmt ->
-      Path.print fmt path);
-  let canon_path, _subst = normalize_type_path env path in
-  log ~title:"find_type_simple" "Canon: %a\n%!" Logger.fmt (fun fmt ->
-      Path.print fmt canon_path);
-  let short = shorten ~env ~canon_path Type in
-  log ~title:"find_type_simple" "Short: %a\n%!" Logger.fmt (fun fmt ->
-      Path.print fmt short);
+let find_type_simple env initial =
+  let canon_path, _subst = normalize_type_path env initial in
+  let short = shorten ~env ~initial ~canon_path Type in
   short
 
-let find_module env path =
-  log ~title:"find_module" "Initial: %a\n%!" Logger.fmt (fun fmt ->
-      Path.print fmt path);
-  let canon_path = Env.normalize_module_path None env path in
-  shorten ~env ~canon_path Module
+let find_module env initial =
+  let canon_path = Env.normalize_module_path None env initial in
+  shorten ~env ~initial ~canon_path Module
 
-let find_module_type env path =
-  log ~title:"find_module_type" "Initial: %a\n%!" Logger.fmt (fun fmt ->
-      Path.print fmt path);
-  let canon_path = Env.normalize_module_path None env path in
-  shorten ~env ~canon_path Module_type
+let find_module_type env initial =
+  let canon_path = Env.normalize_module_path None env initial in
+  shorten ~env ~initial ~canon_path Module_type
