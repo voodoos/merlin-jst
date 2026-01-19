@@ -306,12 +306,6 @@ let process_queue env state ~canon_path target_kind best =
       (fun fmt -> Pprintast.longident fmt lid)
       Logger.fmt
       (fun fmt -> Path.print fmt path);
-    if Longident.head lid = "Or_error" then
-      Env.fold_types
-        (fun _ p _ () ->
-          log ~title:"fill_by_level" "In env: %a" Logger.fmt (fun fmt ->
-              Path.print fmt p))
-        None env ();
     let state =
       let is_valid_in_current_env =
         (* In the presence of `open` statements the Discourse contains partial
