@@ -413,8 +413,9 @@ let shorten ~env ~initial ~canon_path kind =
   (* Do we already have a candidate ? *)
   let best = find_best_lid env ~canon_path table kind in
 
-  log ~title:"shorten" "Initial: %a; current best: %a" Logger.fmt
-    (Fun.flip Path.print initial) Logger.fmt (fun f ->
+  log ~title:"shorten" "Initial: %a; Canon: %a; Current best: %a" Logger.fmt
+    (Fun.flip Path.print initial) Logger.fmt (Fun.flip Path.print canon_path)
+    Logger.fmt (fun f ->
       let best = Option.map (fun (l, p) -> (kind, l, p)) best in
       Format.pp_print_option Lid_path_set.pp_elt f best);
 
