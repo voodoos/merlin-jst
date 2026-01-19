@@ -127,7 +127,7 @@ Open + Subst
   > let x = (V : X.a)
   > EOF
 
-FIXME: should be a and not X.a because of the open
+Should be a and not X.a because of the open
   $ $MERLIN single type-enclosing -position 4:4 \
   > -filename open.ml <open.ml | jq '.value[].type'
   "a"
