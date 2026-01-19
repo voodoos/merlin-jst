@@ -171,7 +171,6 @@ let rec add_path_to_discourse_aux ?(for_open = false) env discourse kind lid
       let md = Env.find_module_lazy path env in
       (* D5. If a module path is in U and its module description was written then
          the paths used in that description are in D *)
-      (* TODO this should call add_path_to_discourse *)
       let paths = Lid_trie.union paths md.md_discourse in
       begin
         match md.md_type with
@@ -187,18 +186,23 @@ let rec add_path_to_discourse_aux ?(for_open = false) env discourse kind lid
 
              TODO this makes the ident counter explode, is that fine ? Or should
                   we do this lazily ? *)
-          let discourse =
-            let lid = Untypeast.lident_of_path p in
-            add_path_to_discourse env { paths; substs } Module lid p
+          let path' = Env.normalize_module_path None env p in
+          let { paths; substs } =
+            add_path_to_discourse_aux env { paths; substs } Module lid path'
           in
           let substs =
-            Path.Map.update p
+            log ~title:"add_path_to_discourse" "New substitution %a -> %a"
+              Logger.fmt
+              (Fun.flip Path.print path')
+              Logger.fmt
+              (Fun.flip Pprintast.longident lid);
+            Path.Map.update path'
               (function
                 | None -> Some (Lid_set.singleton lid)
                 | Some lids -> Some (Lid_set.add lid lids))
-              discourse.substs
+              substs
           in
-          (discourse.paths, substs)
+          (paths, substs)
         | Mty_signature s ->
           let ldot id =
             if for_open then lid else Longident.Ldot (lid, Ident.name id)
@@ -221,13 +225,25 @@ let rec add_path_to_discourse_aux ?(for_open = false) env discourse kind lid
               | Subst.Lazy.Sig_typext (id, _, _, _) ->
                 (add Extension_constructor id, s)
               | Subst.Lazy.Sig_module (id, _, _, _, _) ->
-                let d =
-                  (* TODO with the loop in add_used this means everything gets
-                     added twice... *)
-                  add_path_to_discourse env { paths = p; substs = s } Module
-                    (ldot id) (pdot id)
+                let md = Env.find_module_lazy (pdot id) env in
+                let paths = add Module id in
+                let substs =
+                  match md.md_type with
+                  | Mty_alias path' ->
+                    let lid = ldot id in
+                    log ~title:"add_path_to_discourse"
+                      "New substitution %a -> %a" Logger.fmt
+                      (Fun.flip Path.print path')
+                      Logger.fmt
+                      (Fun.flip Pprintast.longident lid);
+                    Path.Map.update path'
+                      (function
+                        | None -> Some (Lid_set.singleton lid)
+                        | Some lids -> Some (Lid_set.add lid lids))
+                      substs
+                  | _ -> substs
                 in
-                (d.paths, d.substs)
+                (paths, substs)
               | Subst.Lazy.Sig_modtype (id, _, _) -> (add Module_type id, s)
               | Subst.Lazy.Sig_class (id, _, _, _) -> (add Class id, s)
               | Subst.Lazy.Sig_class_type (id, _, _, _) -> (add Class_type id, s))
@@ -236,7 +252,7 @@ let rec add_path_to_discourse_aux ?(for_open = false) env discourse kind lid
         | _ -> (paths, substs)
       end
     | Module_type ->
-      let mtd = Env.find_modtype path env in
+      let mtd = Env.find_modtype_lazy path env in
       (* D8. If a module type path is in U then any paths used in its definition
          are in *)
       (Lid_trie.union paths mtd.mtd_discourse, substs)
@@ -320,7 +336,9 @@ let define_signature env sg =
       sg
 
 let open_module ~env ~newenv path =
-  if record_usages then
+  if record_usages then begin
+    log ~title:"def" "Open module %a\n%!" Logger.fmt (fun fmt ->
+        Path.print fmt path);
     try
       (* When opening we need to traverse the aliases to get the components *)
       let path = Env.normalize_module_path None env path in
@@ -329,6 +347,7 @@ let open_module ~env ~newenv path =
       | Mty_signature sg -> define_signature newenv sg
       | _ -> ()
     with Not_found -> ()
+  end
 
 (* Rule U1: Any path occurring in the file is in U *)
 let use_module env lid path = add_used env Module lid path
