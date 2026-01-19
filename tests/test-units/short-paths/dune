@@ -1,0 +1,3 @@
+(test
+ (name short_paths_test)
+ (libraries fmt alcotest merlin-lib.ocaml_parsing merlin-lib.ocaml_typing))
