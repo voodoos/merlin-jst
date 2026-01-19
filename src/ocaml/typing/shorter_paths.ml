@@ -147,14 +147,8 @@ let pp_table fmt t =
 let normalize_type_path = Out_type.normalize_type_path ~cache:false
 
 let rec apply_one_substitution ~target ~replacements
-    (Trie (paths, children) as t : Discourse_types.t) =
-  match Lid_trie.reach t target with
-  | Some (Trie (paths, children)) ->
-    List.fold_left
-      (fun acc lid ->
-        Lid_trie.union acc @@ Lid_trie.trie_of_lid ~children lid paths)
-      Lid_trie.empty replacements
-  | None ->
+    (Trie (paths, children) as t : Lid_trie.t) =
+  let continue () =
     let children =
       String_map.filter_map
         (fun _ t ->
@@ -162,30 +156,44 @@ let rec apply_one_substitution ~target ~replacements
           if Lid_trie.is_empty result then None else Some result)
         children
     in
-    Trie (paths, children)
+    Lid_trie.Trie (paths, children)
+  in
+  match Lid_trie.reach t target with
+  | Some (Trie (paths, children)) ->
+    let new_lids =
+      List.fold_left
+        (fun acc lid ->
+          Lid_trie.union acc @@ Lid_trie.trie_of_lid ~children lid paths)
+        Lid_trie.empty replacements
+    in
+    Lid_trie.union new_lids @@ continue ()
+  | None -> continue ()
 
 let apply_substitutions substs t =
   List.fold_left
     (fun acc (target, replacements) ->
-      Lid_trie.union acc @@ apply_one_substitution t ~target ~replacements)
+      let r = apply_one_substitution t ~target ~replacements in
+      Lid_trie.union acc r)
     Lid_trie.empty substs
 
 let apply_substitutions_fixpoint t substs =
   let substs =
     Path.Map.bindings substs
     |> List.map (fun (target, replacements) ->
+           (* TODO These should be lids and tries from the beginning *)
            (Untypeast.lident_of_path target, Lid_set.elements replacements))
   in
-  let rec aux acc t =
+  let rec aux ~fuel acc t =
     let new_lids = apply_substitutions substs t in
     if Lid_trie.is_empty new_lids then acc
     else begin
       let acc_length = Lid_trie.size acc in
       let acc = Lid_trie.union acc new_lids in
-      if acc_length = Lid_trie.size acc then acc else aux acc new_lids
+      if fuel = 0 || acc_length = Lid_trie.size acc then acc
+      else aux ~fuel:(fuel - 1) acc new_lids
     end
   in
-  aux t t
+  aux ~fuel:2 t t
 
 let fill_queue (paths : Lid_trie.t) queue =
   Discourse_types.Lid_trie.to_seq paths
