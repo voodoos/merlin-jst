@@ -133,8 +133,11 @@ module Lid_trie = struct
     fun () -> aux [ None ] t Seq.Nil
 
   let size t =
-    let rec aux acc (Trie (_, tries)) =
-      String_map.fold (fun _ t acc -> aux (1 + acc) t) tries acc
+    let rec aux acc (Trie (paths, tries)) =
+      String_map.fold
+        (fun _ t acc -> aux (1 + acc) t)
+        tries
+        (Paths.cardinal paths + acc)
     in
     aux 0 t
 
