@@ -804,11 +804,11 @@ let wrap_printing_env_error env f =
     source = err.source
   }
 
-type type_result = Short_paths.type_result =
+type type_result = Shorter_paths.type_result =
   | Nth of int
   | Path of int list option * Path.t
 
-type type_resolution = Short_paths.type_resolution =
+type type_resolution = Shorter_paths.type_resolution =
   | Nth of int
   | Subst of int list
   | Id
@@ -852,12 +852,12 @@ let best_module_path p =
 let best_class_type_path p =
   if !Clflags.real_paths || !printing_env == Env.empty
   then None, p
-  else Short_paths.find_class_type (Env.short_paths !printing_env) p
+  else None, p (* TODO *)
 
 let best_class_type_path_simple p =
   if !Clflags.real_paths || !printing_env == Env.empty
   then p
-  else Short_paths.find_class_type_simple (Env.short_paths !printing_env) p
+  else p (* TODO *)
 
 (* Print a type expression *)
 
@@ -3529,6 +3529,3 @@ let type_declaration_for_merlin = type_declaration
 
 let type_declaration x y z : unit =
   type_declaration x y z ~print_non_value_inferred_jkind:false
-
-let () =
-  Env.shorten_module_path := shorten_module_path

@@ -444,13 +444,17 @@ let shorten ~env ~initial ~canon_path kind =
           Pprintast.longident lid);
     path_mask path lid
 
-let find_type env initial : Short_paths.type_result =
+type type_result = Nth of int | Path of int list option * Path.t
+
+type type_resolution = Nth of int | Subst of int list | Id
+
+let find_type env initial : type_result =
   match normalize_type_path env initial with
   | _, Nth i -> (* TODO, this looks like this is incorrect *) Nth i
   | canon_path, Id -> Path (None, shorten ~env ~initial ~canon_path Type)
   | canon_path, Map l -> Path (Some l, shorten ~env ~initial ~canon_path Type)
 
-let find_type_resolution env path : Short_paths.type_resolution =
+let find_type_resolution env path : type_resolution =
   match normalize_type_path env path with
   | _, Nth i -> Nth i
   | _, Id -> Id

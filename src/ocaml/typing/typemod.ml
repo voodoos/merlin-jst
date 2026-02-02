@@ -2157,7 +2157,6 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
         List.iter (fun td ->
           Signature_names.check_type names td.typ_loc td.typ_id;
         ) decls;
-        let newenv = Env.update_short_paths newenv in
         let sig_items =
           map_rec_type_with_row_types ~rec_flag
             (fun rs td -> Sig_type(td.typ_id, td.typ_type, rs, Exported))
@@ -2252,7 +2251,6 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
               Env.enter_module_declaration ~scope name pres md
                 ~mode:md_mode env
             in
-            let newenv = Env.update_short_paths newenv in
             Discourse.define_module newenv (Lident name);
             Signature_names.check_module names pmd.pmd_name.loc id;
             Some id, newenv
@@ -3618,7 +3616,6 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
         modl_shape sg ~mode env
     in
     let () = Discourse.define_signature new_env sg in
-    let new_env = Env.update_short_paths new_env in
     let sg = rebase_modalities ~loc ~env ~md_mode ~mode sg in
     Signature_group.iter (Signature_names.check_sig_item names loc) sg;
     let incl =
@@ -3722,7 +3719,6 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
         let (decls, newenv, shapes) =
           Typedecl.transl_type_decl env rec_flag sdecls
         in
-        let newenv = Env.update_short_paths newenv in
         List.iter
           Signature_names.(fun td -> check_type names td.typ_loc td.typ_id)
           decls;
@@ -3811,7 +3807,6 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
               ~scope ~shape:md_shape name pres md ~mode:md_mode env
             in
             Discourse.define_module e (Lident name);
-            let e = Env.update_short_paths e in
             Signature_names.check_module names pmb_loc id;
             Some id, e,
             [Sig_module(id, pres,
@@ -3861,7 +3856,6 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
           (fun (md, _, _, _) ->
              Option.iter Signature_names.(check_module names md.md_loc) md.md_id
           ) decls;
-        let newenv = Env.update_short_paths newenv in
         let bindings1 =
           List.map2
             (fun ({md_id=id; md_type=mty}, mode, uid, _prev_shape)
@@ -3901,7 +3895,6 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
             )
             env bindings1
         in
-        let newenv = Env.update_short_paths newenv in
         let bindings2 =
           check_recmodule_inclusion newenv bindings1 in
         let mbs =
@@ -3934,7 +3927,6 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
     | Pstr_modtype pmtd ->
         (* check that it is non-abstract *)
         let newenv, mtd, decl = transl_modtype_decl env pmtd in
-        let newenv = Env.update_short_paths newenv in
         Signature_names.check_modtype names pmtd.pmtd_loc mtd.mtd_id;
         let id = mtd.mtd_id in
         let map = Shape.Map.add_module_type shape_map id decl.mtd_uid in
@@ -3944,7 +3936,6 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
         let (od, mode, sg, newenv) =
           type_open_decl ~toplevel funct_body names env sod
         in
-        let newenv = Env.update_short_paths newenv in
         let sg = rebase_modalities ~loc ~env ~md_mode ~mode sg in
         Tstr_open od, sg, shape_map, newenv
     | Pstr_class cl ->
@@ -3954,7 +3945,6 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
               raise (Error (loc, env, Item_weaker_than_structure e))
         end;
         let (classes, new_env) = Typeclass.class_declarations env cl in
-        let new_env = Env.update_short_paths new_env in
         let shape_map = List.fold_left (fun acc cls ->
             let open Typeclass in
             let loc = cls.cls_id_loc.Location.loc in
@@ -3985,7 +3975,6 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
         new_env
     | Pstr_class_type cl ->
         let (classes, new_env) = Typeclass.class_type_declarations env cl in
-        let new_env = Env.update_short_paths new_env in
         let shape_map = List.fold_left (fun acc decl ->
             let open Typeclass in
             let loc = decl.clsty_id_loc.Location.loc in
