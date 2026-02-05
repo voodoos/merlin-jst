@@ -85,68 +85,6 @@ let log_usage ?loc kind path =
         (fun fmt -> Format.pp_print_option Location.print_loc fmt)
         loc)
 
-(* TODO: [Discourse.of_core_type] could be entangled in the typer directly. This
-   will make these changes more invasive and difficult to reason about but we
-   could do it if the current implementation has issues. Notably, all the
-   environment lookups are already done at some point in the typer.
-
-   We probably want to do change the typemod and typetexp implementation for the
-   final implementation. Careful environement manupilation would  be done only
-   once and the visibility of discourses construction might encourage
-   maintainers to take it into account when making changes. *)
-
-(* [Discourse.of_core_type] lookup paths appearing in core_types. This is meant
-   to gather user-written paths associated to a value or type declaration. These
-   paths should be added to the domain of discourse when this value / type is
-   used. *)
-let of_core_type env ?(acc = Discourse_types.empty) ty =
-  let rec aux env acc (ct : Parsetree.core_type) =
-    match ct.ptyp_desc with
-    | Ptyp_any _ -> acc
-    | Ptyp_arrow (_, ct1, ct2, _, _) ->
-      let acc = aux env acc ct1 in
-      aux env acc ct2
-    | Ptyp_tuple l | Ptyp_unboxed_tuple l ->
-      List.fold_left (fun acc (_, ct) -> aux env acc ct) acc l
-    | Ptyp_constr ({ txt = lid }, params) ->
-      let path, _td = Env.find_type_by_name lid env in
-      let acc = Discourse_types.Lid_trie.add lid (Type, path) acc in
-      List.fold_left (aux env) acc params
-    | Ptyp_object (fields, _) ->
-      List.fold_left
-        (fun acc { Parsetree.pof_desc = Otag (_, ct) | Oinherit ct; _ } ->
-          aux env acc ct)
-        acc fields
-    | Ptyp_class ({ txt = lid; _ }, l) ->
-      let path, _td = Env.find_type_by_name lid env in
-      let acc = Discourse_types.Lid_trie.add lid (Type, path) acc in
-      List.fold_left (aux env) acc l
-    | Ptyp_alias (ct, _, _) -> aux env acc ct
-    | Ptyp_variant (row, _, _) ->
-      List.fold_left
-        (fun acc { Parsetree.prf_desc; _ } ->
-          match prf_desc with
-          | Rtag (_, _, l) -> List.fold_left (aux env) acc l
-          | Rinherit ct -> aux env acc ct)
-        acc row
-    | Ptyp_poly (_, ct) -> aux env acc ct
-    | Ptyp_package ({ txt = lid; _ }, l) ->
-      let path, _td = Env.find_modtype_by_name lid env in
-      let acc = Discourse_types.Lid_trie.add lid (Module_type, path) acc in
-      List.fold_left (fun acc (_, ct) -> aux env acc ct) acc l
-    | Ptyp_open (lid, ct) ->
-      let path, _, newenv =
-        Env.open_signature ~used_slot:(ref false) ~toplevel:false ~loc:lid.loc
-          Asttypes.Fresh lid env
-      in
-      let acc = Discourse_types.Lid_trie.add lid.txt (Module, path) acc in
-      aux newenv acc ct
-    | Ptyp_of_kind _ | Ptyp_var _ -> acc
-    | Ptyp_extension _ | Ptyp_quote _ | Ptyp_splice _ -> acc
-  in
-  (* TODO do we want finer recovery here ? *)
-  try aux env acc ty with Not_found | Env.Error (Lookup_error _) -> acc
-
 (** [add_path_to_discourse] adds one path from U to the Discourse, eventually
     adding the additionnal paths described by the rules for D. TODO this could
     and probably should be done lazily.
