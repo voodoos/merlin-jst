@@ -1963,7 +1963,7 @@ and transl_modtype_aux env smty =
           Named (id, param, arg, tmarg), Types.Named (id, arg.mty_type, marg),
           newenv, md_discourse
       in
-      let res = transl_modtype newenv sres in
+      let res, discourse = transl_modtype newenv sres in
       mkmty (Tmty_functor (t_arg, res, tmres))
         (Mty_functor(ty_arg, res.mty_type, mres)) env loc
         smty.pmty_attributes,
@@ -3162,7 +3162,7 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
               ({ arg with mod_mode = (Mode.Value.disallow_right mode.mode_modes, None)},
               arg_shape), Discourse_types.empty
           | Some smty ->
-              let mty, _discourse = transl_modtype env smty in
+              let mty, discourse = transl_modtype env smty in
               wrap_constraint_with_shape env true arg mty.mty_type mode.mode_modes
                 arg_shape (Tmodtype_explicit (mty, mode)),
               discourse

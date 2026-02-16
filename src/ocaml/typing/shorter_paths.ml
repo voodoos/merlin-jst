@@ -243,8 +243,8 @@ let find_path_in_env env (kind, lid, path) =
   in
   let find_type l e = fst (Env.find_type_by_name l e) in
   let norm_type e p = fst (normalize_type_path e p) in
-  let find_mod l e = fst (Env.find_module_by_name l e) in
-  let find_modtype l e = fst (Env.find_modtype_by_name l e) in
+  let find_mod l e = fst (Env.find_module_by_name_lazy l e) in
+  let find_modtype l e = fst (Env.find_modtype_by_name_lazy l e) in
   let find, normalize =
     match kind with
     | Type -> (find_type, norm_type)
