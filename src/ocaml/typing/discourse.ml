@@ -253,8 +253,8 @@ let define kind env_lookup env lid =
 
 let define_type = define Type Env.find_type_by_name
 let define_value = define Value Env.find_value_by_name
-let define_module = define Module Env.find_module_by_name
-let define_modtype = define Module_type Env.find_modtype_by_name
+let define_module = define Module Env.find_module_by_name_lazy
+let define_modtype = define Module_type Env.find_modtype_by_name_lazy
 
 (* Rule U3: All paths for things “defined” using include or open in the current
    file are in U. *)

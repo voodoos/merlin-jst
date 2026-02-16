@@ -3968,10 +3968,10 @@ let add_components slot root env0 comps locks =
     add_v (fun x -> `Value x) comps.comp_values env0.values
   in
   let types =
-    add_v (fun x -> `Type x) comps.comp_types env0.types
+    add_s (fun x -> `Type x) comps.comp_types env0.types
   in
   let modtypes =
-    add_v (fun x -> `Module_type x) comps.comp_modtypes env0.modtypes
+    add_s (fun x -> `Module_type x) comps.comp_modtypes env0.modtypes
   in
   let classes =
     add_v (fun x -> `Class x) comps.comp_classes env0.classes
