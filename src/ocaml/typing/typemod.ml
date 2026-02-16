@@ -3143,7 +3143,7 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
       let mode =
         { tmode with mode_modes = new_mode_var_from_annots tmode.mode_modes }
       in
-      let arg, arg_shape, discourse =
+      let arg, arg_shape, arg_discourse =
         type_module_maybe_hold_locks ~alias ~hold_locks true funct_body
           anchor env ~expected_mode:(mode.mode_modes |> Value.disallow_left)
           sarg
@@ -3188,7 +3188,7 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
               mod_attributes = sarg.pmod_attributes;
             },
             Shape.dummy_mod,
-            discourse
+            arg_discourse
         | _ -> raise exn
       end
   | Pmod_unpack sexp ->
