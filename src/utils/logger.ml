@@ -30,7 +30,7 @@ open Std
 
 let time = ref 0.0
 
-let delta_time () = Sys.time () -. !time
+let _delta_time () = Sys.time () -. !time
 
 let destination = ref None
 let selected_sections = ref None
@@ -41,7 +41,7 @@ let is_section_enabled section =
   | Some sections -> Hashtbl.mem sections section
 
 let output_section oc section title =
-  Printf.fprintf oc "# %2.2f %s - %s\n" (delta_time ()) section title
+  Printf.fprintf oc "# %s - %s\n" section title
 
 let log_flush () =
   match !destination with
