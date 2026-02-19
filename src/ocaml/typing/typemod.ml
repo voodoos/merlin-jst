@@ -1921,7 +1921,7 @@ and transl_modtype_aux env smty =
       let res, discourse = transl_modtype newenv sres in
       mkmty (Tmty_functor (t_arg, res))
         (Mty_functor(ty_arg, res.mty_type)) env loc
-        smty.pmty_attributes
+        smty.pmty_attributes,
       Discourse_types.union discourse arg_discourse
   | Pmty_with(sbody, constraints) ->
       let body, discourse = transl_modtype env sbody in
