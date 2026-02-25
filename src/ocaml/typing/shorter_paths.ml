@@ -91,6 +91,10 @@ let compare_longidents l1 l2 =
   else Discourse_types.compare_longidents ~compare_strings l1 l2
 
 type kind = Type | Module | Module_type
+let kind_of_kind = function
+  | Type -> Shape.Sig_component_kind.Type
+  | Module -> Module
+  | Module_type -> Module_type
 module Lid_path_set = struct
   module T = struct
     type t = kind * Longident.t * Path.t
@@ -400,11 +404,12 @@ let shorten ~env ~initial ~canon_path kind =
 
   let queue =
     let paths =
-      (* The canonical name is a candidate but is not always valid in the
-         current environment. Eg. If it comes from a hidden dep. *)
+      (* Adding the initial name as a candidate fixes some issues with refreshed
+         idents, but it's not robust. Seet test sp-type-subst. *)
       Lid_trie.add
-        (Untypeast.lident_of_path canon_path)
-        (Type, canon_path) discourse.paths
+        (Untypeast.lident_of_path initial)
+        (kind_of_kind kind, initial)
+        discourse.paths
     in
     let paths = apply_substitutions_fixpoint paths discourse.substs in
     fill_queue paths queue
