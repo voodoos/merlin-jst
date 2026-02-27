@@ -250,7 +250,7 @@ let extract_sig_functor_open funct_body env loc mty sig_acc =
 let type_open_ ?(used_slot=ref false) ?(toplevel=false) ovf env loc lid =
   let path, mode, newenv = Env.open_signature ~loc ~used_slot ~toplevel ovf lid env in
   Discourse.use_module env lid path;
-  Discourse.open_module ~env ~newenv path;
+  Discourse.open_module env path;
   path, mode, newenv
 
 let initial_env ~loc ~initially_opened_module
@@ -3461,7 +3461,7 @@ and type_open_decl_aux ?used_slot ?toplevel funct_body names env od =
       Env.enter_signature ~scope ~mod_shape
         (extract_sig_open env md.mod_loc md.mod_type) ~mode env
     in
-    let () = Discourse.define_signature newenv sg in
+    let () = Discourse.define_signature sg in
     let info, visibility =
       match toplevel with
       | Some false | None -> Some `From_open, Hidden
@@ -3532,7 +3532,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
       Env.enter_signature_and_shape ~scope ~parent_shape:shape_map
         modl_shape sg ~mode env
     in
-    let () = Discourse.define_signature new_env sg in
+    let () = Discourse.define_signature sg in
     let sg = rebase_modalities ~loc ~env ~md_mode ~mode sg in
     Signature_group.iter (Signature_names.check_sig_item names loc) sg;
     let incl =
@@ -3648,6 +3648,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
         in
         let shape_map = List.fold_left2
           (fun map { typ_id; _} shape ->
+            Discourse.define_type typ_id;
             Shape.Map.add_type map typ_id shape)
           shape_map
           decls
@@ -3726,7 +3727,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
             let id, e = Env.enter_module_declaration
               ~scope ~shape:md_shape name pres md ~mode:md_mode env
             in
-            Discourse.define_module e (Lident name);
+            Discourse.define_module md id;
             Signature_names.check_module names pmb_loc id;
             Some id, e,
             [Sig_module(id, pres,
@@ -3849,6 +3850,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
         let newenv, mtd, decl = transl_modtype_decl env pmtd in
         Signature_names.check_modtype names pmtd.pmtd_loc mtd.mtd_id;
         let id = mtd.mtd_id in
+        Discourse.define_modtype id;
         let map = Shape.Map.add_module_type shape_map id decl.mtd_uid in
         Tstr_modtype mtd, [Sig_modtype (id, decl, Exported)], map, newenv
     | Pstr_open sod ->
