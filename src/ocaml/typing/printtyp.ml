@@ -130,7 +130,7 @@ let printing_env = ref Env.empty
 (* When printing, it is important to only observe the
    current printing environment, without reading any new
    cmi present on the file system *)
-let in_printing_env f = Env.without_cmis f !printing_env
+let in_printing_env f = f !printing_env
 
 let human_unique n id = Printf.sprintf "%s/%d" (Ident.name id) n
 
@@ -778,7 +778,7 @@ let wrap_printing_env env f =
     set_printing_env prev_env)
 
 let wrap_printing_env ?error:_ env f =
-  Env.without_cmis (wrap_printing_env env) f
+  wrap_printing_env env f
 
 let wrap_printing_env_error env f =
   let wrap (loc : _ Location.loc) =
