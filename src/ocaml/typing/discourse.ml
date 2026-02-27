@@ -45,16 +45,12 @@ We call D the domain of discourse:
 
 open Shape.Sig_component_kind
 open Discourse_types
-
-type nonrec t = { paths : t; substs : Lid_set.t Path.Map.t }
-let empty = { paths = empty; substs = Path.Map.empty }
 let log_section = "discourse"
 let { Logger.log } = Logger.for_section log_section
 
-let g = Local_store.s_ref empty
 let get () = !g
 let set v = g := v
-let reset () = g := empty
+let reset () = g := empty_discourse
 
 let record_usages = Config.merlin
 
