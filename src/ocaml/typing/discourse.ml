@@ -146,19 +146,19 @@ let rec add_path_to_discourse_aux ?(for_open = false) env discourse kind lid
           (* D3. If a module path is in U then all the paths of its subcomponents
              are in D *)
           List.fold_left
-            (fun (p, s) ->
+            (fun (paths, substs) ->
               let add kind id =
                 log ~title:"add_path_to_discourse"
                   "Adding signature component %s %a"
                   (Shape.Sig_component_kind.to_string kind) Logger.fmt
                   (fun fmt -> Ident.print fmt id);
-                Lid_trie.add (ldot id) (kind, pdot id) p
+                Lid_trie.add (ldot id) (kind, pdot id) paths
               in
               function
-              | Subst.Lazy.Sig_value (id, _, _) -> (add Value id, s)
-              | Subst.Lazy.Sig_type (id, _, _, _) -> (add Type id, s)
+              | Subst.Lazy.Sig_value (id, _, _) -> (add Value id, substs)
+              | Subst.Lazy.Sig_type (id, _, _, _) -> (add Type id, substs)
               | Subst.Lazy.Sig_typext (id, _, _, _) ->
-                (add Extension_constructor id, s)
+                (add Extension_constructor id, substs)
               | Subst.Lazy.Sig_module (id, _, _, _, _) ->
                 let md = Env.find_module_lazy (pdot id) env in
                 let paths = add Module id in
@@ -179,9 +179,10 @@ let rec add_path_to_discourse_aux ?(for_open = false) env discourse kind lid
                   | _ -> substs
                 in
                 (paths, substs)
-              | Subst.Lazy.Sig_modtype (id, _, _) -> (add Module_type id, s)
-              | Subst.Lazy.Sig_class (id, _, _, _) -> (add Class id, s)
-              | Subst.Lazy.Sig_class_type (id, _, _, _) -> (add Class_type id, s))
+              | Subst.Lazy.Sig_modtype (id, _, _) -> (add Module_type id, substs)
+              | Subst.Lazy.Sig_class (id, _, _, _) -> (add Class id, substs)
+              | Subst.Lazy.Sig_class_type (id, _, _, _) ->
+                (add Class_type id, substs))
             (paths, substs)
             (Subst.Lazy.force_signature_once s)
         | _ -> (paths, substs)
