@@ -89,8 +89,7 @@ let log_usage ?loc kind path =
     TODO:Q what about rule D11 ? If a path is in D and it includes another module
           path within it, then that module path is also in D. Should we consider
           only [Papply] paths or all path components for addition to D ?  *)
-let rec add_path_to_discourse_aux ?(for_open = false) env discourse kind lid
-    path =
+let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
   log ~title:"add_path_to_discourse" "Adding %s %a %a"
     (Shape.Sig_component_kind.to_string kind)
     Logger.fmt
@@ -123,7 +122,7 @@ let rec add_path_to_discourse_aux ?(for_open = false) env discourse kind lid
                   we do this lazily ? *)
           let path' = Env.normalize_module_path None env p in
           let { paths; substs } =
-            add_path_to_discourse_aux env { paths; substs } Module lid path'
+            add_path_to_discourse env { paths; substs } Module lid path'
           in
           let substs =
             log ~title:"add_path_to_discourse" "New substitution 1 %a -> %a"
@@ -206,17 +205,6 @@ let rec add_path_to_discourse_aux ?(for_open = false) env discourse kind lid
     | _ -> (paths, substs)
   in
   { paths; substs }
-
-and add_path_to_discourse ?for_open env discourse kind lid path =
-  match Lid_trie.reach discourse.paths lid with
-  | Some (Trie (paths, _)) when Paths.mem (kind, path) paths ->
-    log ~title:"add_path_to_discourse" "Path already in discourse: %a %a"
-      Logger.fmt
-      (fun fmt -> Pprintast.longident fmt lid)
-      Logger.fmt
-      (fun fmt -> Path.print fmt path);
-    discourse
-  | _ -> add_path_to_discourse_aux ?for_open env discourse kind lid path
 
 (** [add_used] adds all parts of a used path to the Discourse (U1, D2) *)
 let add_used env kind lid path =
