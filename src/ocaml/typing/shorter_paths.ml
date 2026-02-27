@@ -404,8 +404,6 @@ let shorten ~env ~initial ~canon_path kind =
 
   let queue =
     let paths =
-      (* Adding the initial name as a candidate fixes some issues with refreshed
-         idents, but it's not robust. Seet test sp-type-subst. *)
       Lid_trie.add
         (Untypeast.lident_of_path initial)
         (kind_of_kind kind, initial)

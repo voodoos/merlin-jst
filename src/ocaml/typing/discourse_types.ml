@@ -157,3 +157,12 @@ let union = Lid_trie.union
 let singleton lid path = Lid_trie.trie_of_lid lid (Paths.singleton path)
 
 let pp = Lid_trie.pp_seq
+
+type discourse = { paths : t; substs : Lid_set.t Path.Map.t }
+let empty_discourse = { paths = empty; substs = Path.Map.empty }
+let g = Local_store.s_ref empty_discourse
+
+let add_ident kind id =
+  let lid = Longident.Lident (Ident.name id) in
+  let path = Path.Pident id in
+  g := { !g with paths = add lid (kind, path) !g.paths }

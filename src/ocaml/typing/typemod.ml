@@ -2251,7 +2251,6 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
               Env.enter_module_declaration ~scope name pres md
                 ~mode:md_mode env
             in
-            Discourse.define_module newenv (Lident name);
             Signature_names.check_module names pmd.pmd_name.loc id;
             Some id, newenv
         in
@@ -2301,7 +2300,6 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
           Env.enter_module_declaration ~scope pms.pms_name.txt pres md
             ~mode:md_mode env
         in
-        Discourse.define_module newenv (Lident pms.pms_name.txt);
         let info =
           `Substituted_away (Subst.add_module id path Subst.identity)
         in
@@ -2331,7 +2329,6 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
           ) tdecls
         in
         List.iter (fun (id, md, _uid) ->
-          Discourse.define_module newenv (Lident (Ident.name id));
           Signature_names.check_module names md.md_loc id;
         ) decls;
         let sig_items =
@@ -2468,6 +2465,10 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
          transl_sig (Env.in_signature true env) [] [] sig_acc psg_items
        in
        let rem = Signature_names.simplify final_env names rem in
+       (* The substitutions that simplify sometimes performs refreshes the ident
+          stamps, we have to register the new ones for short-paths, not the
+          initial one. Note: the idents in the Typedtree are not refreshed. *)
+       Discourse.define_signature rem;
        { sig_items = trem; sig_type = rem; sig_final_env = final_env;
          sig_modalities; sig_sloc = psg_loc })
 
@@ -2493,7 +2494,7 @@ and transl_modtype_decl_aux env
   in
   let scope = Ctype.create_scope () in
   let (id, newenv) = Env.enter_modtype ~scope pmtd_name.txt decl env in
-  Discourse.define_modtype newenv (Lident pmtd_name.txt);
+  Discourse_types.add_ident Module_type id;
   let mtd =
     {
      mtd_id=id;
