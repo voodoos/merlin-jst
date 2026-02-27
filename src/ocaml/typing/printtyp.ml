@@ -2704,7 +2704,7 @@ and tree_of_sigitem ?abbrev = function
   | Sig_value(id, decl, _) ->
       tree_of_value_description id decl
   | Sig_type(id, decl, rs, _) ->
-    Shorter_paths.log ~title:"pt" "DBG PRINT TYPE\n%!";
+      Shorter_paths.log ~title:"pt" "DBG PRINT TYPE %a\n%!" Logger.fmt (fun l -> Ident.print l id);
       (* TODO this is not a satisfing fix to the environement issue *)
       let tree = tree_of_type_declaration id decl rs in
       Shorter_paths.restore_ignored_paths (Some id);

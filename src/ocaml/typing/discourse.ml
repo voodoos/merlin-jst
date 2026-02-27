@@ -71,7 +71,8 @@ let pp_substs fmt substs =
   Format.pp_print_list ~pp_sep pp_v fmt substs
 
 let debug_print fmt =
-  Format.fprintf fmt "%a@;%a" pp !g.paths pp_substs !g.substs
+  Format.fprintf fmt "Size: %i@;%a@;%a" (Lid_trie.size !g.paths) pp !g.paths
+    pp_substs !g.substs
 
 let log_usage ?loc kind path =
   log ~title:"use" "Use %a\n%!" Logger.fmt (fun fmt ->
@@ -125,7 +126,7 @@ let rec add_path_to_discourse_aux ?(for_open = false) env discourse kind lid
             add_path_to_discourse_aux env { paths; substs } Module lid path'
           in
           let substs =
-            log ~title:"add_path_to_discourse" "New substitution %a -> %a"
+            log ~title:"add_path_to_discourse" "New substitution 1 %a -> %a"
               Logger.fmt
               (Fun.flip Path.print path')
               Logger.fmt
@@ -166,7 +167,7 @@ let rec add_path_to_discourse_aux ?(for_open = false) env discourse kind lid
                   | Mty_alias path' ->
                     let lid = ldot id in
                     log ~title:"add_path_to_discourse"
-                      "New substitution %a -> %a" Logger.fmt
+                      "New substitution 2 %a -> %a" Logger.fmt
                       (Fun.flip Path.print path')
                       Logger.fmt
                       (Fun.flip Pprintast.longident lid);

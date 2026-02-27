@@ -300,6 +300,8 @@ let dispatch pipeline (type a) : a Query_protocol.t -> a = function
       | [] -> []
       | browse -> Browse_misc.annotate_tail_calls browse
     in
+    Logger.log ~section:"discourse" ~title:"discourse" "%a" Logger.fmt
+      Discourse.debug_print;
 
     (* Type enclosing results come from two sources: 1. the typedtree nodes
        aroung the cursor's position and 2. the result of reconstructing the
@@ -356,8 +358,6 @@ let dispatch pipeline (type a) : a Query_protocol.t -> a = function
         Some (number_of_results - 1)
       | index -> index
     in
-    Logger.log ~section:"discourse" ~title:"discourse" "%a" Logger.fmt
-      Discourse.debug_print;
     List.mapi all_results ~f:(fun i (loc, text, tail) ->
         let print =
           match index with
