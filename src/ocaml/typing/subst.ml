@@ -881,21 +881,18 @@ let rename_bound_idents scoping s sg =
     | [] -> sg, s
     | Sig_type(id, td, rs, vis) :: rest ->
         let id' = rename id in
-        Discourse_types.add_ident Type id';
         rename_bound_idents
           (add_type id (Pident id') s)
           (Sig_type(id', td, rs, vis) :: sg)
           rest
     | Sig_module(id, pres, md, rs, vis) :: rest ->
         let id' = rename id in
-        Discourse_types.add_ident Module id';
         rename_bound_idents
           (add_module id (Pident id') s)
           (Sig_module (id', pres, md, rs, vis) :: sg)
           rest
     | Sig_modtype(id, mtd, vis) :: rest ->
         let id' = rename id in
-        Discourse_types.add_ident Module_type id';
         rename_bound_idents
           (add_modtype id (Pident id') s)
           (Sig_modtype(id', mtd, vis) :: sg)
@@ -903,7 +900,6 @@ let rename_bound_idents scoping s sg =
     | Sig_class(id, cd, rs, vis) :: rest ->
         (* cheat and pretend they are types cf. PR#6650 *)
         let id' = rename id in
-        (*  Discourse_types.add_ident Class id'; *)
         rename_bound_idents
           (add_type id (Pident id') s)
           (Sig_class(id', cd, rs, vis) :: sg)
@@ -911,7 +907,6 @@ let rename_bound_idents scoping s sg =
     | Sig_class_type(id, ctd, rs, vis) :: rest ->
         (* cheat and pretend they are types cf. PR#6650 *)
         let id' = rename id in
-        (* Discourse_types.add_ident Class_type id'; *)
         rename_bound_idents
           (add_type id (Pident id') s)
           (Sig_class_type(id', ctd, rs, vis) :: sg)
@@ -919,7 +914,6 @@ let rename_bound_idents scoping s sg =
     | Sig_value(id, vd, vis) :: rest ->
         (* scope doesn't matter for value identifiers. *)
         let id' = Ident.rename id in
-        Discourse_types.add_ident Value id';
         rename_bound_idents s (Sig_value(id', vd, vis) :: sg) rest
     | Sig_typext(id, ec, es, vis) :: rest ->
         let id' = rename id in
