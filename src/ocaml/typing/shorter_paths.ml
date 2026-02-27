@@ -95,6 +95,11 @@ let kind_of_kind = function
   | Type -> Shape.Sig_component_kind.Type
   | Module -> Module
   | Module_type -> Module_type
+let string_of_kind = function
+  | Type -> "Type"
+  | Module -> "Module"
+  | Module_type -> "Module_type"
+
 module Lid_path_set = struct
   module T = struct
     type t = kind * Longident.t * Path.t
@@ -234,8 +239,16 @@ let find_path_in_env env (kind, lid, path) =
   (* TODO it might be worth it to memoïze this function *)
   let aux env ~find ~normalize lid path =
     match find lid env with
-    | exception Not_found -> None
+    | exception Not_found ->
+      log ~title:"find_path_in_env" "%s name not found: %a"
+        (string_of_kind kind) Logger.fmt
+        (Fun.flip Pprintast.longident lid);
+      None
     | path_in_env ->
+      log ~title:"find_path_in_env" "Lid: %a [%a] Path in env: %a" Logger.fmt
+        (Fun.flip Pprintast.longident lid)
+        Logger.fmt (Fun.flip Path.print path) Logger.fmt
+        (Fun.flip Path.print path_in_env);
       if Path.compare path path_in_env == 0 then Some (lid, path_in_env)
       else
         let path = normalize env path in
@@ -410,6 +423,8 @@ let shorten ~env ~initial ~canon_path kind =
         discourse.paths
     in
     let paths = apply_substitutions_fixpoint paths discourse.substs in
+    log_dbg ~title:"shorten" "Discourse after substitutions: %a\n%!" Logger.fmt
+      (fun fmt -> Discourse_types.pp fmt paths);
     fill_queue paths queue
   in
 
