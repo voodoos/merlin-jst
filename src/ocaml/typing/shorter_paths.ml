@@ -76,7 +76,7 @@ end
 
 let rec longident_cost = function
   | Longident.Lident id -> Out_type.penalty id
-  | Ldot (l, _) -> 1 + longident_cost l
+  | Ldot (l, id) -> Out_type.penalty id + longident_cost l
   | Lapply (l1, l2) -> longident_cost l1 + longident_cost l2
 
 let compare_strings s1 s2 =
@@ -421,12 +421,19 @@ let shorten ~env ~initial ~canon_path kind =
         (Untypeast.lident_of_path initial)
         (kind_of_kind kind, initial)
         discourse.paths
+      |> Lid_trie.add
+           (Untypeast.lident_of_path canon_path)
+           (kind_of_kind kind, canon_path)
     in
     let paths = apply_substitutions_fixpoint paths discourse.substs in
     log_dbg ~title:"shorten" "Discourse after substitutions: %a\n%!" Logger.fmt
       (fun fmt -> Discourse_types.pp fmt paths);
     fill_queue paths queue
   in
+
+  log ~title:"shorten" "Current queue: %a" Logger.fmt (fun fmt ->
+      Format.pp_print_seq ~pp_sep:Format.pp_print_space Lid_path_set.pp_elt fmt
+        (Priority_queue.to_seq queue));
 
   (* Do we already have a candidate ? *)
   let best = find_best_lid env ~canon_path table kind in

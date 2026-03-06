@@ -44,4 +44,22 @@ let test_subst_1 =
       in
       check string "should be equal" expected computed)
 
-let () = Alcotest.run "merlin-lib.short-paths" [ ("subst", [ test_subst_1 ]) ]
+let test_cost_1 =
+  let open Alcotest in
+  test_case "test cost 1" `Quick (fun () ->
+      let shorter = Shorter_paths.longident_cost (Lident "t__bits64__word") in
+      let longer =
+        Shorter_paths.longident_cost
+          (Ldot (Lident "Either0", "t__bits64__word"))
+      in
+      let computed = shorter < longer in
+      let expected = true in
+      let msg =
+        Printf.sprintf
+          "Cost of t__bits64__word < Cost of Either0.t__bits64__word ?"
+      in
+      check bool msg expected computed)
+
+let () =
+  Alcotest.run "merlin-lib.short-paths"
+    [ ("subst", [ test_subst_1 ]); ("cost", [ test_cost_1 ]) ]
