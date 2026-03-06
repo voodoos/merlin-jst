@@ -249,9 +249,7 @@ let add_subst path lid =
         | Some lids -> Some (Lid_set.add lid lids))
       !g.substs
   in
-  g := { !g with substs };
-  log ~title:"add_path_to_discourse" "Substitutions: %a" Logger.fmt
-    (Fun.flip pp_substs !g.substs)
+  g := { !g with substs }
 
 (* Rule U2: All paths for definitions in the current file are in U *)
 let define kind ?root_path ?root_lid id =
