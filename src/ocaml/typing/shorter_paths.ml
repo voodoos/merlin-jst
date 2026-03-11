@@ -270,8 +270,6 @@ let find_path_in_env env (kind, lid, path) =
         (Fun.flip Path.print path_in_env');
       if Path.compare path' path_in_env' == 0 then Some path_in_env else None
 
-let check_validity env item = Option.is_some @@ find_path_in_env env item
-
 let find_best_lid env ~canon_path table target_kind =
   match Path.Map.find_opt canon_path table with
   | None -> None
