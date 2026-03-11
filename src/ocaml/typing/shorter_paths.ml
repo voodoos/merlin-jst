@@ -332,7 +332,7 @@ let process_queue env state ~canon_path target_kind best =
         find_path_in_env env (kind, lid, path)
       in
       match is_valid_in_current_env with
-      | Some path_in_env -> begin
+      | Some _path_in_env -> begin
         let canonical_path = normalize env kind path in
         log ~title:"fill_by_level" "Updating table: %a -> { %a [%a] }"
           Logger.fmt
@@ -342,12 +342,11 @@ let process_queue env state ~canon_path target_kind best =
           Logger.fmt
           (fun fmt -> Path.print fmt path);
         let table =
-          let item = (kind, lid, path_in_env) in
-          Path.Map.update canonical_path
-            (function
-              | None -> Some (Lid_path_set.singleton item)
-              | Some set -> Some (Lid_path_set.add item set))
-            state.table
+          let update = function
+            | None -> Some (Lid_path_set.singleton item)
+            | Some set -> Some (Lid_path_set.add item set)
+          in
+          Path.Map.update canonical_path update state.table
         in
         (* And remove it from the queue *)
         let queue = Priority_queue.remove item state.queue in
@@ -502,5 +501,5 @@ let find_module env initial =
   shorten ~env ~initial ~canon_path Module
 
 let find_module_type env initial =
-  let canon_path = Env.normalize_module_path None env initial in
+  let canon_path = Env.normalize_modtype_path env initial in
   shorten ~env ~initial ~canon_path Module_type
