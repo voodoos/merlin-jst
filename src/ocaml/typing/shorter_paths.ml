@@ -235,40 +235,40 @@ let restore_ignored_paths id =
       priority_queue := fill_queue t !priority_queue;
       not_in_env := remaining)
 
+let find_by_name env kind lid =
+  match kind with
+  | Type -> fst (Env.find_type_by_name lid env)
+  | Module -> fst (Env.find_module_by_name_lazy lid env)
+  | Module_type -> fst (Env.find_modtype_by_name_lazy lid env)
+
+let normalize env kind path =
+  match kind with
+  | Type -> fst (normalize_type_path env path)
+  | Module -> Env.normalize_module_path None env path
+  | Module_type -> Env.normalize_modtype_path env path
+
 let find_path_in_env env (kind, lid, path) =
   (* TODO it might be worth it to memoïze this function *)
-  let aux env ~find ~normalize lid path =
-    match find lid env with
-    | exception Not_found ->
-      log ~title:"find_path_in_env" "%s name not found: %a"
-        (string_of_kind kind) Logger.fmt
-        (Fun.flip Pprintast.longident lid);
-      None
-    | path_in_env ->
-      log ~title:"find_path_in_env" "Lid: %a [%a] Path in env: %a" Logger.fmt
-        (Fun.flip Pprintast.longident lid)
-        Logger.fmt (Fun.flip Path.print path) Logger.fmt
-        (Fun.flip Path.print path_in_env);
-      if Path.compare path path_in_env == 0 then Some (lid, path_in_env)
-      else
-        let path = normalize env path in
-        let path' = normalize env path_in_env in
-        log ~title:"find_path_in_env" "%a <>? %a" Logger.fmt
-          (Fun.flip Path.print path) Logger.fmt
-          (Fun.flip Path.print path');
-        if Path.compare path path' == 0 then Some (lid, path_in_env) else None
-  in
-  let find_type l e = fst (Env.find_type_by_name l e) in
-  let norm_type e p = fst (normalize_type_path e p) in
-  let find_mod l e = fst (Env.find_module_by_name_lazy l e) in
-  let find_modtype l e = fst (Env.find_modtype_by_name_lazy l e) in
-  let find, normalize =
-    match kind with
-    | Type -> (find_type, norm_type)
-    | Module -> (find_mod, Env.normalize_module_path None)
-    | Module_type -> (find_modtype, Env.normalize_modtype_path)
-  in
-  aux env ~find ~normalize lid path
+  match find_by_name env kind lid with
+  | exception Not_found ->
+    log ~title:"find_path_in_env" "%s name not found: %a" (string_of_kind kind)
+      Logger.fmt
+      (Fun.flip Pprintast.longident lid);
+    None
+  | path_in_env ->
+    log ~title:"find_path_in_env" "Lid: %a [%a] Path in env: %a" Logger.fmt
+      (Fun.flip Pprintast.longident lid)
+      Logger.fmt (Fun.flip Path.print path) Logger.fmt
+      (Fun.flip Path.print path_in_env);
+    if Path.compare path path_in_env == 0 then Some path_in_env
+    else
+      let path' = normalize env kind path in
+      let path_in_env' = normalize env kind path_in_env in
+      log ~title:"find_path_in_env" "%a <>? %a" Logger.fmt
+        (Fun.flip Path.print path')
+        Logger.fmt
+        (Fun.flip Path.print path_in_env');
+      if Path.compare path' path_in_env' == 0 then Some path_in_env else None
 
 let check_validity env item = Option.is_some @@ find_path_in_env env item
 
@@ -277,8 +277,10 @@ let find_best_lid env ~canon_path table target_kind =
   | None -> None
   | Some lids ->
     Lid_path_set.to_seq lids
-    |> Seq.find_map (fun ((kind, _, _) as item) ->
-           if kind <> target_kind then None else find_path_in_env env item)
+    |> Seq.find_map (fun ((kind, lid, _) as item) ->
+           if kind <> target_kind then None
+           else
+             Option.map (fun path -> (lid, path)) @@ find_path_in_env env item)
 
 let improve_lid env ~canon_path table kind lid =
   find_best_lid env ~canon_path table kind
@@ -329,14 +331,21 @@ let process_queue env state ~canon_path target_kind best =
            paths that cannot be looked-up in the environement directly. We can
            find by name instead. However we must then check that we did actually
            find the type we were looking (same ident) for and not an homonym. *)
-        check_validity env (kind, lid, path)
+        find_path_in_env env (kind, lid, path)
       in
-      if is_valid_in_current_env then begin
-        let canon, _ = normalize_type_path env path in
-        log ~title:"fill_by_level" "Found canonical path %a" Logger.fmt
-          (fun fmt -> Path.print fmt canon);
+      match is_valid_in_current_env with
+      | Some _canonical_path -> begin
+        let canonical_path, _ = normalize_type_path env path in
+
+        log ~title:"fill_by_level" "Updating table: %a -> { %a [%a] }"
+          Logger.fmt
+          (fun fmt -> Path.print fmt canonical_path)
+          Logger.fmt
+          (fun fmt -> Pprintast.longident fmt lid)
+          Logger.fmt
+          (fun fmt -> Path.print fmt path);
         let table =
-          Path.Map.update canon
+          Path.Map.update canonical_path
             (function
               | None -> Some (Lid_path_set.singleton item)
               | Some set -> Some (Lid_path_set.add item set))
@@ -346,7 +355,7 @@ let process_queue env state ~canon_path target_kind best =
         let queue = Priority_queue.remove item state.queue in
         { state with queue; table }
       end
-      else begin
+      | _ -> begin
         log ~title:"fill_by_level" "Name: %a invalid in the current env"
           Logger.fmt (fun fmt -> Pprintast.longident fmt lid);
 
