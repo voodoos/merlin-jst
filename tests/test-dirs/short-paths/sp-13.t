@@ -7,7 +7,6 @@ This mocks the Async --include--> Async_kernel --exports--> Deferred
   $ cat >async_kernel__.ml <<'EOF'
   > module Deferred = Async_kernel__Deferred
   > module Deferred0 = Async_kernel__Deferred0
-  > module Deferred1 = Async_kernel__Deferred1
   > EOF
 
   $ $OCAMLC -c async_kernel__.ml -no-alias-deps 2>/dev/null
@@ -28,7 +27,7 @@ This mocks the Async --include--> Async_kernel --exports--> Deferred
 
 
 
-  $ cat >deferred1.ml <<'EOF'
+  $ cat >deferred.ml <<'EOF'
   > type +'a t = 'a Deferred0.t
   > 
   > module Let_syntax = struct 
@@ -36,24 +35,12 @@ This mocks the Async --include--> Async_kernel --exports--> Deferred
   > end
   > EOF
 
-  $ $OCAMLC -c deferred1.ml -open Async_kernel__ -o Async_kernel__Deferred1
-
-
-  $ cat >deferred.ml <<'EOF'
-  > include Deferred1
-  > EOF
-
-  $ cat >deferred.mli <<'EOF'
-  > type +'a t = 'a Deferred1.t 
-  > EOF
-
-  $ $OCAMLC -c deferred.mli -open Async_kernel__ -o Async_kernel__Deferred
   $ $OCAMLC -c deferred.ml -open Async_kernel__ -o Async_kernel__Deferred
 
 
   $ cat >async_kernel.ml <<'EOF'
   > module Deferred = Deferred
-  > include Deferred1.Let_syntax
+  > include Deferred.Let_syntax
   > EOF
 
   $ $OCAMLC -c async_kernel.ml -open Async_kernel__
