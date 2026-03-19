@@ -96,13 +96,14 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
     (fun fmt -> Pprintast.longident fmt lid)
     Logger.fmt
     (fun fmt -> Path.print fmt path);
-  let paths = Lid_trie.add lid (kind, path) discourse.paths in
+  let add_to_paths uid = Lid_trie.add lid (kind, uid, path) discourse.paths in
   let paths, substs =
     let substs = discourse.substs in
     match kind with
     | Module ->
       (* TODO This should probably be done lazily *)
       let md = Env.find_module_lazy path env in
+      let paths = add_to_paths md.md_uid in
       (* D5. If a module path is in U and its module description was written then
          the paths used in that description are in D *)
       let paths = Lid_trie.union paths md.md_discourse in
@@ -146,21 +147,23 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
              are in D *)
           List.fold_left
             (fun (paths, substs) ->
-              let add kind id =
+              let add kind uid id =
                 log ~title:"add_path_to_discourse"
                   "Adding signature component %s %a"
                   (Shape.Sig_component_kind.to_string kind) Logger.fmt
                   (fun fmt -> Ident.print fmt id);
-                Lid_trie.add (ldot id) (kind, pdot id) paths
+                Lid_trie.add (ldot id) (kind, uid, pdot id) paths
               in
               function
-              | Subst.Lazy.Sig_value (id, _, _) -> (add Value id, substs)
-              | Subst.Lazy.Sig_type (id, _, _, _) -> (add Type id, substs)
-              | Subst.Lazy.Sig_typext (id, _, _, _) ->
-                (add Extension_constructor id, substs)
-              | Subst.Lazy.Sig_module (id, _, _, _, _) ->
+              | Subst.Lazy.Sig_value (id, { val_uid; _ }, _) ->
+                (add Value val_uid id, substs)
+              | Subst.Lazy.Sig_type (id, { type_uid; _ }, _, _) ->
+                (add Type type_uid id, substs)
+              | Subst.Lazy.Sig_typext (id, { ext_uid; _ }, _, _) ->
+                (add Extension_constructor ext_uid id, substs)
+              | Subst.Lazy.Sig_module (id, _, { md_uid; _ }, _, _) ->
                 let md = Env.find_module_lazy (pdot id) env in
-                let paths = add Module id in
+                let paths = add Module md_uid id in
                 let substs =
                   match md.md_type with
                   | Mty_alias path' ->
@@ -178,10 +181,12 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
                   | _ -> substs
                 in
                 (paths, substs)
-              | Subst.Lazy.Sig_modtype (id, _, _) -> (add Module_type id, substs)
-              | Subst.Lazy.Sig_class (id, _, _, _) -> (add Class id, substs)
-              | Subst.Lazy.Sig_class_type (id, _, _, _) ->
-                (add Class_type id, substs))
+              | Subst.Lazy.Sig_modtype (id, { mtd_uid; _ }, _) ->
+                (add Module_type mtd_uid id, substs)
+              | Subst.Lazy.Sig_class (id, { cty_uid; _ }, _, _) ->
+                (add Class cty_uid id, substs)
+              | Subst.Lazy.Sig_class_type (id, { clty_uid; _ }, _, _) ->
+                (add Class_type clty_uid id, substs))
             (paths, substs)
             (Subst.Lazy.force_signature_once s)
         | _ -> (paths, substs)
@@ -190,19 +195,22 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
       let mtd = Env.find_modtype_lazy path env in
       (* D8. If a module type path is in U then any paths used in its definition
          are in *)
+      let paths = add_to_paths mtd.mtd_uid in
       (Lid_trie.union paths mtd.mtd_discourse, substs)
     | Value ->
       (* D4. If a value path is in U and its value description was written by a user -
          as opposed to being inferred - then the paths used in that description are
          in D. *)
       let vd = Env.find_value path env in
+      let paths = add_to_paths vd.val_uid in
       (Lid_trie.union paths vd.val_discourse, substs)
     | Type ->
       (* D6. If a type path is in U then any paths used in its equation or
          representation are in D. *)
       let td = Env.find_type path env in
+      let paths = add_to_paths td.type_uid in
       (Lid_trie.union paths td.type_discourse, substs)
-    | _ -> (paths, substs)
+    | _ -> (discourse.paths, substs)
   in
   { paths; substs }
 
@@ -252,7 +260,7 @@ let add_subst path lid =
   g := { !g with substs }
 
 (* Rule U2: All paths for definitions in the current file are in U *)
-let define kind ?root_path ?root_lid id =
+let define kind ?root_path ?root_lid uid id =
   if record_usages then begin
     (* let path, _ = env_lookup lid env in *)
     let lid, path = lid_and_path_of_ident ?root_path ?root_lid id in
@@ -264,7 +272,9 @@ let define kind ?root_path ?root_lid id =
       (fun fmt -> Path.print fmt path);
     let discourse = !g in
     g :=
-      { discourse with paths = Lid_trie.add lid (kind, path) discourse.paths }
+      { discourse with
+        paths = Lid_trie.add lid (kind, uid, path) discourse.paths
+      }
   end
 
 (* Rule U3: All paths for things “defined” using include or open in the current
@@ -278,21 +288,26 @@ and define_component ?root_path ?root_lid sig_item =
   if record_usages then
     (* let lident id = Longident.Lident (Ident.name id) in *)
     match sig_item with
-    | Types.Sig_type (id, _, _, _) -> define_type ?root_path ?root_lid id
-    | Types.Sig_value (id, _, _) -> define_value ?root_path ?root_lid id
-    | Types.Sig_typext (_, _, _, _) -> ()
+    | Types.Sig_type (id, { type_uid; _ }, _, _) ->
+      define_type ?root_path ?root_lid type_uid id
+    | Types.Sig_value (id, { val_uid; _ }, _) ->
+      define_value ?root_path ?root_lid val_uid id
+    | Types.Sig_typext (_, { ext_uid = _; _ }, _, _) -> ()
     | Types.Sig_module (id, _, md, _, _) ->
       define_module ?root_path ?root_lid md id
-    | Types.Sig_modtype (id, _, _) -> define_modtype ?root_path ?root_lid id
+    | Types.Sig_modtype (id, { mtd_uid; _ }, _) ->
+      define_modtype ?root_path ?root_lid mtd_uid id
     | Types.Sig_class (_, _, _, _) | Types.Sig_class_type (_, _, _, _) ->
       (* TODO *) ()
 
-and define_type ?root_path ?root_lid id = define ?root_path ?root_lid Type id
+and define_type ?root_path ?root_lid uid id =
+  define ?root_path ?root_lid Type uid id
 
-and define_value ?root_path ?root_lid id = define ?root_path ?root_lid Value id
+and define_value ?root_path ?root_lid uid id =
+  define ?root_path ?root_lid Value uid id
 
 and define_module ?root_path ?root_lid (decl : Types.module_declaration) id =
-  define Module ?root_path ?root_lid id;
+  define Module ?root_path ?root_lid decl.md_uid id;
   let root_lid, root_path = lid_and_path_of_ident ?root_path ?root_lid id in
   match decl.md_type with
   | Mty_ident path
@@ -304,26 +319,55 @@ and define_module ?root_path ?root_lid (decl : Types.module_declaration) id =
     define_signature ~root_path ~root_lid module_type
   | _ -> ()
 
-and define_modtype ?root_path ?root_lid id =
-  define ?root_path ?root_lid Module_type id
+and define_modtype ?root_path ?root_lid uid id =
+  define ?root_path ?root_lid Module_type uid id
 
-let define_signature_for_open ~root_path (sg : Subst.Lazy.signature) =
+let define_signature_for_open ~root_path _env (sg : Subst.Lazy.signature) =
   List.iter
     (fun sig_item ->
       match sig_item with
-      | Subst.Lazy.Sig_type (id, _, _, _) -> define_type ~root_path id
-      | Subst.Lazy.Sig_value (id, _, _) -> define_value ~root_path id
+      | Subst.Lazy.Sig_type (id, { type_uid; _ }, _, _) ->
+        define_type ~root_path type_uid id
+      | Subst.Lazy.Sig_value (id, { val_uid; _ }, _) ->
+        define_value ~root_path val_uid id
       | Subst.Lazy.Sig_typext (_, _, _, _) -> ()
-      | Subst.Lazy.Sig_module (id, _, _md, _, _) ->
+      (* | Subst.Lazy.Sig_module (id, Mp_present, { md_uid; _ }, _, _) ->
+         log ~title:"define_signature_for_open" "Sig_module %a" Logger.fmt
+           (Fun.flip Ident.print id);
+         let lid, path = lid_and_path_of_ident ~root_path id in
+         add_subst path lid;
+         (* define Module ~root_path id *)
+         add_used _env Module (Location.mknoloc lid) path *)
+      | Subst.Lazy.Sig_module (id, _, { md_uid; _ }, _, _) ->
         log ~title:"define_signature_for_open" "Sig_module %a" Logger.fmt
           (Fun.flip Ident.print id);
         let lid, path = lid_and_path_of_ident ~root_path id in
         add_subst path lid;
-        define Module ~root_path id
-      | Subst.Lazy.Sig_modtype (id, _, _) -> define_modtype ~root_path id
+        define Module ~root_path md_uid id
+        (* add_used _env Module (Location.mknoloc lid) path *)
+      | Subst.Lazy.Sig_modtype (id, { mtd_uid; _ }, _) ->
+        define_modtype ~root_path mtd_uid id
       | Subst.Lazy.Sig_class (_, _, _, _)
       | Subst.Lazy.Sig_class_type (_, _, _, _) -> (* TODO *) ())
     (Subst.Lazy.force_signature_once sg)
+
+let define_signature_for_include (sg : Types.signature) =
+  List.iter
+    (fun sig_item ->
+      match sig_item with
+      | Types.Sig_type (id, { type_uid; _ }, _, _) -> define_type type_uid id
+      | Types.Sig_value (id, { val_uid; _ }, _) -> define_value val_uid id
+      | Types.Sig_typext (_, _, _, _) -> ()
+      | Types.Sig_module (id, _, { md_uid; _ }, _, _) ->
+        log ~title:"define_signature_for_include" "Sig_module %a" Logger.fmt
+          (Fun.flip Ident.print id);
+        let lid, path = lid_and_path_of_ident id in
+        add_subst path lid;
+        define Module md_uid id
+      | Types.Sig_modtype (id, { mtd_uid; _ }, _) -> define_modtype mtd_uid id
+      | Types.Sig_class (_, _, _, _) | Types.Sig_class_type (_, _, _, _) ->
+        (* TODO *) ())
+    sg
 
 (* TODO This should be done lazyly*)
 let open_module env path =
@@ -335,7 +379,7 @@ let open_module env path =
       let root_path = Env.normalize_module_path None env path in
       let md = Env.find_module_lazy root_path env in
       match md.md_type with
-      | Mty_signature sg -> define_signature_for_open ~root_path sg
+      | Mty_signature sg -> define_signature_for_open ~root_path env sg
       | _ -> ()
     with Not_found -> ()
   end

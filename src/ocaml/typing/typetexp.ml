@@ -850,7 +850,7 @@ and transl_type_aux env ~row_context ~aliased ~policy mode styp =
     ctyp (Ttyp_unboxed_tuple tl) ctyp_type, discourse
   | Ptyp_constr(lid, stl) ->
       let (path, decl) = Env.lookup_type ~loc:lid.loc lid.txt env in
-      let discourse = Discourse_types.singleton lid.txt (Type, path) in
+      let discourse = Discourse_types.singleton lid.txt (Type, decl.type_uid, path) in
       Discourse.use_type env lid path;
       let stl =
         match stl with
@@ -908,9 +908,9 @@ and transl_type_aux env ~row_context ~aliased ~policy mode styp =
         transl_fields env ~policy ~row_context o fields in
       ctyp (Ttyp_object (fields, o)) (newobj ty), discourse
   | Ptyp_class(lid, stl) ->
-      let (path, decl) =
+      let (path, uid, decl) =
         match Env.lookup_cltype ~loc:lid.loc lid.txt env with
-        | (path, decl) -> (path, decl.clty_hash_type)
+        | (path, decl) -> (path, decl.clty_uid, decl.clty_hash_type)
         (* Raise a different error if it matches the name of an unboxed type *)
         | exception
             (Env.Error (Lookup_error (_, _, Unbound_cltype _)) as exn)
@@ -926,7 +926,7 @@ and transl_type_aux env ~row_context ~aliased ~policy mode styp =
             | (_ : _ * _) ->
                 raise (Error (styp.ptyp_loc, env, Did_you_mean_unboxed lid.txt))
       in
-      let discourse = Discourse_types.singleton lid.txt (Class_type, path) in
+      let discourse = Discourse_types.singleton lid.txt (Class_type, uid, path) in
       if List.length stl <> decl.type_arity then
         raise(Error(styp.ptyp_loc, env,
                     Type_arity_mismatch(lid.txt, decl.type_arity,
@@ -1132,7 +1132,9 @@ and transl_type_aux env ~row_context ~aliased ~policy mode styp =
         else mty.mty_type
       in
       let path = !transl_modtype_longident loc env p.txt in
-      let discourse = Discourse_types.add p.txt (Module_type, path) discourse in
+      let mtd = Env.find_modtype_lazy path env in
+      let discourse =
+        Discourse_types.add p.txt (Module_type, mtd.mtd_uid, path) discourse in
       let ty = newty (Tpackage (path,
                        List.map (fun (s, cty) -> (s.txt, cty.ctyp_type)) ptys))
       in
@@ -1149,7 +1151,9 @@ and transl_type_aux env ~row_context ~aliased ~policy mode styp =
       in
       let cty, discourse = transl_type new_env ~policy ~row_context mode t in
       let discourse =
-        Discourse_types.add mod_ident.txt (Module, path) discourse in
+        let md = Env.find_module_lazy path env in
+        Discourse_types.add mod_ident.txt (Module, md.md_uid, path) discourse
+      in
       ctyp (Ttyp_open (path, mod_ident, cty)) cty.ctyp_type, discourse
   | Ptyp_of_kind jkind ->
       let tjkind =
