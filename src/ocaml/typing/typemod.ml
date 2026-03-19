@@ -3052,6 +3052,7 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
         Env.lookup_module_path ~load:(not alias) ~loc:smod.pmod_loc lid.txt env
       in
       let md = Env.find_module_lazy path env in
+      (* TODO We should not use (U) if alias (only D) ! *)
       Discourse.use_module env lid path;
       let me, shape =  type_module_path_aux ~alias ~hold_locks
         sttn env path mode_with_locks lid smod in
