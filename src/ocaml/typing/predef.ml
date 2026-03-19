@@ -358,12 +358,11 @@ let mk_add_type add_type =
       ~jkind
       ?unboxed_jkind
       env =
-    let type_uid = Uid.of_predef_id type_ident in
     let () =
-      let lid = Longident.Lident (Ident.name type_ident) in
-      let path = Pident type_ident in
-      discourse := Discourse_types.add lid (Type, type_uid, path) !discourse
-    in
+    let lid = Longident.Lident (Ident.name type_ident) in
+    let path = Pident type_ident in
+    discourse := Discourse_types.add lid (Type, path) !discourse in
+    let type_uid = Uid.of_predef_id type_ident in
     let type_unboxed_version = match unboxed_jkind with
       | None -> None
       | Some unboxed_jkind ->

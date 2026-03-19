@@ -1870,18 +1870,16 @@ and transl_modtype_aux env smty =
   match smty.pmty_desc with
     Pmty_ident lid ->
       let path = transl_modtype_longident loc env lid.txt in
-      let mtd = Env.find_modtype_lazy path env in
       Discourse.use_modtype env lid path;
       mkmty (Tmty_ident (path, lid)) (Mty_ident path) env loc
         smty.pmty_attributes,
-      Discourse_types.singleton lid.txt (Module_type, mtd.mtd_uid, path)
+      Discourse_types.singleton lid.txt (Module_type, path)
   | Pmty_alias lid ->
       let path = transl_module_alias loc env lid.txt in
-      let md = Env.find_module_lazy path env in
       Discourse.use_module env lid path;
       mkmty (Tmty_alias (path, lid)) (Mty_alias path) env loc
         smty.pmty_attributes,
-      Discourse_types.singleton lid.txt (Module, md.md_uid, path)
+      Discourse_types.singleton lid.txt (Module, path)
   | Pmty_signature ssg ->
       Env.check_no_open_quotations loc env Env.Sig_qt;
       let sg = transl_signature env [] ssg in
@@ -1942,8 +1940,7 @@ and transl_modtype_aux env smty =
       let discourse =
         match tmty.mod_desc with
         | Tmod_ident (path,lid) ->
-            let md = Env.find_module_lazy path env in
-            Discourse_types.singleton lid.txt (Module, md.md_uid, path)
+            Discourse_types.singleton lid.txt (Module, path)
         | _ -> empty_discourse
       in
       mkmty (Tmty_typeof tmty) mty env loc smty.pmty_attributes,
@@ -1969,7 +1966,7 @@ and transl_modtype_aux env smty =
           env
           loc
           [],
-        Discourse_types.add  mod_id.txt (Module, md.md_uid, path) discourse
+        Discourse_types.add  mod_id.txt (Module, path) discourse
       with Includemod.Error explanation ->
         raise(Error(loc, env, Strengthening_mismatch(mod_id.txt, explanation)))
       ;
@@ -2001,7 +1998,7 @@ and transl_with ~loc env remove_aliases (rev_tcstrs, sg, discourse) constr =
         in
         (constr,
          Merge.merge_module ~destructive env loc sg l md path remove_aliases,
-         Discourse_types.add l'.txt (Module, md.md_uid, path) discourse)
+         Discourse_types.add l'.txt (Module, path) discourse)
 
     | Pwith_modtype (l,smty)
     | Pwith_modtypesubst (l,smty) ->
@@ -2224,7 +2221,7 @@ and transl_signature ?(keep_warnings = false) env sig_acc {psg_items; psg_modali
             md
           else
             let md_discourse =
-              Discourse_types.singleton lid (Module, md.md_uid, path)
+              Discourse_types.singleton lid (Module, path)
             in
             { md_type = Mty_alias path;
               md_modalities = Mode.Modality.id;
@@ -2421,7 +2418,7 @@ and transl_modtype_decl_aux env
   in
   let scope = Ctype.create_scope () in
   let (id, newenv) = Env.enter_modtype ~scope pmtd_name.txt decl env in
-  Discourse_types.add_ident Module_type decl.mtd_uid id;
+  Discourse_types.add_ident Module_type id;
   let mtd =
     {
      mtd_id=id;
@@ -3003,12 +3000,11 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
       let path, mode_with_locks =
         Env.lookup_module_path ~load:(not alias) ~loc:smod.pmod_loc lid.txt env
       in
-      let md = Env.find_module_lazy path env in
       (* TODO We should not use (U) if alias (only D) ! *)
       Discourse.use_module env lid path;
       let me, shape =  type_module_path_aux ~alias ~hold_locks
         sttn env path mode_with_locks lid smod in
-      me, shape, Discourse_types.singleton lid.txt (Module, md.md_uid, path)
+      me, shape, Discourse_types.singleton lid.txt (Module, path)
   | Pmod_structure sstr ->
       Env.check_no_open_quotations smod.pmod_loc env Env.Struct_qt;
       let (str, sg, mode, names, shape, _finalenv) =
@@ -3652,8 +3648,8 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
           decls
         in
         let shape_map = List.fold_left2
-          (fun map { typ_id; typ_type; _ } shape ->
-            Discourse.define_type typ_type.type_uid typ_id;
+          (fun map { typ_id; _} shape ->
+            Discourse.define_type typ_id;
             Shape.Map.add_type map typ_id shape)
           shape_map
           decls
@@ -3855,7 +3851,7 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
         let newenv, mtd, decl = transl_modtype_decl env pmtd in
         Signature_names.check_modtype names pmtd.pmtd_loc mtd.mtd_id;
         let id = mtd.mtd_id in
-        Discourse.define_modtype mtd.mtd_uid id;
+        Discourse.define_modtype id;
         let map = Shape.Map.add_module_type shape_map id decl.mtd_uid in
         Tstr_modtype mtd, [Sig_modtype (id, decl, Exported)], map, newenv
     | Pstr_open sod ->
