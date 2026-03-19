@@ -22,13 +22,13 @@ end)
 
 module Paths = struct
   module T = struct
-    type t = Shape.Sig_component_kind.t * Path.t
+    type t = Shape.Sig_component_kind.t * Shape.Uid.t * Path.t
 
     (* Since we are versing these paths in a different structure (the
         priority queue) before shortening, it does not seems useful tu use a
         custom path comparison function here. *)
 
-    let compare (_, p1) (_, p2) = Path.compare p1 p2
+    let compare (_, _, p1) (_, _, p2) = Path.compare p1 p2
   end
 
   include Set.Make (T)
@@ -36,7 +36,7 @@ end
 
 let pp_paths ppf t =
   let pp_sep ppf () = Format.fprintf ppf ";@;" in
-  let paths = Paths.elements t |> List.map (fun (_, p) -> p) in
+  let paths = Paths.elements t |> List.map (fun (_, _, p) -> p) in
   Format.pp_print_list ~pp_sep Path.print ppf paths
 
 module String_map = Misc_stdlib.String.Map
@@ -162,7 +162,7 @@ type discourse = { paths : t; substs : Lid_set.t Path.Map.t }
 let empty_discourse = { paths = empty; substs = Path.Map.empty }
 let g = Local_store.s_ref empty_discourse
 
-let add_ident kind id =
+let add_ident kind uid id =
   let lid = Longident.Lident (Ident.name id) in
   let path = Path.Pident id in
-  g := { !g with paths = add lid (kind, path) !g.paths }
+  g := { !g with paths = add lid (kind, uid, path) !g.paths }
