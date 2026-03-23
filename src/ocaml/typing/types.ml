@@ -783,6 +783,7 @@ module type Wrapped = sig
     md_loc: Location.t;
     md_uid: Uid.t;
     md_discourse: Discourse_types.t;
+    md_discourse_alias: Discourse_types.Item.t option;
   }
 
   and modtype_declaration =
@@ -866,7 +867,7 @@ module Map_wrapped(From : Wrapped)(To : Wrapped) = struct
     }
 
   let module_declaration m {md_type; md_modalities; md_attributes;
-    md_loc; md_uid; md_discourse} =
+    md_loc; md_uid; md_discourse; md_discourse_alias} =
     To.{
       md_type = module_type m md_type;
       md_modalities;
@@ -874,6 +875,7 @@ module Map_wrapped(From : Wrapped)(To : Wrapped) = struct
       md_loc;
       md_uid;
       md_discourse;
+      md_discourse_alias;
     }
 
   let modtype_declaration m
