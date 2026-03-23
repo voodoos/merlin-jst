@@ -20,19 +20,17 @@ module Lid_set = Set.Make (struct
   let compare a b = compare_longidents a b
 end)
 
-module Paths = struct
-  module T = struct
-    type t = Shape.Sig_component_kind.t * Path.t
+module Item = struct
+  type t = Shape.Sig_component_kind.t * Path.t
 
-    (* Since we are versing these paths in a different structure (the
-        priority queue) before shortening, it does not seems useful tu use a
-        custom path comparison function here. *)
+  (* Since we are versing these paths in a different structure (the
+      priority queue) before shortening, it does not seems useful tu use a
+      custom path comparison function here. *)
 
-    let compare (_, p1) (_, p2) = Path.compare p1 p2
-  end
-
-  include Set.Make (T)
+  let compare (_, p1) (_, p2) = Path.compare p1 p2
 end
+
+module Paths = Set.Make (Item)
 
 let pp_paths ppf t =
   let pp_sep ppf () = Format.fprintf ppf ";@;" in
