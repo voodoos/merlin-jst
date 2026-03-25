@@ -88,7 +88,7 @@ This mocks the Async --include--> Async_kernel --exports--> Deferred
           "line": 3,
           "col": 7
         },
-        "type": "int Async_kernel.Deferred.t",
+        "type": "int Deferred.t",
         "tail": "no"
       }
     ],

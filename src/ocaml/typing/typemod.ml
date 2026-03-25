@@ -3060,8 +3060,9 @@ and type_module_aux ~alias ~hold_locks sttn funct_body anchor env
       let me, shape =  type_module_path_aux ~alias ~hold_locks
         sttn env path mode_with_locks lid smod in
       let discourse_item = (Sig_component_kind.Module, path) in
+      let discourse_alias = Some (lid, discourse_item) in
       me, shape,
-      Discourse_types.singleton lid.txt discourse_item, Some discourse_item
+      Discourse_types.singleton lid.txt discourse_item, discourse_alias
   | Pmod_structure sstr ->
       Env.check_no_open_quotations smod.pmod_loc env Env.Struct_qt;
       let (str, sg, mode, names, shape, _finalenv) =
@@ -3634,14 +3635,18 @@ and type_structure ?(toplevel = None) ?(keep_warnings = false) funct_body anchor
     let sg =
       match discourse_alias with
       | None -> sg
-      | Some (m, path) ->
+      | Some (lid, (m, path)) ->
         List.map (function
           | Sig_module (id, pres, decl, rec_status, visibility) ->
-              let md_discourse_alias =
-                Some (m, Path.Pdot (path, Ident.name id))
-              in
-              let decl = { decl with md_discourse_alias } in
-              Sig_module (id, pres, decl, rec_status, visibility)
+            let md_discourse_alias =
+              let name = Ident.name id in
+              let lid = { txt = Longident.Ldot (lid.txt, name);
+                          loc = Location.ghostify lid.Location.loc } in
+              let path = Path.Pdot (path, name) in
+              Some (lid, (m, path))
+            in
+            let decl = { decl with md_discourse_alias } in
+            Sig_module (id, pres, decl, rec_status, visibility)
           | sig_item -> sig_item)
           sg
     in

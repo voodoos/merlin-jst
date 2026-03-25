@@ -82,6 +82,10 @@ let log_usage ?loc kind path =
         (fun fmt -> Format.pp_print_option Location.print_loc fmt)
         loc)
 
+(* This might not be necessary if we have a clearer two-step process ?
+   Currently the handling of aliases can create loops. *)
+let already_used : (Path.t, unit) Hashtbl.t = Hashtbl.create 256
+
 (** [add_path_to_discourse] adds one path from U to the Discourse, eventually
     adding the additionnal paths described by the rules for D. TODO this could
     and probably should be done lazily.
@@ -90,6 +94,7 @@ let log_usage ?loc kind path =
           path within it, then that module path is also in D. Should we consider
           only [Papply] paths or all path components for addition to D ?  *)
 let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
+  (* let log = log ~title:"add_path_to_discourse" in *)
   log ~title:"add_path_to_discourse" "Adding %s %a %a"
     (Shape.Sig_component_kind.to_string kind)
     Logger.fmt
@@ -103,6 +108,26 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
     | Module ->
       (* TODO This should probably be done lazily *)
       let md = Env.find_module_lazy path env in
+      let { paths; substs } =
+        match md.md_discourse_alias with
+        | None -> { paths; substs }
+        | Some (lid, (_, path)) -> begin
+          try
+            let path', _ = Env.find_module_by_name_lazy lid.txt env in
+            log ~title:"add_path_to_discourse" "Adding alias: %a %a %a"
+              Logger.fmt
+              (Fun.flip Pprintast.longident lid.txt)
+              Logger.fmt (Fun.flip Path.print path) Logger.fmt
+              (Fun.flip Path.print path');
+
+            if Hashtbl.mem already_used path' then { paths; substs }
+            else begin
+              Hashtbl.add already_used path' ();
+              add_used env Module lid path' { paths; substs }
+            end
+          with Not_found -> { paths; substs }
+        end
+      in
       (* D5. If a module path is in U and its module description was written then
          the paths used in that description are in D *)
       let paths = Lid_trie.union paths md.md_discourse in
@@ -207,7 +232,7 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
   { paths; substs }
 
 (** [add_used] adds all parts of a used path to the Discourse (U1, D2) *)
-let add_used env kind lid path =
+and add_used env kind lid path t =
   let mkloc l = Location.mkloc l lid.Location.loc in
   let rec loop acc kind lid path =
     let lid, loc = (lid.Location.txt, lid.Location.loc) in
@@ -223,7 +248,10 @@ let add_used env kind lid path =
       loop acc Module (mkloc l2) p2
     | _, _ -> acc
   in
-  if record_usages then g := loop !g kind lid path
+  loop t kind lid path
+
+let add_used env kind lid path =
+  if record_usages then g := add_used env kind lid path !g
 
 let lid_and_path_of_ident ?root_lid ?root_path id =
   let lid =

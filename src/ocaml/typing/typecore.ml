@@ -430,7 +430,7 @@ let type_module =
   ref ((fun _env _md -> assert false) :
        Env.t -> Parsetree.module_expr ->
          Typedtree.module_expr * Shape.t *
-         Discourse_types.t * Discourse_types.Item.t option)
+         Discourse_types.t * (Longident.t loc * Discourse_types.Item.t) option)
 
 (* Forward declaration, to be filled in by Typemod.type_open *)
 

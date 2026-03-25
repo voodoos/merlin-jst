@@ -354,8 +354,8 @@ val report_error: loc:Location.t -> Env.t -> error -> Location.error
 (* Forward declaration, to be filled in by Typemod.type_module *)
 val type_module:
   (Env.t -> Parsetree.module_expr ->
-    Typedtree.module_expr *
-    Shape.t * Discourse_types.t * Discourse_types.Item.t option) ref
+    Typedtree.module_expr * Shape.t *
+    Discourse_types.t * (Longident.t loc * Discourse_types.Item.t) option) ref
 (* Forward declaration, to be filled in by Typemod.type_open *)
 val type_open:
   (?used_slot:bool ref -> override_flag -> Env.t -> Location.t ->
