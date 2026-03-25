@@ -783,7 +783,7 @@ module type Wrapped = sig
     md_loc: Location.t;
     md_uid: Uid.t;
     md_discourse: Discourse_types.t;
-    md_discourse_alias: Discourse_types.Item.t option;
+    md_discourse_alias: (Longident.t loc * Discourse_types.Item.t) option;
   }
 
   and modtype_declaration =
