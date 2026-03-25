@@ -173,9 +173,12 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
             (fun (paths, substs) ->
               let add kind id =
                 log ~title:"add_path_to_discourse"
-                  "Adding signature component %s %a"
-                  (Shape.Sig_component_kind.to_string kind) Logger.fmt
-                  (fun fmt -> Ident.print fmt id);
+                  "Adding signature component %s %a (%a)"
+                  (Shape.Sig_component_kind.to_string kind)
+                  Logger.fmt
+                  (fun fmt -> Ident.print fmt id)
+                  Logger.fmt
+                  (Fun.flip Path.print (pdot id));
                 Lid_trie.add (ldot id) (kind, pdot id) paths
               in
               function
