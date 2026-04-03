@@ -111,19 +111,34 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
       let { paths; substs } =
         match md.md_discourse_alias with
         | None -> { paths; substs }
-        | Some (lid, (_, path)) -> begin
+        | Some (alias_lid, (_, alias_path)) -> begin
           try
-            let path', _ = Env.find_module_by_name_lazy lid.txt env in
+            let path', _ = Env.find_module_by_name_lazy alias_lid.txt env in
             log ~title:"add_path_to_discourse" "Adding alias: %a %a %a"
               Logger.fmt
-              (Fun.flip Pprintast.longident lid.txt)
-              Logger.fmt (Fun.flip Path.print path) Logger.fmt
+              (Fun.flip Pprintast.longident alias_lid.txt)
+              Logger.fmt
+              (Fun.flip Path.print alias_path)
+              Logger.fmt
               (Fun.flip Path.print path');
 
+            let substs =
+              log ~title:"add_path_to_discourse"
+                "New substitution 1' %a -> %a (%a)" Logger.fmt
+                (Fun.flip Path.print path) Logger.fmt
+                (Fun.flip Pprintast.longident alias_lid.txt)
+                Logger.fmt
+                (Fun.flip Location.print_loc alias_lid.loc);
+              Path.Map.update path
+                (function
+                  | None -> Some (Lid_set.singleton alias_lid.txt)
+                  | Some lids -> Some (Lid_set.add alias_lid.txt lids))
+                substs
+            in
             if Hashtbl.mem already_used path' then { paths; substs }
             else begin
               Hashtbl.add already_used path' ();
-              add_used env Module lid path' { paths; substs }
+              add_used env Module alias_lid path' { paths; substs }
             end
           with Not_found -> { paths; substs }
         end
