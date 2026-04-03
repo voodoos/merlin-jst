@@ -70,6 +70,19 @@ let pp_substs fmt substs =
   in
   Format.pp_print_list ~pp_sep pp_v fmt substs
 
+let fold_on_common_lid_and_path_segments ~init ~kind ~f (lid, path) =
+  (* TODO : is it always true that paths prefixes are always Module ?*)
+  let rec aux acc kind ((lid, path) : Longident.t * Path.t) =
+    let acc = f acc kind (lid, path) in
+    match (lid, path) with
+    | Lident _, Pident _ -> acc
+    | Ldot (l, _), Pdot (p, _) -> aux acc Module (l, p)
+    | Lapply (l1, l2), Papply (p1, p2) ->
+      let acc = aux acc Module (l2, p2) in
+      aux acc Module (l1, p1)
+    | _ -> acc
+  in
+  aux init kind (lid, path)
 let debug_print fmt =
   Format.fprintf fmt "Size: %i@;%a@;%a" (Lid_trie.size !g.paths) pp !g.paths
     pp_substs !g.substs
@@ -251,22 +264,13 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
 
 (** [add_used] adds all parts of a used path to the Discourse (U1, D2) *)
 and add_used env kind lid path t =
-  let mkloc l = Location.mkloc l lid.Location.loc in
-  let rec loop acc kind lid path =
-    let lid, loc = (lid.Location.txt, lid.Location.loc) in
+  let loc = lid.Location.loc in
+  let f acc kind (lid, path) =
     let () = log_usage ~loc kind path in
-    let acc =
-      try add_path_to_discourse env acc kind lid path
-      with Not_found | Env.Error (Lookup_error _) -> acc
-    in
-    match ((path : Path.t), (lid : Longident.t)) with
-    | Pdot (path, _), Ldot (lid, _) -> loop acc Module (mkloc lid) path
-    | Papply (p1, p2), Lapply (l1, l2) ->
-      let acc = loop acc Module (mkloc l1) p1 in
-      loop acc Module (mkloc l2) p2
-    | _, _ -> acc
+    try add_path_to_discourse env acc kind lid path
+    with Not_found | Env.Error (Lookup_error _) -> acc
   in
-  loop t kind lid path
+  fold_on_common_lid_and_path_segments ~init:t ~kind ~f (lid.txt, path)
 
 let add_used env kind lid path =
   if record_usages then g := add_used env kind lid path !g
