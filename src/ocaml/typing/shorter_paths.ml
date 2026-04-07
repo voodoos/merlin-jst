@@ -247,6 +247,13 @@ let normalize env kind path =
   | Module -> Env.normalize_module_path None env path
   | Module_type -> Env.normalize_modtype_path env path
 
+let normalize_for_uid env kind path =
+  let npath = normalize env kind path in
+  match kind with
+  | Type -> (Env.find_type npath env).type_uid
+  | Module -> (Env.find_module_lazy npath env).md_uid
+  | Module_type -> (Env.find_modtype_lazy npath env).mtd_uid
+
 let find_path_in_env env (kind, lid, path) =
   (* TODO it might be worth it to memoïze this function *)
   match find_by_name env kind lid with
@@ -255,20 +262,23 @@ let find_path_in_env env (kind, lid, path) =
       Logger.fmt
       (Fun.flip Pprintast.longident lid);
     None
-  | path_in_env ->
+  | path_in_env -> (
     log ~title:"find_path_in_env" "Lid: %a [%a] Path in env: %a" Logger.fmt
       (Fun.flip Pprintast.longident lid)
       Logger.fmt (Fun.flip Path.print path) Logger.fmt
       (Fun.flip Path.print path_in_env);
     if Path.compare path path_in_env == 0 then Some path_in_env
     else
-      let path' = normalize env kind path in
-      let path_in_env' = normalize env kind path_in_env in
-      log ~title:"find_path_in_env" "%a <>? %a" Logger.fmt
-        (Fun.flip Path.print path')
-        Logger.fmt
-        (Fun.flip Path.print path_in_env');
-      if Path.compare path' path_in_env' == 0 then Some path_in_env else None
+      try
+        let path' = normalize_for_uid env kind path in
+        let path_in_env' = normalize_for_uid env kind path_in_env in
+        log ~title:"find_path_in_env" "%a <>? %a" Logger.fmt
+          (Fun.flip Shape.Uid.print path')
+          Logger.fmt
+          (Fun.flip Shape.Uid.print path_in_env');
+        if Shape.Uid.compare path' path_in_env' == 0 then Some path_in_env
+        else None
+      with Not_found -> None)
 
 let find_best_lid env ~canon_path table target_kind =
   match Path.Map.find_opt canon_path table with

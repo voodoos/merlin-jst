@@ -126,7 +126,7 @@ Normalization will stop here because 'a <> 'a Or_error.t
   > B async_kernel
   > EOF
 
-FIXME: We expect int Deferred.Or_error.t
+We expect int Deferred.Or_error.t
   $ $MERLIN single type-enclosing -position 3:5 \
   > -filename test.ml < test.ml | jq '.value[0].type'
-  "int Async_kernel.Deferred.Or_error.t"
+  "int Deferred.Or_error.t"
