@@ -10,8 +10,14 @@ This mocks the Async --include--> Async_kernel --exports--> Deferred
   > EOF
 
   $ $OCAMLC -c async_kernel__.ml -no-alias-deps 2>/dev/null
-
-
+  $ $MERLIN_TEST_OCAML_PATH/bin/ocamlobjinfo -quiet -discourse async_kernel__.cmi
+  Discourse: <longident> [<paths>]
+  Deferred: alias: Async_kernel__Deferred [Async_kernel__Deferred!]
+    Async_kernel__Deferred [Async_kernel__Deferred!]
+  
+  Deferred0: alias: Async_kernel__Deferred0 [Async_kernel__Deferred0!]
+    Async_kernel__Deferred0 [Async_kernel__Deferred0!]
+  
   $ cat >deferred0.ml <<'EOF'
   > type +'a t = 'a
   > let create : 'a -> 'a t = Fun.id
@@ -55,7 +61,13 @@ This mocks the Async --include--> Async_kernel --exports--> Deferred
   > EOF
 
   $ $OCAMLC -c async.ml -I ../async_kernel
-
+  $ $MERLIN_TEST_OCAML_PATH/bin/ocamlobjinfo -quiet -discourse async.cmi
+  Discourse: <longident> [<paths>]
+  Deferred: alias: Async_kernel.Deferred [Async_kernel!.Deferred]
+    Deferred [Async_kernel__!.Deferred]
+  
+  Let_syntax: alias: Async_kernel.Let_syntax [Async_kernel!.Let_syntax] 
+  
   $ cd ..
 
   $ cat >test.ml <<'EOF'
@@ -74,7 +86,6 @@ This mocks the Async --include--> Async_kernel --exports--> Deferred
   > B async_kernel
   > EOF
 
-> -log-file - -log-section discourse,short-paths \
   $ $MERLIN single type-enclosing -position 3:5 \
   > -filename test.ml < test.ml 
   {
