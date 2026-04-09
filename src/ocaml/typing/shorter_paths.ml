@@ -142,11 +142,11 @@ module String_map = Discourse_types.String_map
 let priority_queue : Priority_queue.t ref =
   Local_store.s_ref Priority_queue.empty
 let not_in_env : Lid_trie.t ref = Local_store.s_ref Lid_trie.empty
-let canon_table : Lid_path_set.t Path.Map.t ref =
-  Local_store.s_ref Path.Map.empty
+let canon_table : Lid_path_set.t Path.Tbl.t ref =
+  Local_store.s_table Path.Tbl.create 256
 
 let pp_table fmt t =
-  Path.Map.iter
+  Path.Tbl.iter
     (fun p lids ->
       let lids = Lid_path_set.to_list lids in
       Format.fprintf fmt "@;%a -> {%a}" Path.print p
@@ -279,7 +279,7 @@ let find_path_in_env env (kind, lid, path) =
       with Not_found -> None)
 
 let find_best_lid env ~canon_path table target_kind =
-  match Path.Map.find_opt canon_path table with
+  match Path.Tbl.find_opt table canon_path with
   | None -> None
   | Some lids ->
     Lid_path_set.to_seq lids
@@ -295,7 +295,7 @@ let improve_lid env ~canon_path table kind lid =
 type state =
   { queue : Priority_queue.t;
     not_in_env : Discourse_types.t;
-    table : Lid_path_set.t Path.Map.t
+    table : Lid_path_set.t Path.Tbl.t
   }
 let process_queue env state ~canon_path target_kind best =
   let rec fill_by_level ~compare seq state best_lid =
@@ -354,16 +354,17 @@ let process_queue env state ~canon_path target_kind best =
           (fun fmt -> Pprintast.longident fmt lid)
           Logger.fmt
           (fun fmt -> Path.print fmt path);
-        let table =
-          let update = function
-            | None -> Some (Lid_path_set.singleton item)
-            | Some set -> Some (Lid_path_set.add item set)
+        let () =
+          let update =
+            match Path.Tbl.find_opt state.table canonical_path with
+            | None -> Lid_path_set.singleton item
+            | Some set -> Lid_path_set.add item set
           in
-          Path.Map.update canonical_path update state.table
+          Path.Tbl.replace state.table canonical_path update
         in
         (* And remove it from the queue *)
         let queue = Priority_queue.remove item state.queue in
-        { state with queue; table }
+        { state with queue }
       end
       | _ -> begin
         log ~title:"fill_by_level" "Name: %a invalid in the current env"
@@ -464,7 +465,7 @@ let shorten ~env ~initial ~canon_path kind =
       Format.pp_print_option Lid_path_set.pp_elt f best);
 
   (* Is there a better one in the queue ? *)
-  let best_lid, { queue = queue'; not_in_env = not_in_env'; table = table' } =
+  let best_lid, { queue = queue'; not_in_env = not_in_env'; _ } =
     let not_in_env = !not_in_env in
     process_queue env { queue; not_in_env; table } ~canon_path kind best
   in
@@ -475,7 +476,6 @@ let shorten ~env ~initial ~canon_path kind =
   (* Update the persistent queues and table *)
   priority_queue := queue';
   not_in_env := not_in_env';
-  canon_table := table';
 
   match best_lid with
   | None ->
