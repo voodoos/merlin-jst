@@ -171,8 +171,8 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
           (* We have to follow aliases to be able to add module components to
              the discourse.
 
-             TODO this makes the ident counter explode, is that fine ? Or should
-                  we do this lazily ? *)
+             TODO now that we have md_discourse_aliases, this might be redundant
+             ? *)
           let path' = Env.normalize_module_path None env p in
           let { paths; substs } =
             add_path_to_discourse env { paths; substs } Module lid path'
