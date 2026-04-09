@@ -115,6 +115,7 @@ module Lid_path_set = struct
   include Set.Make (T)
 end
 
+module Uid = Shape.Uid
 module Priority_queue = Lid_path_set
 module Lid_trie = Discourse_types.Lid_trie
 module Lid_set = Discourse_types.Lid_set
@@ -270,14 +271,11 @@ let find_path_in_env env (kind, lid, path) =
     if Path.compare path path_in_env == 0 then Some path_in_env
     else
       try
-        let path' = normalize_for_uid env kind path in
-        let path_in_env' = normalize_for_uid env kind path_in_env in
+        let uid = normalize_for_uid env kind path in
+        let uid' = normalize_for_uid env kind path_in_env in
         log ~title:"find_path_in_env" "%a <>? %a" Logger.fmt
-          (Fun.flip Shape.Uid.print path')
-          Logger.fmt
-          (Fun.flip Shape.Uid.print path_in_env');
-        if Shape.Uid.compare path' path_in_env' == 0 then Some path_in_env
-        else None
+          (Fun.flip Uid.print uid) Logger.fmt (Fun.flip Uid.print uid');
+        if Uid.compare uid uid' == 0 then Some path_in_env else None
       with Not_found -> None)
 
 let find_best_lid env ~canon_path table target_kind =
@@ -343,6 +341,11 @@ let process_queue env state ~canon_path target_kind best =
       in
       match is_valid_in_current_env with
       | Some _path_in_env -> begin
+        (* Even if it would feel natural to use Uids as keys in the table,
+           Trying to `Env.find_*` them naively here would results in unwanted
+           cmi loading. TODO: we could try to isolate these cases were that
+           happen, but even then it's unclear which Uid we would use to identity
+           them. *)
         let canonical_path = normalize env kind path in
         log ~title:"fill_by_level" "Updating table: %a -> { %a [%a] }"
           Logger.fmt
@@ -447,7 +450,7 @@ let shorten ~env ~initial ~canon_path kind =
     fill_queue paths queue
   in
 
-  log ~title:"shorten" "Current queue: %a" Logger.fmt (fun fmt ->
+  log_dbg ~title:"shorten" "Current queue: %a" Logger.fmt (fun fmt ->
       Format.pp_print_seq ~pp_sep:Format.pp_print_space Lid_path_set.pp_elt fmt
         (Priority_queue.to_seq queue));
 
