@@ -1,4 +1,5 @@
-Simpler reproduction of #14
+This is not a correct reproduction for #14 but did show unexpected behavior at
+some point.
 
   $ mkdir async_kernel
   $ cd async_kernel
@@ -49,9 +50,8 @@ Simpler reproduction of #14
   $ cat >test.ml <<'EOF'
   > open! Async
   > 
-  > let foo = Async_kernel__Deferred.create 5
+  > let foo = Async_kernel.Deferred.create 5
   > EOF
-
 
   $ $OCAMLC -c test.ml  -I async -I async_kernel
 
@@ -79,8 +79,6 @@ Simpler reproduction of #14
   t: 
   create: t [t/276[1]]
 
-
-> -log-file - -log-section discourse,short-paths \
   $ $MERLIN single type-enclosing -position 3:5 \
   > -filename test.ml < test.ml 
   {
@@ -95,7 +93,7 @@ Simpler reproduction of #14
           "line": 3,
           "col": 7
         },
-        "type": "int Async_kernel.Deferred.t",
+        "type": "int Deferred.t",
         "tail": "no"
       }
     ],
