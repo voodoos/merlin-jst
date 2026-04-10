@@ -248,12 +248,11 @@ let normalize env kind path =
   | Module -> Env.normalize_module_path None env path
   | Module_type -> Env.normalize_modtype_path env path
 
-let normalize_for_uid env kind path =
-  let npath = normalize env kind path in
+let find_uid env kind path =
   match kind with
-  | Type -> (Env.find_type npath env).type_uid
-  | Module -> (Env.find_module_lazy npath env).md_uid
-  | Module_type -> (Env.find_modtype_lazy npath env).mtd_uid
+  | Type -> (Env.find_type path env).type_uid
+  | Module -> (Env.find_module_lazy path env).md_uid
+  | Module_type -> (Env.find_modtype_lazy path env).mtd_uid
 
 let find_path_in_env env (kind, lid, path) =
   (* TODO it might be worth it to memoïze this function *)
@@ -271,11 +270,21 @@ let find_path_in_env env (kind, lid, path) =
     if Path.compare path path_in_env == 0 then Some path_in_env
     else
       try
-        let uid = normalize_for_uid env kind path in
-        let uid' = normalize_for_uid env kind path_in_env in
+        let path = normalize env kind path in
+        let path' = normalize env kind path_in_env in
         log ~title:"find_path_in_env" "%a <>? %a" Logger.fmt
-          (Fun.flip Uid.print uid) Logger.fmt (Fun.flip Uid.print uid');
-        if Uid.compare uid uid' == 0 then Some path_in_env else None
+          (Fun.flip Path.print path) Logger.fmt
+          (Fun.flip Path.print path');
+        if Path.compare path path' == 0 then Some path_in_env
+        else begin
+          (* [find_uid] might trigger more cmi loading. we only do it if we were
+             not able to check validity by comparing the paths. *)
+          let uid = find_uid env kind path in
+          let uid' = find_uid env kind path' in
+          log ~title:"find_path_in_env" "%a <>? %a" Logger.fmt
+            (Fun.flip Uid.print uid) Logger.fmt (Fun.flip Uid.print uid');
+          if Uid.compare uid uid' == 0 then Some path_in_env else None
+        end
       with Not_found -> None)
 
 let find_best_lid env ~canon_path table target_kind =
