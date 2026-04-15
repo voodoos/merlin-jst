@@ -17,7 +17,8 @@
 
 type file = string
 
-module String = Misc.String
+module Int = Misc.Stdlib.Int
+module String = Misc.Stdlib.String
 
 module Counters = struct
   type t = int String.Map.t

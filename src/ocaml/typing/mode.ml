@@ -15,13 +15,6 @@
 (* warn on fragile matches *)
 [@@@warning "+4"]
 
-(* Merlin-specific: change some module paths to match the compiler *)
-module Misc = struct
-  include Misc
-  module Stdlib = Misc_stdlib
-  include Misc_stdlib
-end
-
 open Allowance
 open Solver_intf
 open Solver

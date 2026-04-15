@@ -18,7 +18,7 @@ module type Axis_ops = sig
 
   val to_string : t -> string
 
-  val less_or_equal : t -> t -> Misc_stdlib.Le_result.t
+  val less_or_equal : t -> t -> Misc.Le_result.t
 
   val equal : t -> t -> bool
 end

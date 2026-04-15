@@ -286,11 +286,11 @@ let constant f = function
       paren (first_is '-' i) (fun f (i,m) -> pp f "%s%c" i m) f (i,m)
   | Pconst_unboxed_float (x, None) ->
       paren (first_is '-' x) (fun f -> pp f "%s") f
-        (Misc_stdlib.format_as_unboxed_literal x)
+        (Misc.format_as_unboxed_literal x)
   | Pconst_unboxed_float (x, Some suffix)
   | Pconst_unboxed_integer (x, suffix) ->
       paren (first_is '-' x) (fun f (x, suffix) -> pp f "%s%c" x suffix) f
-        (Misc_stdlib.format_as_unboxed_literal x, suffix)
+        (Misc.format_as_unboxed_literal x, suffix)
 
 let bool f = function
   | false -> pp f "false"
@@ -411,14 +411,14 @@ and jkind_annotation ?(nested = false) ctxt f k = match k.pjka_desc with
     begin match modes with
     | [] -> Misc.fatal_error "malformed jkind annotation"
     | _ :: _ ->
-      Misc_stdlib.pp_parens_if nested (fun f (t, modes) ->
+      Misc.pp_parens_if nested (fun f (t, modes) ->
         pp f "%a mod %a"
           (jkind_annotation ~nested:true ctxt) t
           (pp_print_list ~pp_sep:pp_print_space mode) modes
       ) f (t, modes)
     end
   | Pjk_with (t, ty, modalities) ->
-    Misc_stdlib.pp_parens_if nested (fun f (t, ty, modalities) ->
+    Misc.pp_parens_if nested (fun f (t, ty, modalities) ->
       pp f "%a with %a%a"
         (jkind_annotation ~nested:true ctxt) t
         (core_type ctxt) ty
@@ -426,7 +426,7 @@ and jkind_annotation ?(nested = false) ctxt f k = match k.pjka_desc with
     ) f (t, ty, modalities)
   | Pjk_kind_of ty -> pp f "(kind_of_ %a)" (core_type ctxt) ty
   | Pjk_product ts ->
-    Misc_stdlib.pp_parens_if nested (fun f ts ->
+    Misc.pp_parens_if nested (fun f ts ->
       pp f "@[%a@]" (list (jkind_annotation ~nested:true ctxt) ~sep:"@ & ") ts
     ) f ts
 

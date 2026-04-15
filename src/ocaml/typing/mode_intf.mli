@@ -207,7 +207,7 @@ module type Axis = sig
 
   (** Compare two axes in implication order. If A implies B, then A is before B.
   *)
-  val compare : 'a t -> 'b t -> ('a, 'b) Misc_stdlib.comparison
+  val compare : 'a t -> 'b t -> ('a, 'b) Misc.comparison
 
   type packed = P : 'a t -> packed
 
@@ -569,7 +569,7 @@ module type S = sig
 
     val print : Fmt.formatter -> ('p, 'r) t -> unit
 
-    val equal : ('p, 'r0) t -> ('p, 'r1) t -> ('r0, 'r1) Misc_stdlib.eq option
+    val equal : ('p, 'r0) t -> ('p, 'r1) t -> ('r0, 'r1) Misc.eq option
   end
 
   module type Mode := sig
@@ -807,7 +807,7 @@ module type S = sig
 
       val is_areality :
         'a Alloc.Axis.t ->
-        (('a, Locality.Const.t) Misc_stdlib.eq, 'a Value.Axis.t) Either.t
+        (('a, Locality.Const.t) Misc.eq, 'a Value.Axis.t) Either.t
     end
 
     val locality_as_regionality : Locality.Const.t -> Regionality.Const.t

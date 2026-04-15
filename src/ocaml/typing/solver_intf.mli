@@ -22,7 +22,7 @@ module type Equal = sig
   val equal :
     ('a0, 'b, 'l0 * 'r0) t ->
     ('a1, 'b, 'l1 * 'r1) t ->
-    ('a0, 'a1) Misc_stdlib.eq option
+    ('a0, 'a1) Misc.eq option
 end
 
 (** A collection of lattices, indexed by [obj]; *)
@@ -49,7 +49,7 @@ module type Lattices = sig
 
   (** Compares two objects. Used for deduplication only; it is sound (but not
       recommended) to return a nonzero value for equal objects. *)
-  val compare_obj : 'a obj -> 'b obj -> ('a, 'b) Misc_stdlib.comparison
+  val compare_obj : 'a obj -> 'b obj -> ('a, 'b) Misc.comparison
 
   val print_obj : Fmt.formatter -> 'a obj -> unit
 end
@@ -157,7 +157,7 @@ module type Lattices_mono = sig
     'b obj ->
     ('a0, 'b, 'd0) morph ->
     ('a1, 'b, 'd1) morph ->
-    ('a0, 'a1) Misc_stdlib.comparison
+    ('a0, 'a1) Misc.comparison
 
   (** Print morphism *)
   val print_morph : 'b obj -> Fmt.formatter -> ('a, 'b, 'd) morph -> unit

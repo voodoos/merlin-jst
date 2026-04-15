@@ -16,8 +16,6 @@
 open Format_doc
 open Outcometree
 
-module Misc = Misc_stdlib
-
 exception Ellipsis
 
 let cautious f ppf arg =

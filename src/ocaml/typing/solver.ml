@@ -17,12 +17,6 @@ open Allowance
 open Solver_intf
 module Fmt = Format_doc
 
-module Misc = struct
-  include Misc
-  module Stdlib = Misc_stdlib
-  include Misc_stdlib
-end
-
 module Solver_mono (H : Hint) (C : Lattices_mono) = struct
   type ('a, 'd) hint =
     | Apply :

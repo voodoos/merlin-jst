@@ -13,12 +13,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* Merlin-only: rewrite some module paths to minimize the diff *)
-module Misc = struct
-  include Misc
-  module Stdlib = Misc_stdlib
-end
-
 (* Representation of types and declarations *)
 
 open Allowance
@@ -306,11 +300,11 @@ module Uid = Shape.Uid
 
 (* Maps of methods and instance variables *)
 
-module MethSet = Misc.String.Set
-module VarSet = Misc.String.Set
+module MethSet = Misc.Stdlib.String.Set
+module VarSet = Misc.Stdlib.String.Set
 
-module Meths = Misc.String.Map
-module Vars = Misc.String.Map
+module Meths = Misc.Stdlib.String.Map
+module Vars = Misc.Stdlib.String.Map
 
 (* Value descriptions *)
 
@@ -1505,7 +1499,7 @@ let equal_unsafe_mode_crossing
       ~type_equal
       { unsafe_mod_bounds = mc1; unsafe_with_bounds = wb2 }
       umc2 =
-  Misc.Stdlib.Le_result.equal ~le:Mode.Crossing.le mc1 umc2.unsafe_mod_bounds
+  Misc.Le_result.equal ~le:Mode.Crossing.le mc1 umc2.unsafe_mod_bounds
   && (match wb2, umc2.unsafe_with_bounds with
     | No_with_bounds, No_with_bounds -> true
     | No_with_bounds, With_bounds _ | With_bounds _, No_with_bounds -> false

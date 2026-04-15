@@ -71,7 +71,7 @@ let check_uniqueness_of_merged (type v) l1 l2 =
   let open Argument in
   let exception Found_duplicate of v duplicate in
   match
-    Misc_stdlib.List.merge_iter l1 l2
+    Misc.Stdlib.List.merge_iter l1 l2
       ~cmp:Argument.compare_by_param
       ~left_only:ignore
       ~right_only:ignore
@@ -420,7 +420,7 @@ module With_precision = struct
     (* Compute the meet, assuming the visible parts are equal *)
     let rec meet glob1 glob2 =
       let visible_args_rev =
-        Misc_stdlib.List.merge_fold glob1.visible_args glob2.visible_args
+        Misc.Stdlib.List.merge_fold glob1.visible_args glob2.visible_args
           ~cmp:Argument.compare_by_param
           ~init:[]
           ~left_only:(fun _ _ -> raise Inconsistent)
@@ -429,7 +429,7 @@ module With_precision = struct
       in
       let hidden_args_rev =
         (* Keep only the hidden arguments that appear in both lists *)
-        Misc_stdlib.List.merge_fold glob1.hidden_args glob2.hidden_args
+        Misc.Stdlib.List.merge_fold glob1.hidden_args glob2.hidden_args
           ~cmp:Argument.compare_by_param
           ~init:[]
           ~left_only:(fun acc_rev _ -> acc_rev)

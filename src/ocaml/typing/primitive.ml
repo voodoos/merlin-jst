@@ -18,7 +18,7 @@
 open Misc
 open Parsetree
 
-module String = Misc_stdlib.String
+module String = Misc.Stdlib.String
 
 type unboxed_or_untagged_integer =
   | Unboxed_int64
