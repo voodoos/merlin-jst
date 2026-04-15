@@ -32,7 +32,7 @@ val fatal_errorf: ('a, Format.formatter, unit, 'b) format4 -> 'a
 val fatal_errorf_doc: ('a, Format_doc.formatter, unit, 'b) format4 -> 'a
   (** Like [fatal_errorf] but using [Format_doc]. *)
 
-exception Fatal_error
+exception Fatal_error of string * Printexc.raw_backtrace
 
 (** {1 Exceptions and finalization} *)
 
@@ -430,7 +430,7 @@ val find_in_path_rel: string list -> string -> string
  (** Normalize file name [Foo.ml] to [foo.ml] *)
 val normalized_unit_filename: string -> string
 
-val find_in_path_normalized: string list -> string -> string
+val find_in_path_normalized: ?fallback:string -> string list -> string -> string
 (** Same as {!find_in_path_rel} , but search also for normalized unit filename,
     i.e. if name is [Foo.ml], allow [/path/Foo.ml] and [/path/foo.ml] to
     match. *)
@@ -786,6 +786,7 @@ module Error_style : sig
   type setting =
     | Contextual
     | Short
+    | Merlin
 
   val default_setting : setting
 end
@@ -908,6 +909,7 @@ end
 
 (** {1 Handling of magic numbers} *)
 
+(*
 module Magic_number : sig
   (** a typical magic number is "Caml1999I011"; it is formed of an
       alphanumeric prefix, here Caml1990I, followed by a version,
@@ -1093,6 +1095,7 @@ module Magic_number : sig
 
   val all_kinds : kind list
 end
+*)
 
 (** The result of a less-than-or-equal comparison *)
 module Le_result : sig
@@ -1242,3 +1245,42 @@ module Maybe_bounded : sig
   (** [of_int n] creates a bounded integer with bound [n] (not inclusive). *)
   val of_int : int -> t
 end
+
+(** {1 Merlin} *)
+(** These functions are specific to merlin. *)
+
+val exact_file_exists : dirname:string -> basename:string -> bool
+	(* Like [Sys.file_exists], but takes into account case-insensitive file
+	   systems: return true only if the basename (last component of the
+           path) has the correct case. *)
+
+val canonicalize_filename : ?cwd:string -> string -> string
+        (* Ensure that path is absolute (wrt to cwd), by following ".." and "." *)
+
+val expand_glob : ?filter:(string -> bool) -> string -> string list -> string list
+        (* [expand_glob ~filter pattern acc] adds all filenames matching
+          [pattern] and satistfying the [filter] predicate to [acc]*)
+val split_path : string -> string list
+        (* [split_path path] returns the components of [path],
+          including implicit "." if path is not absolute.
+          [split_path "a/b/c"] = ["."; "a"; "b"; "c"]
+          [split_path "/a/b/c"] = ["/"; "a"; "b"; "c"]
+        FIXME: explain windows behavior
+        *)
+
+(* [modules_in_path ~ext path] lists ocaml modules corresponding to
+ * filenames with extension [ext] in given [path]es.
+ * For instance, if there is file "a.ml","a.mli","b.ml" in ".":
+ * - modules_in_path ~ext:".ml" ["."] returns ["A";"B"],
+ * - modules_in_path ~ext:".mli" ["."] returns ["A"] *)
+val modules_in_path : ext:string -> string list -> string list
+
+val time_spent : unit -> float
+(** Returns a more precise measurement of resources usage than
+    Sys.times/Unix.times.
+    Both user and kernel cpu time is accounted.  *)
+
+val unitname: string -> string
+(** Return the name of the OCaml module matching a basename
+    (filename without directory).
+    Remove the extension and capitalize *)
