@@ -746,7 +746,9 @@ let ocaml_ignored_flags =
     "-no-insn-sched";
     "-no-long-frames";
     "-no-unbox-free-vars-of-closures";
-    "-verify-binary-emitter"
+    "-verify-binary-emitter";
+    "-ikinds-debug";
+    "-thunkify-compilation-unit-initialization"
   ]
 
 let ocaml_ignored_parametrized_flags =
@@ -791,7 +793,6 @@ let ocaml_ignored_parametrized_flags =
     "-no-extension";
     "-drawfexpr-to";
     "-dfexpr-to";
-    "-dflexpect-to";
     "-reorder-blocks-random";
     "-heap-reduction-threshold";
     "-flambda2-cse-depth";
