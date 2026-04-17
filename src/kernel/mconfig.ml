@@ -29,7 +29,8 @@ type ocaml =
     zero_alloc_check : Zero_alloc_annotations.Check.t;
     zero_alloc_assert : Zero_alloc_annotations.Assert.t;
     infer_with_bounds : bool;
-    kind_verbosity : int
+    kind_verbosity : int;
+    ikinds : bool
   }
 
 let dump_warnings st =
@@ -63,7 +64,8 @@ let dump_ocaml x =
       ( "zero_alloc_assert",
         `String (Zero_alloc_annotations.Assert.to_string x.zero_alloc_assert) );
       ("infer_with_bounds", `Bool x.infer_with_bounds);
-      ("kind_verbosity", `Int x.kind_verbosity)
+      ("kind_verbosity", `Int x.kind_verbosity);
+      ("ikinds", `Bool x.ikinds)
     ]
 
 (** Some paths can be resolved relative to a current working directory *)
@@ -1006,7 +1008,10 @@ let ocaml_flags =
     ( "-kind-verbosity",
       Marg.int (fun kind_verbosity ocaml -> { ocaml with kind_verbosity }),
       "Set the verbosity used for printing kinds (0=not verbose, 1=expanded, \
-       2=expanded with all mod bounds)" )
+       2=expanded with all mod bounds)" );
+    ( "-ikinds",
+      Marg.bool (fun ikinds ocaml -> { ocaml with ikinds }),
+      "Enable ikinds-based kind checker (experimental)" )
   ]
 
 (** {1 Main configuration} *)
@@ -1037,7 +1042,8 @@ let initial =
         zero_alloc_check = Zero_alloc_annotations.Check.Check_default;
         zero_alloc_assert = Zero_alloc_annotations.Assert.Assert_default;
         infer_with_bounds = false;
-        kind_verbosity = 0
+        kind_verbosity = 0;
+        ikinds = false
       };
     merlin =
       { build_path = [];

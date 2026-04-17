@@ -1567,7 +1567,6 @@ let rec tree_of_modal_typexp mode modal ty =
           (fun () -> Otyp_splice (tree_of_typexp mode alloc_mode ty))
     | Tquote_eval ty ->
         (* We use [Predef]'s [eval] as the syntax, so we need to quote [ty]. *)
-<<<<<<< janestreet/merlin-jst:merge-5.2.0minus-37
         (match best_type_path Predef.path_eval with
         | Nth _ ->
           failwith "printtyp: unexpected Nth as result of best_type_path for eval"
@@ -1575,34 +1574,15 @@ let rec tree_of_modal_typexp mode modal ty =
           let ty = newgenty (Tquote ty) in
           let tyl = apply_subst_opt s [ty] in
           Internal_names.add p';
-          Otyp_constr (tree_of_path (Some Type) p', tree_of_typlist mode tyl))
+          let tyl =
+            wrap_printing_env_unguarded
+              (Env.enter_quotation !printing_env)
+              (fun () -> tree_of_typlist mode tyl)
+          in
+          Otyp_constr (tree_of_path (Some Type) p', tyl))
     | Tnil | Tfield _ ->
         tree_of_typobject mode ty None
     | Tsubst _ ->
-||||||| oxcaml/oxcaml:8cb0afc52527bb3d38ecf4277e6929e0c7a6a4b0
-        let ty = newgenty (Tquote ty) in
-        let p', s = best_type_path Predef.path_eval in
-        let tyl = apply_subst s [ty] in
-        Internal_names.add p';
-        Otyp_constr (tree_of_path (Some Type) p', tree_of_typlist mode tyl)
-    | Tnil | Tfield _ ->
-        tree_of_typobject mode ty None
-    | Tsubst _ ->
-=======
-        let ty = newgenty (Tquote ty) in
-        let p', s = best_type_path Predef.path_eval in
-        let tyl = apply_subst s [ty] in
-        Internal_names.add p';
-        let tyl =
-          wrap_printing_env_unguarded
-            (Env.enter_quotation !printing_env)
-            (fun () -> tree_of_typlist mode tyl)
-        in
-        Otyp_constr (tree_of_path (Some Type) p', tyl)
-    | Tnil | Tfield _ ->
-        tree_of_typobject mode ty None
-    | Tsubst _ ->
->>>>>>> oxcaml/oxcaml:eb63e0e41869ede83ad3001e4facdff54383861d
         (* This case should only happen when debugging the compiler *)
         Otyp_stuff "<Tsubst>"
     | Tlink _ ->

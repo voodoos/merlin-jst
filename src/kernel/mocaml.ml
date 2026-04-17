@@ -70,7 +70,8 @@ let setup_reader_config config =
   zero_alloc_check := ocaml.zero_alloc_check;
   zero_alloc_assert := ocaml.zero_alloc_assert;
   infer_with_bounds := ocaml.infer_with_bounds;
-  kind_verbosity := ocaml.kind_verbosity
+  kind_verbosity := ocaml.kind_verbosity;
+  ikinds := ocaml.ikinds
 
 let init_params params =
   List.iter params ~f:(fun s ->

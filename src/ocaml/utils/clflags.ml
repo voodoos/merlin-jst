@@ -26,6 +26,7 @@ let zero_alloc_check    = ref Zero_alloc_annotations.Check.Check_default
 let zero_alloc_assert   = ref Zero_alloc_annotations.Assert.Assert_default
 let infer_with_bounds   = ref false
 let kind_verbosity = ref 0
+let ikinds = ref false
 
 let annotations         = ref false
 let binary_annotations  = ref true
@@ -50,3 +51,4 @@ let gdwarf_config_max_type_to_shape_depth = ref None
 let gdwarf_config_max_evaluation_steps_per_variable = ref None
 let locs = ref true
 let locations = ref true
+let ikinds_debug = ref false

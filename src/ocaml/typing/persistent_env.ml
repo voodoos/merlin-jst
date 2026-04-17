@@ -77,7 +77,7 @@ module Persistent_signature = struct
     | filename, visibility when allow_hidden ->
       let cmi = Cmi_cache.read filename in
       Some { filename; cmi; visibility}
-    | filename, Visible ->
+    | filename, (Visible _ as visibility) ->
       let cmi = Cmi_cache.read filename in
       Some { filename; cmi; visibility}
     | _, Hidden

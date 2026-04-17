@@ -5056,6 +5056,7 @@ let rec maybe_computation exp =
   | Texp_antiquotation _
   | Texp_apply_layout _
     -> true
+  | Texp_typed_hole -> false
 
 let annotate_recursive_bindings env valbinds =
   let ids = let_bound_idents valbinds in
@@ -9183,7 +9184,7 @@ and type_label_access
         lbl_loc = lid.loc;
         lbl_attributes = [];
         lbl_uid = Uid.internal_not_actually_unique;
-        lbl_sort = Jkind.Sort.Const.value;
+        lbl_sort = Jkind.Sort.Const.scannable;
       }
     in
     (record, record_sort, Mode.Value.disallow_right mode,

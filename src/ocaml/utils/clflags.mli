@@ -32,6 +32,7 @@ val zero_alloc_check     : Zero_alloc_annotations.Check.t ref
 val zero_alloc_assert    : Zero_alloc_annotations.Assert.t ref
 val infer_with_bounds    : bool ref
 val kind_verbosity : int ref
+val ikinds : bool ref
 
 (** {1 Dummy values}
     Ignored by merlin but kept for compatibility with upstream code. *)
@@ -58,3 +59,4 @@ val gdwarf_config_max_type_to_shape_depth : int option ref
 val gdwarf_config_max_evaluation_steps_per_variable : int option ref
 val locs : bool ref
 val locations            : bool ref
+val ikinds_debug : bool ref

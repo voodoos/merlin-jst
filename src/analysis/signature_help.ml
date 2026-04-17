@@ -85,8 +85,8 @@ let omitted : Typedtree.omitted_parameter =
   let mode_closure = Mode.Alloc.disallow_left Mode.Alloc.legacy in
   let mode_arg = Mode.Alloc.disallow_right Mode.Alloc.legacy in
   let mode_ret = Mode.Alloc.disallow_right Mode.Alloc.legacy in
-  let sort_arg = Jkind.Sort.value in
-  let sort_ret = Jkind.Sort.value in
+  let sort_arg = Jkind.Sort.scannable in
+  let sort_ret = Jkind.Sort.scannable in
   { mode_closure; mode_arg; mode_ret; sort_arg; sort_ret }
 
 (* This function preprocesses the signature and associate already assigned
