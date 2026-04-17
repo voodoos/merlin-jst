@@ -3,7 +3,7 @@ open Std
 (** {1 OCaml commandline parsing} *)
 
 type ocaml =
-  { include_dirs : string list;
+  { include_dirs : Clflags.visible_include list;
     hidden_dirs : string list;
     no_std_include : bool;
     unsafe : bool;

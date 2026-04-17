@@ -1,5 +1,9 @@
 type profile_column = [ `Time | `Alloc | `Top_heap | `Abs_top_heap | `Counters ]
 type shape_format = Old_merlin | Debugging_shapes
+type visible_include =
+  { path : string;
+    cmx_guaranteed : bool;
+  }
 
 (** {0 OCaml compiler compatible command-line parameters} *)
 let cmi_file = ref None

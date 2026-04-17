@@ -5,7 +5,7 @@ open Std
 let { Logger.log } = Logger.for_section "Mconfig"
 
 type ocaml =
-  { include_dirs : string list;
+  { include_dirs : Clflags.visible_include list;
     hidden_dirs : string list;
     no_std_include : bool;
     unsafe : bool;
@@ -38,9 +38,12 @@ let dump_warnings st =
   Warnings.restore st;
   Misc.try_finally Warnings.dump ~always:(fun () -> Warnings.restore st')
 
+let dump_visible_include ({ path; cmx_guaranteed } : Clflags.visible_include) =
+  `Assoc [ ("path", `String path); ("cmx_guaranteed", `Bool cmx_guaranteed) ]
+
 let dump_ocaml x =
   `Assoc
-    [ ("include_dirs", `List (List.map ~f:Json.string x.include_dirs));
+    [ ("include_dirs", `List (List.map ~f:dump_visible_include x.include_dirs));
       ("hidden_dirs", `List (List.map ~f:Json.string x.hidden_dirs));
       ("no_std_include", `Bool x.no_std_include);
       ("unsafe", `Bool x.unsafe);
@@ -874,9 +877,19 @@ let ocaml_alert_spec =
 
 let ocaml_flags =
   [ ( "-I",
-      marg_path (fun dir ocaml ->
-          { ocaml with include_dirs = dir :: ocaml.include_dirs }),
+      marg_path (fun path ocaml ->
+          { ocaml with
+            include_dirs =
+              { path; cmx_guaranteed = false } :: ocaml.include_dirs
+          }),
       "<dir> Add <dir> to the list of include directories" );
+    ( "-Ix",
+      marg_path (fun path ocaml ->
+          { ocaml with
+            include_dirs = { path; cmx_guaranteed = true } :: ocaml.include_dirs
+          }),
+      "<dir> Add <dir> to the list of include directories (Like -I, but \
+       indicates that cmx files for modules in <dir> are always available)" );
     ( "-H",
       marg_path (fun dir ocaml ->
           { ocaml with hidden_dirs = dir :: ocaml.hidden_dirs }),
@@ -1171,11 +1184,15 @@ let hidden_source_path config =
   config.merlin.hidden_source_path @ config.ocaml.hidden_dirs
 
 let collect_paths ~log_title ~config paths =
+  let include_dirs =
+    List.map config.ocaml.include_dirs ~f:(fun (vi : Clflags.visible_include) ->
+        vi.path)
+  in
   let dirs =
     match config.ocaml.threads with
-    | `None -> config.ocaml.include_dirs
-    | `Threads -> "+threads" :: config.ocaml.include_dirs
-    | `Vmthreads -> "+vmthreads" :: config.ocaml.include_dirs
+    | `None -> include_dirs
+    | `Threads -> "+threads" :: include_dirs
+    | `Vmthreads -> "+vmthreads" :: include_dirs
   in
   let dirs = paths @ dirs in
   let stdlib = stdlib config in

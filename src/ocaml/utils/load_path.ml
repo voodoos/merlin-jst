@@ -246,6 +246,14 @@ end
 
 type visibility = Visible of { cmx_guaranteed : bool } | Hidden
 
+let visibility_eq a b =
+  match a, b with
+  | ( Visible { cmx_guaranteed = cmx_guaranteed_a },
+      Visible { cmx_guaranteed = cmx_guaranteed_b } ) ->
+    Bool.equal cmx_guaranteed_a cmx_guaranteed_b
+  | Hidden, Hidden -> true
+  | Visible _, Hidden | Hidden, Visible _ -> false
+
 module Dir : sig
   type entry = {
     basename : string;
@@ -264,7 +272,7 @@ module Dir : sig
   val find : t -> string -> string option
   val find_normalized : t -> string -> string option
 
-  val check : hidden:bool -> t -> bool
+  val check : visibility -> t -> bool
 end = struct
   type entry = {
     basename : string;
@@ -299,8 +307,8 @@ end = struct
     in
     List.find_map search t.files
 
-  let check ~hidden t =
-    hidden = t.hidden && Directory_content_cache.check t.path
+  let check visibility t =
+    visibility_eq visibility t.visibility && Directory_content_cache.check t.path
 
   let create visibility path =
     let files = Array.to_list (Directory_content_cache.read path)
@@ -482,54 +490,45 @@ let init_manifests () =
 *)
 
 let init ~auto_include ~visible ~hidden =
-<<<<<<< janestreet/merlin-jst:merge-5.2.0minus-37
-||||||| oxcaml/oxcaml:8cb0afc52527bb3d38ecf4277e6929e0c7a6a4b0
-  reset ();
-  visible_dirs := List.rev_map (Dir.create ~hidden:false) visible;
-  hidden_dirs := List.rev_map (Dir.create ~hidden:true) hidden;
-  List.iter Path_cache.prepend_add !hidden_dirs;
-  List.iter Path_cache.prepend_add !visible_dirs;
-  init_manifests ();
-=======
-  reset ();
-  visible_dirs :=
-    List.rev_map
-      (fun ({ path; cmx_guaranteed } : Clflags.visible_include) ->
-        Dir.create (Visible { cmx_guaranteed }) path)
-      visible;
-  hidden_dirs := List.rev_map (Dir.create Hidden) hidden;
-  List.iter Path_cache.prepend_add !hidden_dirs;
-  List.iter Path_cache.prepend_add !visible_dirs;
-  init_manifests ();
->>>>>>> oxcaml/oxcaml:eb63e0e41869ede83ad3001e4facdff54383861d
   assert (not Config.merlin || Local_store.is_bound ());
-  let rec loop_changed ~hidden acc = function
-    | [] -> Some acc
-    | new_path :: new_rest ->
-      loop_changed ~hidden (Dir.create new_path ~hidden :: acc) new_rest
-  in
-  let rec loop_unchanged ~hidden acc new_paths old_dirs =
-    match new_paths, old_dirs with
-    | [], [] -> None
-    | new_path :: new_rest, [] ->
-      loop_changed ~hidden (Dir.create new_path ~hidden :: acc) new_rest
-    | [], _ :: _ -> Some acc
-    | new_path :: new_rest, old_dir :: old_rest ->
-      if String.equal new_path (Dir.path old_dir) then begin
-        if Dir.check ~hidden old_dir then begin
-          loop_unchanged ~hidden (old_dir :: acc) new_rest old_rest
+  let loop_unchanged ~get_visibility ~get_path new_entries old_dirs =
+    let create_dir entry =
+      Dir.create (get_visibility entry) (get_path entry)
+    in
+    let rec loop_changed acc = function
+      | [] -> Some acc
+      | new_entry :: new_rest ->
+        loop_changed (create_dir new_entry :: acc) new_rest
+    in
+    let rec loop_unchanged acc new_entries old_dirs =
+      match new_entries, old_dirs with
+      | [], [] -> None
+      | new_entry :: new_rest, [] ->
+        loop_changed (create_dir new_entry :: acc) new_rest
+      | [], _ :: _ -> Some acc
+      | new_entry :: new_rest, old_dir :: old_rest ->
+        let visibility = get_visibility new_entry in
+        if String.equal (get_path new_entry) (Dir.path old_dir) then begin
+          if Dir.check visibility old_dir then begin
+            loop_unchanged (old_dir :: acc) new_rest old_rest
+          end else begin
+            loop_changed (create_dir new_entry :: acc) new_rest
+          end
         end else begin
-          loop_changed ~hidden (Dir.create new_path ~hidden :: acc) new_rest
+          loop_changed (create_dir new_entry :: acc) new_rest
         end
-      end else begin
-        loop_changed ~hidden (Dir.create new_path ~hidden :: acc) new_rest
-      end
+    in
+    loop_unchanged [] new_entries old_dirs
   in
   let new_visible =
-    loop_unchanged ~hidden:false [] visible (List.rev !visible_dirs)
+    loop_unchanged visible (List.rev !visible_dirs)
+      ~get_visibility:(fun ({ path = _; cmx_guaranteed } : Clflags.visible_include) ->
+        Visible { cmx_guaranteed })
+      ~get_path:(fun ({ path; cmx_guaranteed = _ } : Clflags.visible_include) -> path)
   in
   let new_hidden =
-    loop_unchanged ~hidden:true [] hidden (List.rev !hidden_dirs)
+    loop_unchanged hidden (List.rev !hidden_dirs)
+      ~get_visibility:(Fun.const Hidden) ~get_path:Fun.id
   in
   let update =
     match new_visible, new_hidden with
