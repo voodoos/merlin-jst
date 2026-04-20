@@ -532,6 +532,7 @@ let rec of_expression_desc loc = function
   | Texp_hole _ -> id_fold
   | Texp_quotation exp -> of_expression exp
   | Texp_antiquotation exp -> of_expression exp
+  | Texp_apply_layout (exp, _) -> of_expression exp
 
 (* We should consider taking into account param.fp_loc at some point, as it
    allows us to respond with the *parameter*'s type (as opposed to the
@@ -782,6 +783,8 @@ let of_node node =
     | With_constraint (Twith_module _ | Twith_modsubst _) -> id_fold
     | With_constraint (Twith_modtype mt | Twith_modtypesubst mt) ->
       of_module_type mt
+    | With_constraint (Twith_jkind jk | Twith_jkindsubst jk) ->
+      app (Jkind_declaration jk)
     | Core_type { ctyp_desc } -> of_core_type_desc ctyp_desc
     | Package_type { pack_fields } ->
       list_fold (fun (_, ct) -> of_core_type ct) pack_fields
