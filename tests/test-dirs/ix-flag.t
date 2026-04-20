@@ -1,4 +1,5 @@
-Test that we handle the -Ix compiler flag correctly
+Test that we handle the -Ix compiler flag correctly. Note that in Merlin there's no way to
+observe a difference between -I and -Ix.
 
 Compile a library
   $ mkdir lib
