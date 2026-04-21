@@ -1,4 +1,3 @@
-(* import.ml *)
   $ cat >import.ml <<'EOF'
   > module A = struct
   >   module B = struct
@@ -26,6 +25,5 @@
 
 FIXME we expect Import.t
   $ $MERLIN single type-enclosing -position 1:17 -index 0 \
-  > -log-file log -log-section discourse \
   > -filename main.ml <main.ml | jq '.value[0].type'
-  "Import.A.B.t"
+  "Import.t"
