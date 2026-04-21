@@ -274,13 +274,12 @@ let print_modpath ppf verbosity env lid =
   print_short_modtype verbosity env ppf md.md_type
 
 let print_cstr_desc ppf cstr_desc =
-  Discourse.use_constructor () cstr_desc;
   !Oprint.out_type ppf (Browse_misc.print_constructor cstr_desc)
 
 let print_constr ppf env lid =
   let cstr_desc = Env.find_constructor_by_name lid.Asttypes.txt env in
   (* FIXME: support Reader printer *)
-  Discourse.use_constructor () cstr_desc;
+  Discourse.use_constructor env lid cstr_desc;
   print_cstr_desc ppf cstr_desc
 
 exception Fallback
@@ -365,7 +364,6 @@ let type_in_env ?(verbosity = Verbosity.default) ?keywords ~context env ppf expr
         false))
 
 let print_constr ~verbosity env ppf cd =
-  Discourse.use_constructor () cd;
   Printtyp.wrap_printing_env env ~verbosity @@ fun () -> print_cstr_desc ppf cd
 
 (* From doc-ock

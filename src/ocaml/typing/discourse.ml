@@ -392,14 +392,40 @@ let use_modtype env lid path = add_used env Module_type lid path
 let use_type env lid path = add_used env Type lid path
 let use_value env lid path = add_used env Value lid path
 
-let use_constructor _env (constr : Types.constructor_description) =
+let use_constructor env ({ Location.loc; _ } as lid)
+    (constr : Types.constructor_description) =
   if record_usages then begin
+    let () =
+      (* When using a constructor, the modules appearing in its path should be
+         added to U. TODO we might want to do that even if the constructor has
+         been disambiguated. *)
+      match lid.txt with
+      | Longident.Ldot (lid, _) ->
+        (* This find should not load additional CUs, because
+           [lookup_structure_components] was called anyway by the compiler. *)
+        let path, _ = Env.find_module_by_name_lazy lid env in
+        use_module env { Location.txt = lid; loc } path
+      | _ -> ()
+    in
     (* If a constructor is in U then any paths used in its type are in D. *)
     g := { !g with paths = Lid_trie.union !g.paths constr.cstr_discourse }
   end
 
-let use_label _env (label : _ Types.gen_label_description) =
+let use_label env ({ Location.loc; _ } as lid)
+    (label : _ Types.gen_label_description) =
   if record_usages then begin
+    let () =
+      (* When using a label, the modules appearing in its path should be added
+         to U. TODO we might want to do that even if the constructor has been
+         disambiguated. *)
+      match lid.txt with
+      | Longident.Ldot (lid, _) ->
+        (* This find should not load additional CUs, because [lookup_all_labels]
+           was called anyway by the compiler. *)
+        let path, _ = Env.find_module_by_name_lazy lid env in
+        use_module env { Location.txt = lid; loc } path
+      | _ -> ()
+    in
     (* If a label is in U then any paths used in its type are in D. *)
     g := { !g with paths = Lid_trie.union !g.paths label.lbl_discourse }
   end
