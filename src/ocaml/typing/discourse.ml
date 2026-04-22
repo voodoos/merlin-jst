@@ -83,6 +83,21 @@ let fold_on_common_lid_and_path_segments ~init ~kind ~f (lid, path) =
     | _ -> acc
   in
   aux init kind (lid, path)
+
+(* If a path is in D and it includes another module path within it, then that
+   module path is also in D.*)
+let add_all_components acc paths =
+  let seq = Lid_trie.to_seq paths in
+  Seq.fold_left
+    (fun acc (lid, paths) ->
+      Paths.fold
+        (fun (kind, path) init ->
+          fold_on_common_lid_and_path_segments ~init ~kind
+            ~f:(fun acc kind (lid, path) -> Lid_trie.add lid (kind, path) acc)
+            (lid, path))
+        paths acc)
+    acc seq
+
 let debug_print fmt =
   Format.fprintf fmt "Size: %i@;%a@;%a" (Lid_trie.size !g.paths) pp !g.paths
     pp_substs !g.substs
@@ -115,8 +130,8 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
     Logger.fmt
     (fun fmt -> Path.print fmt path);
   let paths = Lid_trie.add lid (kind, path) discourse.paths in
+  let substs = discourse.substs in
   let paths, substs =
-    let substs = discourse.substs in
     match kind with
     | Module ->
       (* TODO This should probably be done lazily *)
@@ -158,10 +173,12 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
       in
       (* D5. If a module path is in U and its module description was written then
          the paths used in that description are in D *)
+      (* TODO : If a path is in D and it includes another module path within it,
+         then that module path is also in D. *)
       let paths = Lid_trie.union paths md.md_discourse in
       begin
         match md.md_type with
-        | Mty_alias p ->
+        | Mty_alias path' ->
           (* D12. If a module path m in D - note D not U - is a module alias
              with target n and another path p in D includes n within it, then
              the path obtained by substituting the m for n in p is also in D.
@@ -173,7 +190,7 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
 
              TODO now that we have md_discourse_aliases, this might be redundant
              ? *)
-          let path' = Env.normalize_module_path None env p in
+          let path' = Env.normalize_module_path None env path' in
           let { paths; substs } =
             add_path_to_discourse env { paths; substs } Module lid path'
           in
@@ -246,17 +263,25 @@ let rec add_path_to_discourse ?(for_open = false) env discourse kind lid path =
       let mtd = Env.find_modtype_lazy path env in
       (* D8. If a module type path is in U then any paths used in its definition
          are in *)
+      (* TODO : If a path is in D and it includes another module path within it,
+         then that module path is also in D. *)
       (Lid_trie.union paths mtd.mtd_discourse, substs)
     | Value ->
       (* D4. If a value path is in U and its value description was written by a user -
          as opposed to being inferred - then the paths used in that description are
          in D. *)
+      (* TODO : If a path is in D and it includes another module path within it,
+         then that module path is also in D. *)
       let vd = Env.find_value path env in
       (Lid_trie.union paths vd.val_discourse, substs)
     | Type ->
       (* D6. If a type path is in U then any paths used in its equation or
          representation are in D. *)
+      (* TODO : If a path is in D and it includes another module path within it,
+         then that module path is also in D. *)
       let td = Env.find_type path env in
+      (* What does it mean when such a path is just an ident that is local to
+         another module ?*)
       (Lid_trie.union paths td.type_discourse, substs)
     | _ -> (paths, substs)
   in
@@ -353,7 +378,7 @@ and define_module ?root_path ?root_lid (decl : Types.module_declaration) id =
 and define_modtype ?root_path ?root_lid id =
   define ?root_path ?root_lid Module_type id
 
-let define_signature_for_open ~root_path (sg : Subst.Lazy.signature) =
+let define_signature_for_open env ~root_path (sg : Subst.Lazy.signature) =
   List.iter
     (fun sig_item ->
       match sig_item with
@@ -381,7 +406,7 @@ let open_module env path =
       let root_path = Env.normalize_module_path None env path in
       let md = Env.find_module_lazy root_path env in
       match md.md_type with
-      | Mty_signature sg -> define_signature_for_open ~root_path sg
+      | Mty_signature sg -> define_signature_for_open env ~root_path sg
       | _ -> ()
     with Not_found -> ()
   end
