@@ -390,7 +390,7 @@ let define_signature_for_open env ~root_path (sg : Subst.Lazy.signature) =
           (Fun.flip Ident.print id);
         let lid, path = lid_and_path_of_ident ~root_path id in
         add_subst path lid;
-        define Module ~root_path id
+        g := add_path_to_discourse env !g Module lid path
       | Subst.Lazy.Sig_modtype (id, _, _) -> define_modtype ~root_path id
       | Subst.Lazy.Sig_class (_, _, _, _)
       | Subst.Lazy.Sig_class_type (_, _, _, _) -> (* TODO *) ())
