@@ -92,7 +92,7 @@ end = struct
     | CMS of string
     | CMSI of string
 
-  let file_path_to_mod_name f = Misc.unitname (Filename.basename f)
+  let file_path_to_mod_name f = unitname (Filename.basename f)
 
   let ml s = ML (file_path_to_mod_name s)
   let mll s = MLL (file_path_to_mod_name s)

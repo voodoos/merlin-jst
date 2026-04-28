@@ -1222,12 +1222,12 @@ let cmt_path config =
    @ config.merlin.hidden_build_path)
 
 let global_modules ?(include_current = false) config =
-  let modules = Misc.modules_in_path ~ext:".cmi" (build_path config) in
+  let modules = modules_in_path ~ext:".cmi" (build_path config) in
   if include_current then modules
   else
     match config.query.filename with
     | "" -> modules
-    | filename -> List.remove (Misc.unitname filename) modules
+    | filename -> List.remove (unitname filename) modules
 
 (** {1 Accessors for other information} *)
 
@@ -1235,14 +1235,14 @@ let filename t = t.query.filename
 
 let unitname t =
   match t.merlin.unit_name with
-  | Some name -> Misc.unitname name
+  | Some name -> unitname name
   | None ->
-    let basename = Misc.unitname t.query.filename in
+    let basename = unitname t.query.filename in
     (* CR: get rid of wrapping_prefix. it is only here for legacy reasons at the moment *)
     begin match t.merlin.wrapping_prefix with
-    | Some prefix -> Misc.unitname (prefix ^ basename)
+    | Some prefix -> unitname (prefix ^ basename)
     | None ->
       String.Map.find_opt basename t.merlin.unit_name_for
-      |> Option.map ~f:Misc.unitname
+      |> Option.map ~f:unitname
       |> Option.value ~default:basename
     end
