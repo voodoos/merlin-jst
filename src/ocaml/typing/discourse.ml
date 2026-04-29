@@ -378,7 +378,7 @@ and define_module ?root_path ?root_lid (decl : Types.module_declaration) id =
 and define_modtype ?root_path ?root_lid id =
   define ?root_path ?root_lid Module_type id
 
-let define_signature_for_open env ~root_path (sg : Subst.Lazy.signature) =
+let define_signature_for_open _env ~root_path (sg : Subst.Lazy.signature) =
   List.iter
     (fun sig_item ->
       match sig_item with
@@ -390,7 +390,10 @@ let define_signature_for_open env ~root_path (sg : Subst.Lazy.signature) =
           (Fun.flip Ident.print id);
         let lid, path = lid_and_path_of_ident ~root_path id in
         add_subst path lid;
-        g := add_path_to_discourse env !g Module lid path
+        define Module ~root_path id
+        (* TODO Addind to U here fixes a few issues but we would prefer not to
+           do it. *)
+        (* g := add_path_to_discourse env !g Module lid path *)
       | Subst.Lazy.Sig_modtype (id, _, _) -> define_modtype ~root_path id
       | Subst.Lazy.Sig_class (_, _, _, _)
       | Subst.Lazy.Sig_class_type (_, _, _, _) -> (* TODO *) ())
