@@ -53,6 +53,7 @@ Short-paths should prefer Header.t but prints Lib_b.Header.t.
   > B lib_b
   > EOF
 
+FIXME: fixed by adding everything in U when opening, but there may be a better way
   $ $MERLIN single type-enclosing -position 2:27 -index 0 \
   > -filename usage.ml <usage.ml | jq '.value[0].type'
   "Lib_b.Header.t"
