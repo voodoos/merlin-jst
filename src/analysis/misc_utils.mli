@@ -25,7 +25,9 @@ end
 (** [parse_identifier] attempts to re-parse a longident so that we get
     the location of each of its components. *)
 val parse_identifier :
-  Mconfig.t * Msource.t -> Lexing.position -> Unit_info.modname Location.loc list
+  Mconfig.t * Msource.t ->
+  Lexing.position ->
+  Unit_info.modname Location.loc list
 
 (** [reconstruct_identifier pipeline pos] returns growing ranges around [pos] and the
   associated identifier. *)

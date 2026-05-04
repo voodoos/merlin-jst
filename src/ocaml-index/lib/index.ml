@@ -89,8 +89,7 @@ struct
 
   let projection_rules_for_merlin_enabled = true
   let fuel_for_compilation_units () : Misc.Maybe_bounded.t = Unbounded
-  let max_shape_reduce_steps_per_variable () : Misc.Maybe_bounded.t =
-    Unbounded
+  let max_shape_reduce_steps_per_variable () : Misc.Maybe_bounded.t = Unbounded
   let max_compilation_unit_depth () : Misc.Maybe_bounded.t = Unbounded
 end
 
