@@ -13,32 +13,17 @@
 (*                                                                        *)
 (**************************************************************************)
 
-module CamlList = List
-module CamlString = String
-
-open Std
-
 (* Errors *)
 
-exception Fatal_error of string * Printexc.raw_backtrace
-
-let () = Printexc.register_printer (function
-    | Fatal_error (msg, bt) ->
-      Some (Printf.sprintf "Fatal error: %s\n%s"
-              msg (Printexc.raw_backtrace_to_string bt))
-    | _ -> None
-  )
-
-let fatal_error msg =
-  raise (Fatal_error (msg, Printexc.get_callstack 50))
+exception Fatal_error
 
 let fatal_errorf fmt =
-  (*Format.kasprintf is not available in 4.02.3 *)
-  (*Format.kasprintf fatal_error fmt*)
-  ignore (Format.flush_str_formatter ());
   Format.kfprintf
-    (fun _ppf -> fatal_error (Format.flush_str_formatter ()))
-    Format.str_formatter fmt
+    (fun _ -> raise Fatal_error)
+    Format.err_formatter
+    ("@?>> Fatal error: " ^^ fmt ^^ "@.")
+
+let fatal_error msg = fatal_errorf "%s" msg
 
 let fatal_errorf_doc fmt =
   Format_doc.kdoc_printf (fun doc ->
@@ -53,24 +38,20 @@ let try_finally ?(always=(fun () -> ())) ?(exceptionally=(fun () -> ())) work =
       begin match always () with
         | () -> result
         | exception always_exn ->
-          (* raise_with_backtrace is not available before OCaml 4.05 *)
-          (*let always_bt = Printexc.get_raw_backtrace () in*)
+          let always_bt = Printexc.get_raw_backtrace () in
           exceptionally ();
-          (*Printexc.raise_with_backtrace always_exn always_bt*)
-          raise always_exn
+          Printexc.raise_with_backtrace always_exn always_bt
       end
     | exception work_exn ->
-      (*let work_bt = Printexc.get_raw_backtrace () in*)
+      let work_bt = Printexc.get_raw_backtrace () in
       begin match always () with
         | () ->
           exceptionally ();
-          (*Printexc.raise_with_backtrace work_exn work_bt*)
-          raise work_exn
+          Printexc.raise_with_backtrace work_exn work_bt
         | exception always_exn ->
-          (*let always_bt = Printexc.get_raw_backtrace () in*)
+          let always_bt = Printexc.get_raw_backtrace () in
           exceptionally ();
-          (*Printexc.raise_with_backtrace always_exn always_bt*)
-          raise always_exn
+          Printexc.raise_with_backtrace always_exn always_bt
       end
 
 let reraise_preserving_backtrace e f =
@@ -81,17 +62,18 @@ let reraise_preserving_backtrace e f =
 type ref_and_value = R : 'a ref * 'a -> ref_and_value
 
 let protect_refs =
-  let set_refs l = List.iter ~f:(fun (R (r, v)) -> r := v) l in
+  let set_refs l = List.iter (fun (R (r, v)) -> r := v) l in
   fun refs f ->
-    let backup = List.map ~f:(fun (R (r, _)) -> R (r, !r)) refs in
+    let backup = List.map (fun (R (r, _)) -> R (r, !r)) refs in
     set_refs refs;
-    match f () with
-    | x           -> set_refs backup; x
-    | exception e -> set_refs backup; raise e
+    Fun.protect ~finally:(fun () -> set_refs backup) f
 
 (* List functions *)
 
-let map_end f l1 l2 = List.map_end ~f l1 l2
+let rec map_end f l1 l2 =
+  match l1 with
+    [] -> l2
+  | hd::tl -> f hd :: map_end f tl l2
 
 let rev_map_end f l1 l2 =
   let rec rmap_f accu = function
@@ -104,11 +86,19 @@ let rec map_left_right f = function
     [] -> []
   | hd::tl -> let res = f hd in res :: map_left_right f tl
 
-let for_all2 pred l1 l2 = List.for_all2 ~f:pred l1 l2
+let rec for_all2 pred l1 l2 =
+  match (l1, l2) with
+    ([], []) -> true
+  | (hd1::tl1, hd2::tl2) -> pred hd1 hd2 && for_all2 pred tl1 tl2
+  | (_, _) -> false
 
-let replicate_list = List.replicate
+let rec replicate_list elem n =
+  if n <= 0 then [] else elem :: replicate_list elem (n-1)
 
-let list_remove x = List.remove ~phys:false x
+let rec list_remove x = function
+    [] -> []
+  | hd :: tl ->
+      if hd = x then tl else hd :: list_remove x tl
 
 let rec split_last = function
     [] -> assert false
@@ -117,149 +107,570 @@ let rec split_last = function
       let (lst, last) = split_last tl in
       (hd :: lst, last)
 
-(* Options *)
+let rec last = function
+  | [] -> None
+  | [x] -> Some x
+  | _ :: tl -> last tl
 
-let may f x = Option.iter ~f x
-let may_map f x = Option.map ~f x
+module Stdlib = struct
+  module List = struct
+    include List
+
+    type 'a t = 'a list
+
+    let is_empty = function
+      | [] -> true
+      | _ :: _ -> false
+
+    let rec compare cmp l1 l2 =
+      match l1, l2 with
+      | [], [] -> 0
+      | [], _::_ -> -1
+      | _::_, [] -> 1
+      | h1::t1, h2::t2 ->
+        let c = cmp h1 h2 in
+        if c <> 0 then c
+        else compare cmp t1 t2
+
+    let rec equal eq l1 l2 =
+      match l1, l2 with
+      | ([], []) -> true
+      | (hd1 :: tl1, hd2 :: tl2) -> eq hd1 hd2 && equal eq tl1 tl2
+      | (_, _) -> false
+
+    let map2_prefix f l1 l2 =
+      let rec aux acc l1 l2 =
+        match l1, l2 with
+        | [], _ -> (List.rev acc, l2)
+        | _ :: _, [] -> raise (Invalid_argument "map2_prefix")
+        | h1::t1, h2::t2 ->
+          let h = f h1 h2 in
+          aux (h :: acc) t1 t2
+      in
+      aux [] l1 l2
+
+    let map3 f =
+      let rec loop acc as_ bs cs = match as_, bs, cs with
+        | [], [], [] -> List.rev acc
+        | a :: as_, b :: bs, c :: cs -> loop (f a b c :: acc) as_ bs cs
+        | _ -> invalid_arg "map3"
+      in
+      loop []
+
+    let concat_map2 f l1 l2 =
+      let rec aux f acc = function
+        | [], [] -> rev acc
+        | (a1 :: l1, a2 :: l2) ->
+          let xs = f a1 a2 in
+          aux f (rev_append xs acc) (l1, l2)
+        | (_, _) -> invalid_arg "List.concat_map2"
+      in aux f [] (l1, l2)
+
+    let rec iteri2 i f l1 l2 =
+      match (l1, l2) with
+        ([], []) -> ()
+      | (a1::l1, a2::l2) -> f i a1 a2; iteri2 (i + 1) f l1 l2
+      | (_, _) -> raise (Invalid_argument "iteri2")
+
+    let iteri2 f l1 l2 = iteri2 0 f l1 l2
+
+    let some_if_all_elements_are_some l =
+      let rec aux acc l =
+        match l with
+        | [] -> Some (List.rev acc)
+        | None :: _ -> None
+        | Some h :: t -> aux (h :: acc) t
+      in
+      aux [] l
+
+    let map_option f l =
+      let rec aux l acc =
+        match l with
+        | [] -> Some (List.rev acc)
+        | x :: xs ->
+          match f x with
+          | None -> None
+          | Some x -> aux xs (x :: acc)
+      in
+      aux l []
+
+    let map2_option f l1 l2 =
+      let rec aux l1 l2 acc =
+        match l1, l2 with
+        | [], [] -> Some (List.rev acc)
+        | x :: xs, y :: ys ->
+          begin match f x y with
+          | None -> None
+          | Some z -> aux xs ys (z :: acc)
+          end
+        | _, _ -> invalid_arg "map2_option"
+      in
+      aux l1 l2 []
+
+    let split_at n l =
+      let rec aux n acc l =
+        if n = 0
+        then List.rev acc, l
+        else
+          match l with
+          | [] -> raise (Invalid_argument "split_at")
+          | t::q -> aux (n-1) (t::acc) q
+      in
+      aux n [] l
+
+    let rec map_sharing f l0 =
+      match l0 with
+      | a :: l ->
+        let a' = f a in
+        let l' = map_sharing f l in
+        if a' == a && l' == l then l0 else a' :: l'
+      | [] -> []
+
+    let fold_lefti f accu l =
+      let rec aux f i accu l =
+        match l with
+        | [] -> accu
+        | a::l -> aux f (succ i) (f i accu a) l
+      in
+      aux f 0 accu l
+
+    let fold_left_map2 f accu l1 l2 =
+      let rec aux f accu res l1 l2 =
+        match l1, l2 with
+        | [], [] -> accu, List.rev res
+        | a1 :: l1, a2 :: l2 ->
+          let accu', r = f accu a1 a2 in
+          aux f accu' (r :: res) l1 l2
+        | _, _ -> invalid_arg "fold_left_map2"
+      in
+      aux f accu [] l1 l2
+
+    let chunks_of n l =
+      if n <= 0 then raise (Invalid_argument "chunks_of");
+      (* Invariant: List.length l = remaining *)
+      let rec aux n acc l ~remaining =
+        match remaining with
+        | 0 -> List.rev acc
+        | _ when remaining <= n -> List.rev (l :: acc)
+        | _ ->
+            let chunk, rest = split_at n l in
+            aux n (chunk :: acc) rest ~remaining:(remaining - n)
+      in
+      aux n [] l ~remaining:(List.length l)
+
+    let rec is_prefix ~equal t ~of_ =
+      match t, of_ with
+      | [], [] -> true
+      | _::_, [] -> false
+      | [], _::_ -> true
+      | x1::t, x2::of_ -> equal x1 x2 && is_prefix ~equal t ~of_
+
+    type 'a longest_common_prefix_result = {
+      longest_common_prefix : 'a list;
+      first_without_longest_common_prefix : 'a list;
+      second_without_longest_common_prefix : 'a list;
+    }
+
+    let find_and_chop_longest_common_prefix ~equal ~first ~second =
+      let rec find_prefix ~longest_common_prefix_rev l1 l2 =
+        match l1, l2 with
+        | elt1 :: l1, elt2 :: l2 when equal elt1 elt2 ->
+          let longest_common_prefix_rev = elt1 :: longest_common_prefix_rev in
+          find_prefix ~longest_common_prefix_rev l1 l2
+        | l1, l2 ->
+          { longest_common_prefix = List.rev longest_common_prefix_rev;
+            first_without_longest_common_prefix = l1;
+            second_without_longest_common_prefix = l2;
+          }
+      in
+      find_prefix ~longest_common_prefix_rev:[] first second
+
+    let rec iter_until_error ~f l =
+      match l with
+      | [] -> Ok ()
+      | x :: xs ->
+        match f x with
+        | Ok () -> iter_until_error ~f xs
+        | Error _ as e -> e
+
+    let [@inline] merge_fold ~cmp ~left_only ~right_only ~both ~init t1 t2 =
+      let rec loop acc t1 t2 =
+        match t1, t2 with
+        | [], [] -> acc
+        | a :: t1', [] -> loop (left_only acc a) t1' []
+        | [], b :: t2' -> loop (right_only acc b) [] t2'
+        | a :: t1', b :: t2' ->
+            match cmp a b with
+            | 0 -> loop (both acc a b) t1' t2'
+            | c when c < 0 -> loop (left_only acc a) t1' t2
+            | _ -> loop (right_only acc b) t1 t2'
+      in
+      loop init t1 t2
+
+    let [@inline] merge_iter ~cmp ~left_only ~right_only ~both t1 t2 =
+      merge_fold t1 t2 ~cmp
+        ~init:()
+        ~left_only:(fun () a -> left_only a)
+        ~right_only:(fun () b -> right_only b)
+        ~both:(fun () a b -> both a b)
+  end
+
+  module Option = struct
+    type 'a t = 'a option
+
+    let first_some a b = match a with
+      | Some _ -> a
+      | None -> b ()
+
+    let print print_contents ppf t =
+      match t with
+      | None -> Format.pp_print_string ppf "None"
+      | Some contents ->
+        Format.fprintf ppf "@[(Some@ %a)@]" print_contents contents
+
+    let map_sharing f t =
+      match t with
+      | None -> t
+      | Some x ->
+        let y = f x in
+        if y == x then t else Some y
+  end
+
+  module Array = struct
+    let exists2 p a1 a2 =
+      let n = Array.length a1 in
+      if Array.length a2 <> n then invalid_arg "Misc.Stdlib.Array.exists2";
+      let rec loop i =
+        if i = n then false
+        else if p (Array.unsafe_get a1 i) (Array.unsafe_get a2 i) then true
+        else loop (succ i) in
+      loop 0
+
+    let fold_left2 f x a1 a2 =
+      if Array.length a1 <> Array.length a2
+      then invalid_arg "Misc.Stdlib.Array.fold_left2";
+      let r = ref x in
+      for i = 0 to Array.length a1 - 1 do
+        r := f !r (Array.unsafe_get a1 i) (Array.unsafe_get a2 i)
+      done;
+      !r
+
+    let for_alli p a =
+      let n = Array.length a in
+      let rec loop i =
+        if i = n then true
+        else if p i (Array.unsafe_get a i) then loop (succ i)
+        else false in
+      loop 0
+
+    let all_somes a =
+      try
+        Some (Array.map (function None -> raise_notrace Exit | Some x -> x) a)
+      with
+      | Exit -> None
+
+    let equal eq_elt l1 l2 =
+      (* Basically inlines [Array.for_all2] to avoid the [raise] *)
+      let n = Array.length l1 in
+      Int.equal n (Array.length l2) &&
+      let rec loop i =
+        if Int.equal i n then
+          true
+        else if eq_elt (Array.unsafe_get l1 i) (Array.unsafe_get l2 i) then
+          loop (succ i)
+        else
+          false
+      in
+      loop 0
+
+    let compare compare arr1 arr2 =
+      let len1 = Array.length arr1 in
+      let len2 = Array.length arr2 in
+      if len1 <> len2 then
+        Int.compare len1 len2
+      else
+        let rec loop i =
+          if i >= len1 then 0
+          else
+            let cmp = compare arr1.(i) arr2.(i) in
+            if cmp <> 0 then cmp else loop (i + 1)
+        in
+        loop 0
+
+    let map_sharing f a =
+      let same = ref true in
+      let f' x =
+        let x' = f x in
+        if x != x' then
+          same := false;
+        x'
+      in
+      let a' = (Array.map [@inlined hint]) f' a in
+      if !same then a else a'
+
+    let of_list_map f = function
+      | [] -> [| |]
+      | hd :: tl ->
+        let a = Array.make (1 + List.length tl) (f hd) in
+        List.iteri (fun i x -> Array.unsafe_set a (i+1) (f x)) tl;
+        a
+
+    let concat_arrays : 'a array array -> 'a array = fun arrays ->
+      (* CR-soon xclerc for xclerc: should we simply use the following?
+        `arrays |> Array.to_list |> Array.concat` *)
+      let total_len = ref 0 in
+      let init = ref None in
+      for i = 0 to pred (Array.length arrays) do
+        let array = Array.unsafe_get arrays i in
+        let len = Array.length array in
+        total_len := !total_len + len;
+        if len > 0 then init := Some (Array.unsafe_get array 0)
+      done;
+      match !total_len, !init with
+      | 0, None -> [||]
+      | 0, Some _ -> fatal_error "broken invariant"
+      | _, None -> fatal_error "broken invariant"
+      | _, Some init ->
+        let dst = Array.make !total_len init in
+        let dst_pos = ref 0 in
+        for i = 0 to pred (Array.length arrays) do
+          let array = Array.unsafe_get arrays i in
+          let len = Array.length array in
+          (* CR-soon xclerc for xclerc: use unsafe_blit? *)
+          ArrayLabels.blit ~src:array ~src_pos:0 ~dst ~dst_pos:!dst_pos ~len;
+          dst_pos := !dst_pos + len
+        done;
+        dst
+  end
+
+  module String = struct
+    include String
+    module Set = Set.Make(String)
+    module Map = struct
+      include Map.Make(String)
+
+      let of_seq_multi seq =
+        Seq.fold_left
+          (fun tbl (key, elt) ->
+            update key
+              (function None -> Some [elt] | Some s -> Some (elt :: s))
+              tbl)
+          empty seq
+    end
+
+    module Tbl = Hashtbl.Make(struct
+      include String
+      let hash = Hashtbl.hash
+    end)
+
+    let for_all f t =
+      let len = String.length t in
+      let rec loop i =
+        i = len || (f t.[i] && loop (i + 1))
+      in
+      loop 0
+
+    let print ppf t =
+      Format.pp_print_string ppf t
+
+    let begins_with ?(from = 0) str ~prefix =
+      let rec helper idx =
+        if idx < 0 then true
+        else
+          String.get str (from + idx) = String.get prefix idx && helper (idx-1)
+      in
+      let n = String.length str in
+      let m = String.length prefix in
+      if n >= from + m then helper (m-1) else false
+
+    let split_on_string str ~split_on =
+      let n = String.length str in
+      let m = String.length split_on in
+      let rec helper acc last_idx idx =
+        if idx = n then
+          let cur = String.sub str last_idx (idx - last_idx) in
+          List.rev (cur :: acc)
+        else if begins_with ~from:idx str ~prefix:split_on then
+          let cur = String.sub str last_idx (idx - last_idx) in
+          helper (cur :: acc) (idx + m) (idx + m)
+        else
+          helper acc last_idx (idx + 1)
+      in
+      helper [] 0 0
+
+    let split_on_chars str ~split_on:chars =
+      let rec helper chars_left s acc =
+        match chars_left with
+        | [] -> s :: acc
+        | c :: cs ->
+          List.fold_right (helper cs) (String.split_on_char c s) acc
+      in
+      helper chars str []
+
+    let split_once str ~idx =
+      let n = String.length str in
+      String.sub str 0 idx, String.sub str (idx + 1) (n - idx - 1)
+
+    let split_last_exn str ~split_on =
+      let ridx = String.rindex str split_on in
+      split_once str ~idx:ridx
+
+    let split_first_exn str ~split_on =
+      let idx = String.index str split_on in
+      split_once str ~idx
+
+    let starts_with ~prefix s =
+      let len_s = length s
+      and len_pre = length prefix in
+      let rec aux i =
+        if i = len_pre then true
+        else if unsafe_get s i <> unsafe_get prefix i then false
+        else aux (i + 1)
+      in len_s >= len_pre && aux 0
+
+    let ends_with ~suffix s =
+      let len_s = length s
+      and len_suf = length suffix in
+      let diff = len_s - len_suf in
+      let rec aux i =
+        if i = len_suf then true
+        else if unsafe_get s (diff + i) <> unsafe_get suffix i then false
+        else aux (i + 1)
+      in diff >= 0 && aux 0
+
+    let is_substring string ~substring =
+      let len = String.length substring in
+      String.to_seq string
+      |> Seq.mapi (fun i _ -> i)
+      |> Seq.filter_map (fun i ->
+             if i + len < String.length string then
+               Some (String.sub string i len)
+             else None)
+      |> Seq.exists (fun sub -> String.equal substring sub)
+  end
+
+  module Int = struct
+    include Int
+    let min (a : int) (b : int) = min a b
+    let max (a : int) (b : int) = max a b
+  end
+
+  external compare : 'a -> 'a -> int = "%compare"
+
+  module Monad = struct
+    module type Basic2 = sig
+      type ('a, 'e) t
+
+      val bind : ('a, 'e) t -> ('a -> ('b, 'e) t) -> ('b, 'e) t
+
+      val return : 'a -> ('a, _) t
+    end
+
+    module type Basic = sig
+      type 'a t
+      include Basic2 with type ('a, _) t := 'a t
+    end
+
+    module type S2 = sig
+      type ('a, 'e) t
+
+      val bind : ('a, 'e) t -> ('a -> ('b, 'e) t) -> ('b, 'e) t
+      val (>>=) : ('a, 'e) t -> ('a -> ('b, 'e) t) -> ('b, 'e) t
+      val return : 'a -> ('a, _) t
+      val map : ('a -> 'b) -> ('a, 'e) t -> ('b, 'e) t
+      val join : (('a, 'e) t, 'e) t -> ('a, 'e) t
+      val both : ('a, 'e) t -> ('b, 'e) t -> ('a * 'b, 'e) t
+      val ignore_m : (_, 'e) t -> (unit, 'e) t
+      val all : ('a, 'e) t list -> ('a list, 'e) t
+      val all_unit : (unit, 'e) t list -> (unit, 'e) t
+
+      module Syntax : sig
+        val (let+) : ('a, 'e) t -> ('a -> 'b) -> ('b, 'e) t
+        val (and+) : ('a, 'e) t -> ('b, 'e) t -> ('a * 'b, 'e) t
+        val (let*) : ('a, 'e) t -> ('a -> ('b, 'e) t) -> ('b, 'e) t
+        val (and*) : ('a, 'e) t -> ('b, 'e) t -> ('a * 'b, 'e) t
+      end
+    end
+
+    module type S = sig
+      type 'a t
+      include S2 with type ('a, _) t := 'a t
+    end
+
+    module[@inline] Make2 (X : Basic2) = struct
+      include X
+
+      let[@inline] ( >>= ) t f = bind t f
+
+      let map f m =
+        bind m (fun a -> return (f a))
+
+      let join m = bind m Fun.id
+
+      let both t1 t2 = t1 >>= fun t1 -> t2 >>= fun t2 -> return (t1, t2)
+
+      let ignore_m m = bind m (fun _ -> return ())
+
+      let all ms =
+        let rec loop acc = function
+          | [] -> return (List.rev acc)
+          | m :: ms -> bind m (fun a -> loop (a :: acc) ms)
+        in
+        loop [] ms
+
+      let rec all_unit = function
+        | [] -> return ()
+        | m :: ms -> bind m (fun _ -> all_unit ms)
+
+      module Syntax = struct
+        let[@inline] (let+) t f = map f t
+        let[@inline] (and+) a b = both a b
+        let[@inline] (let*) t f = bind t f
+        let[@inline] (and*) a b = (and+) a b
+      end
+    end
+
+    module[@inline] Make (X : Basic) = struct
+      include Make2(struct
+          include X
+          type ('a, _) t = 'a X.t
+        end)
+
+      type nonrec 'a t = 'a X.t
+    end
+
+    module Identity = Make(struct
+        type 'a t = 'a
+        let[@inline] bind x f = f x
+        let[@inline] return x = x
+      end)
+
+    module Option = Make(struct
+        include Stdlib.Option
+        let return = some
+      end)
+
+    module Result = Make2(struct
+        include Stdlib.Result
+        let return = ok
+      end)
+  end
+end
+
+module Int = Stdlib.Int
 
 (* File functions *)
 
-let remove_file filename =
-  try
-    (* merge5: Partial revert of upstream PR 11412, to allow building
-       with OCaml 4.14 (which does not have is_regular_file *)
-    if Sys.file_exists filename
-    then Sys.remove filename
-  with Sys_error _msg ->
-    ()
-
-let rec split_path_and_prepend path acc =
-  match Filename.dirname path with
-  | dir when dir = path ->
-    let is_letter c = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') in
-    let dir =
-      if not Sys.unix && String.length dir > 2 && is_letter dir.[0] && dir.[1] = ':'
-      then
-        (* We do two things here:
-            - We use an uppercase letter to match Dune's behavior
-            - We also add the separator ousrselves because [Filename.concat]
-            does not if its first argument is of the form ["C:"] *)
-        Printf.sprintf "%c:%s"
-          (Char.uppercase_ascii dir.[0])
-          Filename.dir_sep
-      else dir
-    in
-    dir :: acc
-  | dir -> split_path_and_prepend dir (Filename.basename path :: acc)
-
-let split_path path = split_path_and_prepend path []
-
-(* Deal with case insensitive FS *)
-
-external fs_exact_case : string -> string = "ml_merlin_fs_exact_case"
-external fs_exact_case_basename: string -> string option = "ml_merlin_fs_exact_case_basename"
-
-(* A replacement for sys_file_exists that makes use of stat_cache *)
-module Exists_in_directory = File_cache.Make(struct
-    let cache_name = "Exists_in_directory"
-    type t = string -> bool
-    let read dir =
-      if Sys.file_exists dir &&
-         Sys.is_directory dir
-      then
-        let cache = Hashtbl.create 4 in
-        (fun filename ->
-           match Hashtbl.find cache filename with
-           | x -> x
-           | exception Not_found ->
-             let exists = Sys.file_exists (Filename.concat dir filename) in
-             Hashtbl.add cache filename exists;
-             exists)
-      else (fun _ -> false)
-  end)
-
-let exact_file_exists ~dirname ~basename =
-  Exists_in_directory.read dirname basename &&
-  let path = Filename.concat dirname basename in
-  match fs_exact_case_basename path with
-  | None ->
-    let path' = fs_exact_case path in
-    path == path' || (* only on macos *) basename = Filename.basename path'
-  | Some bn ->
-    (* only on windows *)
-    basename = bn
-
-let canonicalize_filename ?cwd path =
-  let parts =
-    match split_path path with
-    | dot :: rest when dot = Filename.current_dir_name ->
-      split_path_and_prepend (match cwd with None -> Sys.getcwd () | Some c -> c) rest
-    | parts -> parts
-  in
-  let goup path = function
-    | dir when dir = Filename.parent_dir_name ->
-      (match path with _ :: t -> t | [] -> [])
-    | dir when dir = Filename.current_dir_name ->
-      path
-    | dir -> dir :: path
-  in
-  let parts = List.rev (List.fold_left ~f:goup ~init:[] parts) in
-  let filename_concats = function
-    | [] -> ""
-    | root :: subs -> List.fold_left ~f:Filename.concat ~init:root subs
-  in
-  fs_exact_case (filename_concats parts)
-
-let rec expand_glob ~filter acc root = function
-  | [] -> root :: acc
-  | Glob.Wildwild :: _tl -> (* FIXME: why is tl not used? *)
-    let rec append acc root =
-      let items = try Sys.readdir root with Sys_error _ -> [||] in
-      let process acc dir =
-        let filename = Filename.concat root dir in
-        if filter filename
-        then append (filename :: acc) filename
-        else acc
-      in
-      Array.fold_left process (root :: acc) items
-    in
-    append acc root
-  | Glob.Exact component :: tl ->
-    let filename = Filename.concat root component in
-    expand_glob ~filter acc filename tl
-  | pattern :: tl ->
-    let items = try Sys.readdir root with Sys_error _ -> [||] in
-    let process acc dir =
-      if Glob.match_pattern pattern dir then
-        let root' = Filename.concat root dir in
-        if filter root' then
-          expand_glob ~filter acc root' tl
-        else acc
-      else acc
-    in
-    Array.fold_left process acc items
-
-let expand_glob ?(filter=fun _ -> true) path acc =
-  match split_path path with
-  | [] -> acc
-  | root :: subs ->
-    let patterns = List.map ~f:Glob.compile_pattern subs in
-    expand_glob ~filter acc root patterns
-
 let find_in_path path name =
-  canonicalize_filename
-  begin
-    if not (Filename.is_implicit name) then
-      if exact_file_exists
-          ~dirname:(Filename.dirname name)
-          ~basename:(Filename.basename name)
-      then name
-      else raise Not_found
-    else List.find_map path ~f:(fun dirname ->
-        if exact_file_exists ~dirname ~basename:name
-        then Some (Filename.concat dirname name)
-        else None
-      )
+  if not (Filename.is_implicit name) then
+    if Sys.file_exists name then name else raise Not_found
+  else begin
+    let rec try_dir = function
+      [] -> raise Not_found
+    | dir::rem ->
+        let fullname = Filename.concat dir name in
+        if Sys.file_exists fullname then fullname else try_dir rem
+    in try_dir path
   end
 
 let find_in_path_rel path name =
@@ -272,40 +683,48 @@ let find_in_path_rel path name =
     else concat (simplify dir) base
   in
   let rec try_dir = function
-    | [] -> raise Not_found
-    | dir::rem ->
-      let dir = simplify dir in
-      if Exists_in_directory.read dir name
-      then Filename.concat dir name
-      else try_dir rem
+    [] -> raise Not_found
+  | dir::rem ->
+      let fullname = simplify (Filename.concat dir name) in
+      if Sys.file_exists fullname then fullname else try_dir rem
   in try_dir path
 
 let normalized_unit_filename = String.uncapitalize_ascii
 
-let find_in_path_normalized ?(fallback="") path name =
-  let has_fallback = fallback <> "" in
-  canonicalize_filename
-  begin
-    let uname = normalized_unit_filename name in
-    let ufallback = normalized_unit_filename fallback in
-    List.find_map path ~f:(fun dirname ->
-        if exact_file_exists ~dirname ~basename:uname
-        then Some (Filename.concat dirname uname)
-        else if exact_file_exists ~dirname ~basename:name
-        then Some (Filename.concat dirname name)
-        else
-          let () = Logger.log
-            ~section:"locate"
-            ~title:"find_in_path_uncap"
-            "Failed to load %s/%s" dirname name
-          in
-          if has_fallback && exact_file_exists ~dirname ~basename:ufallback
-        then Some (Filename.concat dirname ufallback)
-        else if has_fallback && exact_file_exists ~dirname ~basename:fallback
-        then Some (Filename.concat dirname fallback)
-        else None
-      )
-  end
+let find_in_path_normalized path name =
+  let uname = normalized_unit_filename name in
+  let rec try_dir = function
+    [] -> raise Not_found
+  | dir::rem ->
+      let fullname = Filename.concat dir name
+      and ufullname = Filename.concat dir uname in
+      if Sys.file_exists ufullname then ufullname
+      else if Sys.file_exists fullname then fullname
+      else try_dir rem
+  in try_dir path
+
+let remove_file filename =
+  try
+    (* merge5: Partial revert of upstream PR 11412, to allow building
+       with OCaml 4.14 (which does not have is_regular_file *)
+    if Sys.file_exists filename
+    then Sys.remove filename
+  with Sys_error _msg ->
+    ()
+
+let remove_dir dirname =
+  try
+    Sys.rmdir dirname
+  with Sys_error _msg ->
+    ()
+
+let remove_dir_contents dirname =
+  try
+    Array.iter
+      (fun entry -> remove_file (Filename.concat dirname entry))
+      (Sys.readdir dirname);
+    remove_dir dirname
+  with Sys_error _ -> ()
 
 (* Expand a -I option: if it starts with +, make it relative to the standard
    library directory *)
@@ -313,14 +732,23 @@ let find_in_path_normalized ?(fallback="") path name =
 let expand_directory alt s =
   if String.length s > 0 && s.[0] = '+'
   then Filename.concat alt
-                       (String.sub s ~pos:1 ~len:(String.length s - 1))
+                       (String.sub s 1 (String.length s - 1))
   else s
+
+let path_separator =
+  match Sys.os_type with
+  | "Win32" -> ';'
+  | _ -> ':'
+
+let split_path_contents ?(sep = path_separator) = function
+  | "" -> []
+  | s -> String.split_on_char sep s
 
 (* Hashtable functions *)
 
 let create_hashtable size init =
   let tbl = Hashtbl.create size in
-  List.iter ~f:(fun (key, data) -> Hashtbl.add tbl key data) init;
+  List.iter (fun (key, data) -> Hashtbl.add tbl key data) init;
   tbl
 
 (* File copy *)
@@ -336,7 +764,7 @@ let copy_file_chunk ic oc len =
   let buff = Bytes.create 0x1000 in
   let rec copy n =
     if n <= 0 then () else begin
-      let r = input ic buff 0 (min n 0x1000) in
+      let r = input ic buff 0 (Int.min n 0x1000) in
       if r = 0 then raise End_of_file else (output oc buff 0 r; copy(n-r))
     end
   in copy len
@@ -353,7 +781,7 @@ let string_of_file ic =
 let output_to_file_via_temporary ?(mode = [Open_text]) filename fn =
   let (temp_filename, oc) =
     Filename.open_temp_file
-       ~mode (*~perms:0o666*) ~temp_dir:(Filename.dirname filename)
+       ~mode ~perms:0o666 ~temp_dir:(Filename.dirname filename)
        (Filename.basename filename) ".tmp" in
     (* The 0o666 permissions will be modified by the umask.  It's just
        like what [open_out] and [open_out_bin] do.
@@ -375,17 +803,51 @@ let output_to_file_via_temporary ?(mode = [Open_text]) filename fn =
   | exception exn ->
       close_out oc; remove_file temp_filename; raise exn
 
-(* Reading from a channel *)
+let successful_output_files = ref []
 
-let input_bytes ic n =
-  let result = Bytes.create n in
-  really_input ic result 0 n;
-  result
+let protect_output_to_file filename f =
+  let outchan = open_out_bin filename in
+  try_finally ~always:(fun () -> close_out outchan)
+    ~exceptionally:(fun () -> remove_file filename)
+    (fun () ->
+      let a = f outchan in
+      successful_output_files := filename :: !successful_output_files;
+      a)
+
+let remove_successful_output_files () =
+  List.iter remove_file !successful_output_files; successful_output_files := []
+
+let prng = lazy(Random.State.make_self_init ())
+
+let temp_file_name temp_dir prefix suffix =
+  let rnd = (Random.State.bits (Lazy.force prng)) land 0xFFFFFF in
+  Filename.concat temp_dir (Printf.sprintf "%s%06x%s" prefix rnd suffix)
+
+let mk_temp_dir ?(perms = 0o700) prefix suffix =
+  let temp_dir = Filename.get_temp_dir_name () in
+  let rec try_name counter =
+    let name = temp_file_name temp_dir prefix suffix in
+    try
+      Sys.mkdir name perms;
+      name
+    with Sys_error _ as e ->
+      if counter >= 20 then raise e else try_name (counter + 1)
+  in try_name 0
 
 (* Integer operations *)
 
 let rec log2 n =
   if n <= 1 then 0 else 1 + log2(n asr 1)
+
+let rec log2_nativeint n =
+  if n <= 1n then 0 else 1 + log2_nativeint (Nativeint.shift_right n 1)
+
+let power ~base n =
+  let res = ref 1 in
+  for _ = 1 to n do
+    res := !res * base
+  done;
+  !res
 
 let align n a =
   if n >= 0 then (n + a - 1) land (-a) else n land (-a)
@@ -495,25 +957,22 @@ let find_first_mono =
 
 (* String operations *)
 
-(* let split_null_terminated s =
+let split_null_terminated s =
   let[@tail_mod_cons] rec discard_last_sep = function
     | [] | [""] -> []
     | x :: xs -> x :: discard_last_sep xs
   in
-  discard_last_sep (String.split_on_char ~sep:' ' s) *)
+  discard_last_sep (String.split_on_char '\000' s)
 
-(* let concat_null_terminated = function
+let concat_null_terminated = function
   | [] -> ""
-  | l -> String.concat ~sep:" " (l @ [""]) *)
-
-let chop_extension_if_any fname =
-  try Filename.chop_extension fname with Invalid_argument _ -> fname
+  | l -> String.concat "\000" (l @ [""])
 
 let chop_extensions file =
   let dirname = Filename.dirname file and basename = Filename.basename file in
   try
     let pos = String.index basename '.' in
-    let basename = String.sub basename ~pos:0 ~len:pos in
+    let basename = String.sub basename 0 pos in
     if Filename.is_implicit file && dirname = Filename.current_dir_name then
       basename
     else
@@ -532,40 +991,27 @@ let replace_substring ~before ~after str =
   let rec search acc curr =
     match search_substring before str curr with
       | next ->
-         let prefix = String.sub str ~pos:curr ~len:(next - curr) in
+         let prefix = String.sub str curr (next - curr) in
          search (prefix :: acc) (next + String.length before)
       | exception Not_found ->
-        let suffix = String.sub str ~pos:curr ~len:(String.length str - curr) in
+        let suffix = String.sub str curr (String.length str - curr) in
         List.rev (suffix :: acc)
-  in String.concat ~sep:after (search [] 0)
-
-
-let rev_split_string cond s =
-  let rec split1 res i =
-    if i >= String.length s then res else begin
-      if cond s.[i] then
-        split1 res (i+1)
-      else
-        split2 res i (i+1)
-    end
-  and split2 res i j =
-    if j >= String.length s then String.sub s ~pos:i ~len:(j-i) :: res else begin
-      if cond s.[j] then
-        split1 (String.sub s ~pos:i ~len:(j-i) :: res) (j+1)
-      else
-        split2 res i (j+1)
-    end
-  in split1 [] 0
+  in String.concat after (search [] 0)
 
 let rev_split_words s =
-  let helper = function
-    | ' ' | '\t' | '\r' | '\n' -> true
-    | _ -> false
-  in
-  rev_split_string helper s
-
-let rev_string_split ~on s =
-  rev_split_string ((=) on) s
+  let rec split1 res i =
+    if i >= String.length s then res else begin
+      match s.[i] with
+        ' ' | '\t' | '\r' | '\n' -> split1 res (i+1)
+      | _ -> split2 res i (i+1)
+    end
+  and split2 res i j =
+    if j >= String.length s then String.sub s i (j-i) :: res else begin
+      match s.[j] with
+        ' ' | '\t' | '\r' | '\n' -> split1 (String.sub s i (j-i) :: res) (j+1)
+      | _ -> split2 res i (j+1)
+    end
+  in split1 [] 0
 
 let get_ref r =
   let v = !r in
@@ -585,10 +1031,10 @@ let snd4 (_,x,_, _) = x
 let thd4 (_,_,x,_) = x
 let for4 (_,_,_,x) = x
 
+
 let cut_at s c =
   let pos = String.index s c in
-  String.sub s ~pos:0 ~len:pos,
-  String.sub s ~pos:(pos+1) ~len:(String.length s - pos - 1)
+  String.sub s 0 pos, String.sub s (pos+1) (String.length s - pos - 1)
 
 let ordinal_suffix n =
   let teen = (n mod 100)/10 = 1 in
@@ -598,7 +1044,12 @@ let ordinal_suffix n =
   | 3 when not teen -> "rd"
   | _ -> "th"
 
-(* Color support handling *)
+let format_as_unboxed_literal s =
+  if String.starts_with ~prefix:"-" s
+  then "-#" ^ (String.sub s 1 (String.length s - 1))
+  else "#" ^ s
+
+(* Color handling *)
 module Color = struct
   external isatty : out_channel -> bool = "caml_sys_isatty"
 
@@ -655,7 +1106,7 @@ module Style = struct
     let s = match l with
       | [] -> code_of_style Reset
       | [s] -> code_of_style s
-      | _ -> String.concat ~sep:";" (List.map ~f:code_of_style l)
+      | _ -> String.concat ";" (List.map code_of_style l)
     in
     "\x1b[" ^ s ^ "m"
 
@@ -701,6 +1152,7 @@ module Style = struct
     | Style s -> no_markup s
     | _ -> raise Not_found
 
+
   let as_inline_code printer ppf x =
     let open Format_doc in
     pp_open_stag ppf (Format.String_tag "inline_code");
@@ -708,6 +1160,9 @@ module Style = struct
     pp_close_stag ppf ()
 
   let inline_code ppf s = as_inline_code Format_doc.pp_print_string ppf s
+
+  let as_clflag flag printer ppf x =
+    Format_doc.fprintf ppf "@{<inline_code>%s %a@}" flag printer x
 
   (* either prints the tag of [s] or delegates to [or_else] *)
   let mark_open_tag ~or_else s =
@@ -748,7 +1203,7 @@ module Style = struct
       if !first then (
         first := false;
         Format.set_mark_tags true;
-        List.iter ~f:set_tag_handling formatter_l;
+        List.iter set_tag_handling formatter_l;
         Color.enabled := (match o with
           | Some s -> enable_color s
           | None -> enable_color Color.default_setting)
@@ -818,8 +1273,9 @@ let spellcheck env name =
          else if dist = best_dist then (head :: best_choice, dist)
          else acc
   in
-  let env = List.sort_uniq ~cmp:(fun s1 s2 -> String.compare s2 s1) env in
-  fst (List.fold_left ~f:(compare name) ~init:([], max_int) env)
+  let env = List.sort_uniq (fun s1 s2 -> String.compare s2 s1) env in
+  fst (List.fold_left (compare name) ([], max_int) env)
+
 
 let did_you_mean ppf get_choices =
   let open Format_doc in
@@ -837,18 +1293,285 @@ let did_you_mean ppf get_choices =
        (if rest = [] then "" else " or ")
        Style.inline_code last
 
+module Error_style = struct
+  type setting =
+    | Contextual
+    | Short
+
+  let default_setting = Contextual
+end
+
+let normalise_eol s =
+  let b = Buffer.create 80 in
+    for i = 0 to String.length s - 1 do
+      if s.[i] <> '\r' then Buffer.add_char b s.[i]
+    done;
+    Buffer.contents b
+
+let delete_eol_spaces src =
+  let len_src = String.length src in
+  let dst = Bytes.create len_src in
+  let rec loop i_src i_dst =
+    if i_src = len_src then
+      i_dst
+    else
+      match src.[i_src] with
+      | ' ' | '\t' ->
+        loop_spaces 1 (i_src + 1) i_dst
+      | c ->
+        Bytes.set dst i_dst c;
+        loop (i_src + 1) (i_dst + 1)
+  and loop_spaces spaces i_src i_dst =
+    if i_src = len_src then
+      i_dst
+    else
+      match src.[i_src] with
+      | ' ' | '\t' ->
+        loop_spaces (spaces + 1) (i_src + 1) i_dst
+      | '\n' ->
+        Bytes.set dst i_dst '\n';
+        loop (i_src + 1) (i_dst + 1)
+      | _ ->
+        for n = 0 to spaces do
+          Bytes.set dst (i_dst + n) src.[i_src - spaces + n]
+        done;
+        loop (i_src + 1) (i_dst + spaces + 1)
+  in
+  let stop = loop 0 0 in
+  Bytes.sub_string dst 0 stop
+
+let pp_two_columns ?(sep = "|") ?max_lines ppf (lines: (string * string) list) =
+  let left_column_size =
+    List.fold_left (fun acc (s, _) -> Int.max acc (String.length s)) 0 lines in
+  let lines_nb = List.length lines in
+  let ellipsed_first, ellipsed_last =
+    match max_lines with
+    | Some max_lines when lines_nb > max_lines ->
+        let printed_lines = max_lines - 1 in (* the ellipsis uses one line *)
+        let lines_before = printed_lines / 2 + printed_lines mod 2 in
+        let lines_after = printed_lines / 2 in
+        (lines_before, lines_nb - lines_after - 1)
+    | _ -> (-1, -1)
+  in
+  Format.fprintf ppf "@[<v>";
+  List.iteri (fun k (line_l, line_r) ->
+    if k = ellipsed_first then Format.fprintf ppf "...@,";
+    if ellipsed_first <= k && k <= ellipsed_last then ()
+    else Format.fprintf ppf "%*s %s %s@," left_column_size line_l sep line_r
+  ) lines;
+  Format.fprintf ppf "@]"
+
+let pp_parens_if condition printer ppf arg =
+  Format.fprintf ppf "%s%a%s"
+    (if condition then "(" else "")
+    printer arg
+    (if condition then ")" else "")
+
+let pp_nested_list ~nested ~pp_element ~pp_sep ppf arg =
+  Format.fprintf ppf "@[<hv>%a@]"
+    (pp_parens_if nested
+       (Format.pp_print_list ~pp_sep (pp_element ~nested:true)))
+    arg
+
+
+(* Printing a table of strings with headers. *)
+type table =
+  { columns : column array;
+    num_rows : int
+  }
+
+and column =
+  { mutable header : string;
+    entries : cell array;
+    mutable char_width : int
+  }
+
+and cell = string list
+
+(* Initialize a table by storing the original column string in the cells. *)
+let make_table (columns : (string * string list) list) =
+  match columns with
+  | [] -> fatal_errorf "make_table: empty table"
+  | (_, col) :: _ ->
+    let num_rows = List.length col in
+    let columns =
+      List.map
+        (fun (header, col) ->
+          let char_width, entries =
+            List.fold_right
+              (fun cell (width, acc) ->
+                let char_width = max width (String.length cell) in
+                char_width, [cell] :: acc)
+              col
+              (String.length header, [])
+          in
+          let entries = Array.of_list entries in
+          if Array.length entries <> num_rows then
+            fatal_errorf "make_table: inconsistent column lengths";
+          { header; entries; char_width })
+        columns
+    in
+    { columns = Array.of_list columns; num_rows }
+
+(* Splits all cells based on new lines,
+   and expands the cells with white space to be all of the same length. *)
+let expand_table t =
+  let pad_string desired_length s =
+    s ^ String.make (desired_length - String.length s) ' '
+  in
+  let pad_row_cell desired_depth cell =
+    cell @ List.init (desired_depth - List.length cell) (fun _ -> "")
+  in
+  (* split based on new lines and adjust column width *)
+  for i = 0 to Array.length t.columns - 1 do
+    let column = t.columns.(i) in
+    column.char_width <- String.length column.header;
+    for j = 0 to Array.length column.entries - 1 do
+      let cell_strings = column.entries.(j) in
+      let cell_strings =
+        List.concat_map (String.split_on_char '\n') cell_strings
+      in
+      let cell_max_width =
+        List.fold_left (fun acc s -> max acc (String.length s)) 0 cell_strings
+      in
+      column.char_width <- max column.char_width cell_max_width;
+      column.entries.(j) <- cell_strings
+    done
+  done;
+  (* add empty strings for rows with different depths *)
+  for j = 0 to t.num_rows - 1 do
+    let max_depth = ref 1 in
+    for i = 0 to Array.length t.columns - 1 do
+      max_depth := max !max_depth (List.length t.columns.(i).entries.(j))
+    done;
+    for i = 0 to Array.length t.columns - 1 do
+      t.columns.(i).entries.(j)
+        <- pad_row_cell !max_depth t.columns.(i).entries.(j)
+    done
+  done;
+  (* expand all strings to be of the correct width *)
+  for i = 0 to Array.length t.columns - 1 do
+    let column = t.columns.(i) in
+    column.header <- pad_string column.char_width column.header;
+    for j = 0 to Array.length column.entries - 1 do
+      column.entries.(j)
+        <- List.map (pad_string column.char_width) column.entries.(j)
+    done
+  done
+
+let print_separator ppf table_width =
+  Format.fprintf ppf "|%s|\n" (String.make (table_width - 2) '-')
+
+(* prints a single row of [num_cols] columns *)
+let print_row ppf num_cols f =
+  for i = 0 to num_cols - 1 do
+    Format.fprintf ppf "| %s " (f i)
+  done;
+  Format.fprintf ppf "|\n"
+
+let pp_table ppf (columns : (string * string list) list) =
+  if List.length columns = 0 then fatal_errorf "pp_table: empty table";
+  let table = make_table columns in
+  expand_table table;
+  let table_width =
+    Array.fold_left (fun acc column -> acc + column.char_width) 0 table.columns
+    + 4 (* boundary characters *)
+    + ((Array.length table.columns - 1) * 3 (* inter column boundaries *))
+  in
+  print_separator ppf table_width;
+  print_row ppf (Array.length table.columns)
+    (fun i -> table.columns.(i).header);
+  print_separator ppf table_width;
+  for j = 0 to table.num_rows - 1 do
+    let first_column_cell = table.columns.(0).entries.(j) in
+    let depth = List.length first_column_cell in
+    for k = 0 to depth - 1 do
+      print_row ppf (Array.length table.columns) (fun i ->
+          List.nth table.columns.(i).entries.(j) k)
+    done;
+    print_separator ppf table_width
+  done
+
+(* showing configuration and configuration variables *)
+let show_config_and_exit () =
+  Config.print_config stdout;
+  exit 0
+
+let show_config_variable_and_exit x =
+  match Config.config_var x with
+  | Some v ->
+      (* we intentionally don't print a newline to avoid Windows \r
+         issues: bash only strips the trailing \n when using a command
+         substitution $(ocamlc -config-var foo), so a trailing \r would
+         remain if printing a newline under Windows and scripts would
+         have to use $(ocamlc -config-var foo | tr -d '\r')
+         for portability. Ugh. *)
+      print_string v;
+      exit 0
+  | None ->
+      exit 2
+
+let get_build_path_prefix_map =
+  let init = ref false in
+  let map_cache = ref None in
+  fun () ->
+    if not !init then begin
+      init := true;
+      match Sys.getenv "BUILD_PATH_PREFIX_MAP" with
+      | exception Not_found -> ()
+      | encoded_map ->
+        match Build_path_prefix_map.decode_map encoded_map with
+          | Error err ->
+              fatal_errorf
+                "Invalid value for the environment variable \
+                 BUILD_PATH_PREFIX_MAP: %s" err
+          | Ok map -> map_cache := Some map
+    end;
+    !map_cache
+
+let debug_prefix_map_flags () =
+  (* CR sspies: If [BUILD_PATH_PREFIX_MAP] is set but
+     [Config.as_debug_prefix_map_flag] is empty (i.e. the assembler does not
+     support debug prefix map flags), we should emit a warning, as the user's
+     intent to remap paths will be silently ignored. *)
+  if String.equal Config.as_debug_prefix_map_flag "" then
+    []
+  else begin
+    match get_build_path_prefix_map () with
+    | None -> []
+    | Some map ->
+      List.fold_right
+        (fun map_elem acc ->
+           match map_elem with
+           | None -> acc
+           | Some { Build_path_prefix_map.target; source; } ->
+             (Printf.sprintf "%s %s=%s"
+                Config.as_debug_prefix_map_flag
+                (Filename.quote source)
+                (Filename.quote target)) :: acc)
+        map
+        []
+  end
+
 let print_see_manual ppf manual_section =
   let open Format_doc in
   fprintf ppf "(see manual section %a)"
     (pp_print_list ~pp_sep:(fun f () -> pp_print_char f '.') pp_print_int)
     manual_section
 
+let print_if ppf flag printer arg =
+  if !flag then Format.fprintf ppf "%a@." printer arg;
+  arg
+
 let output_of_print print =
   let output out_channel t =
     let ppf = Format.formatter_of_out_channel out_channel in
+    (* Effectively disable automatic wrapping because [Printf]-based code
+       doesn't expect it *)
+    Format.pp_set_margin ppf Int.max_int;
     print ppf t;
     (* Must flush the formatter immediately because it has a buffer separate
-        from the output channel's buffer *)
+       from the output channel's buffer *)
     Format.pp_print_flush ppf ()
   in
   output
@@ -881,86 +1604,514 @@ let is_print_longer_than size p =
   try p ppf; false
   with Limit_exceeded -> true
 
-let time_spent () =
-  let open Unix in
-  let t = times () in
-  ((t.tms_utime +. t.tms_stime +. t.tms_cutime +. t.tms_cstime) *. 1000.0)
-
-let normalise_eol s =
-  let b = Buffer.create 80 in
-    for i = 0 to String.length s - 1 do
-      if s.[i] <> '\r' then Buffer.add_char b s.[i]
-    done;
-    Buffer.contents b
-
-let unitname filename =
-  let unitname =
-    try String.sub filename ~pos:0 ~len:(String.index filename '.')
-    with Not_found -> filename
+let to_string_of_print print =
+  let to_string t =
+    (* Implemented similarly to [Format.asprintf] *)
+    let buf = Buffer.create 32 in
+    let ppf = Format.formatter_of_buffer buf in
+    Format.pp_set_margin ppf Int.max_int;
+    print ppf t;
+    Format.pp_print_flush ppf ();
+    Buffer.contents buf
   in
-  String.capitalize unitname
-
-(* [modules_in_path ~ext path] lists ocaml modules corresponding to
-                    * filenames with extension [ext] in given [path]es.
-                    * For instance, if there is file "a.ml","a.mli","b.ml" in ".":
-                    * - modules_in_path ~ext:".ml" ["."] returns ["A";"B"],
-                    * - modules_in_path ~ext:".mli" ["."] returns ["A"] *)
-let modules_in_path ~ext path =
-  let seen = Hashtbl.create 7 in
-  List.fold_left ~init:[] path
-    ~f:begin fun results dir ->
-      try
-        Array.fold_left
-          begin fun results file ->
-            if Filename.check_suffix file ext
-            then let name = Filename.chop_extension file in
-              (if Hashtbl.mem seen name
-               then results
-               else
-                 (Hashtbl.add seen name (); String.capitalize name :: results))
-            else results
-          end results (Sys.readdir dir)
-      with Sys_error _ -> results
-    end
-
-module List = struct
-  include CamlList
-
-  (* merlin-jst: From the compiler's `Misc.Stdlib.List` *)
-  let rec is_prefix ~equal t ~of_ =
-    match t, of_ with
-    | [], [] -> true
-    | _::_, [] -> false
-    | [], _::_ -> true
-    | x1::t, x2::of_ -> equal x1 x2 && is_prefix ~equal t ~of_
-
-  let rec iteri2 i f l1 l2 =
-    match (l1, l2) with
-      ([], []) -> ()
-    | (a1::l1, a2::l2) -> f i a1 a2; iteri2 (i + 1) f l1 l2
-    | (_, _) -> raise (Invalid_argument "iteri2")
-
-  let iteri2 f l1 l2 = iteri2 0 f l1 l2
-end
-
-module String = struct
-  include CamlString
-  module Ord = struct
-    type t = string
-    let compare = String.compare
-  end
-  module Set = Set.Make (Ord)
-  module Map = Map.Make (Ord)
-  module Tbl = Hashtbl.Make (struct
-      type t = string
-      let equal (x : string) (y : string) : bool = (x = y)
-      let hash = Hashtbl.hash
-    end)
-end
+  to_string
 
 
 type filepath = string
-type modname = string
-type crcs = (modname * Digest.t option) list
 
-type alerts = string String.Map.t
+type alerts = string Stdlib.String.Map.t
+
+module Bitmap = struct
+  type t = {
+    length: int;
+    bits: bytes
+  }
+
+  let length_bytes len =
+    (len + 7) lsr 3
+
+  let make n =
+    { length = n;
+      bits = Bytes.make (length_bytes n) '\000' }
+
+  let unsafe_get_byte t n =
+    Char.code (Bytes.unsafe_get t.bits n)
+
+  let unsafe_set_byte t n x =
+    Bytes.unsafe_set t.bits n (Char.unsafe_chr x)
+
+  let check_bound t n =
+    if n < 0 || n >= t.length then invalid_arg "Bitmap.check_bound"
+
+  let set t n =
+    check_bound t n;
+    let pos = n lsr 3 and bit = 1 lsl (n land 7) in
+    unsafe_set_byte t pos (unsafe_get_byte t pos lor bit)
+
+  let clear t n =
+    check_bound t n;
+    let pos = n lsr 3 and nbit = 0xff lxor (1 lsl (n land 7)) in
+    unsafe_set_byte t pos (unsafe_get_byte t pos land nbit)
+
+  let get t n =
+    check_bound t n;
+    let pos = n lsr 3 and bit = 1 lsl (n land 7) in
+    (unsafe_get_byte t pos land bit) <> 0
+
+  let iter f t =
+    for i = 0 to length_bytes t.length - 1 do
+      let c = unsafe_get_byte t i in
+      let pos = i lsl 3 in
+      for j = 0 to 7 do
+        if c land (1 lsl j) <> 0 then
+          f (pos + j)
+      done
+    done
+end
+
+module Magic_number = struct
+  type version = int
+
+  type kind =
+    | Exec
+    | Cmi | Cmo | Cma
+    | Cmx | Cmxa
+    | Cmxs
+    | Cmt
+    | Cms
+    | Ast_impl | Ast_intf
+
+  (* please keep up-to-date, this is used for sanity checking *)
+  let all_kinds = [
+    Exec;
+    Cmi; Cmo; Cma;
+    Cmx; Cmxa;
+    Cmt;
+    Ast_impl; Ast_intf;
+  ]
+
+  type raw = string
+  type info = {
+    kind: kind;
+    version: version;
+  }
+
+  type raw_kind = string
+
+  let parse_kind : raw_kind -> kind option = function
+    | "Caml1999X" -> Some Exec
+    | "Caml1999I" -> Some Cmi
+    | "Caml1999O" -> Some Cmo
+    | "Caml1999A" -> Some Cma
+    | "Caml1999Y" -> Some Cmx
+    | "Caml1999Z" -> Some Cmxa
+
+    (* Caml2007D and Caml2012T were used instead of the common Caml1999 prefix
+       between the introduction of those magic numbers and October 2017
+       (8ba70ff194b66c0a50ffb97d41fe9c4bdf9362d6).
+
+       We accept them here, but will always produce/show kind prefixes
+       that follow the current convention, Caml1999{D,T}. *)
+    | "Caml2007D" | "Caml1999D" -> Some Cmxs
+    | "Caml2012T" | "Caml1999T" -> Some Cmt
+    | "Caml1999S" -> Some Cms
+
+    | "Caml1999M" -> Some Ast_impl
+    | "Caml1999N" -> Some Ast_intf
+    | _ -> None
+
+  (* note: over time the magic kind number has changed for certain kinds;
+     this function returns them as they are produced by the current compiler,
+     but [parse_kind] accepts older formats as well. *)
+  let raw_kind : kind -> raw = function
+    | Exec -> "Caml1999X"
+    | Cmi -> "Caml1999I"
+    | Cmo -> "Caml1999O"
+    | Cma -> "Caml1999A"
+    | Cmx -> "Caml1999Y"
+    | Cmxa -> "Caml1999Z"
+    | Cmxs -> "Caml1999D"
+    | Cmt -> "Caml1999T"
+    | Cms -> "Caml1999S"
+    | Ast_impl -> "Caml1999M"
+    | Ast_intf -> "Caml1999N"
+
+  let string_of_kind : kind -> string = function
+    | Exec -> "exec"
+    | Cmi -> "cmi"
+    | Cmo -> "cmo"
+    | Cma -> "cma"
+    | Cmx -> "cmx"
+    | Cmxa -> "cmxa"
+    | Cmxs -> "cmxs"
+    | Cmt -> "cmt"
+    | Cms -> "cms"
+    | Ast_impl -> "ast_impl"
+    | Ast_intf -> "ast_intf"
+
+  let human_name_of_kind : kind -> string = function
+    | Exec -> "executable"
+    | Cmi -> "compiled interface file"
+    | Cmo -> "bytecode object file"
+    | Cma -> "bytecode library"
+    | Cmx -> "native compilation unit description"
+    | Cmxa -> "static native library"
+    | Cmxs -> "dynamic native library"
+    | Cmt -> "compiled typedtree file"
+    | Cms -> "compiled shape file"
+    | Ast_impl -> "serialized implementation AST"
+    | Ast_intf -> "serialized interface AST"
+
+  let kind_length = 9
+  let version_length = 3
+  let magic_length =
+    kind_length + version_length
+
+  type parse_error =
+    | Truncated of string
+    | Not_a_magic_number of string
+
+  let explain_parse_error kind_opt error =
+       Printf.sprintf
+         "We expected a valid %s, but the file %s."
+         (Option.fold ~none:"object file" ~some:human_name_of_kind kind_opt)
+         (match error with
+            | Truncated "" -> "is empty"
+            | Truncated _ -> "is truncated"
+            | Not_a_magic_number _ -> "has a different format")
+
+  let parse s : (info, parse_error) result =
+    if String.length s = magic_length then begin
+      let raw_kind = String.sub s 0 kind_length in
+      let raw_version = String.sub s kind_length version_length in
+      match parse_kind raw_kind with
+      | None -> Error (Not_a_magic_number s)
+      | Some kind ->
+          begin match int_of_string raw_version with
+          | exception _ -> Error (Truncated s)
+          | version -> Ok { kind; version }
+          end
+    end
+    else begin
+      (* a header is "truncated" if it starts like a valid magic number,
+         that is if its longest segment of length at most [kind_length]
+         is a prefix of [raw_kind kind] for some kind [kind] *)
+      let sub_length = Int.min kind_length (String.length s) in
+      let starts_as kind =
+        String.sub s 0 sub_length = String.sub (raw_kind kind) 0 sub_length
+      in
+      if List.exists starts_as all_kinds then Error (Truncated s)
+      else Error (Not_a_magic_number s)
+    end
+
+  let read_info ic =
+    let header = Buffer.create magic_length in
+    begin
+      try Buffer.add_channel header ic magic_length
+      with End_of_file -> ()
+    end;
+    parse (Buffer.contents header)
+
+  let raw { kind; version; } =
+    Printf.sprintf "%s%03d" (raw_kind kind) version
+
+  let current_raw kind =
+    let open Config in
+    match[@warning "+9"] kind with
+      | Exec -> exec_magic_number
+      | Cmi -> cmi_magic_number
+      | Cmo -> cmo_magic_number
+      | Cma -> cma_magic_number
+      | Cmx -> cmx_magic_number
+      | Cmxa -> cmxa_magic_number
+      | Cmxs -> cmxs_magic_number
+      | Cmt -> cmt_magic_number
+      | Cms -> cms_magic_number
+      | Ast_intf -> ast_intf_magic_number
+      | Ast_impl -> ast_impl_magic_number
+
+  (* it would seem more direct to define current_version with the
+     correct numbers and current_raw on top of it, but for now we
+     consider the Config.foo values to be ground truth, and don't want
+     to trust the present module instead. *)
+  let current_version kind =
+    let raw = current_raw kind in
+    try int_of_string (String.sub raw kind_length version_length)
+    with _ -> assert false
+
+  type 'a unexpected = { expected : 'a; actual : 'a }
+  type unexpected_error =
+    | Kind of kind unexpected
+    | Version of kind * version unexpected
+
+  let explain_unexpected_error = function
+    | Kind { actual; expected } ->
+        Printf.sprintf "We expected a %s (%s) but got a %s (%s) instead."
+          (human_name_of_kind expected) (string_of_kind expected)
+          (human_name_of_kind actual) (string_of_kind actual)
+    | Version (kind, { actual; expected }) ->
+        Printf.sprintf "This seems to be a %s (%s) for %s version of OCaml."
+          (human_name_of_kind kind) (string_of_kind kind)
+          (if actual < expected then "an older" else "a newer")
+
+  let check_current expected_kind { kind; version } : _ result =
+    if kind <> expected_kind then begin
+      let actual, expected = kind, expected_kind in
+      Error (Kind { actual; expected })
+    end else begin
+      let actual, expected = version, current_version kind in
+      if actual <> expected
+      then Error (Version (kind, { actual; expected }))
+      else Ok ()
+    end
+
+  type error =
+    | Parse_error of parse_error
+    | Unexpected_error of unexpected_error
+
+  let read_current_info ~expected_kind ic =
+    match read_info ic with
+      | Error err -> Error (Parse_error err)
+      | Ok info ->
+         let kind = Option.value ~default:info.kind expected_kind in
+         match check_current kind info with
+           | Error err -> Error (Unexpected_error err)
+           | Ok () -> Ok info
+end
+
+module Le_result = struct
+  type t =
+    | Equal
+    | Less
+    | Not_le
+
+  let combine sr1 sr2 =
+    match sr1, sr2 with
+    | Equal, Equal -> Equal
+    | Equal, Less | Less, Equal | Less, Less -> Less
+    | Not_le, _ | _, Not_le -> Not_le
+
+  let combine_list ts = List.fold_left combine Equal ts
+
+  let is_le = function
+    | Equal -> true
+    | Less -> true
+    | Not_le -> false
+
+  let is_equal = function
+    | Equal -> true
+    | Less | Not_le -> false
+
+  let less_or_equal ~le a b =
+    match le a b, le b a with
+    | true, true -> Equal
+    | true, false -> Less
+    | false, _ -> Not_le
+
+  let equal ~le a b = le a b && le b a
+end
+
+(*********************************************)
+(* Fancy types *)
+
+type (_, _) eq = Refl : ('a, 'a) eq
+
+type ('a, 'b) comparison =
+  | Less_than : ('a, 'b) comparison
+  | Equal : ('a, 'a) comparison
+  | Greater_than : ('a, 'b) comparison
+
+let comparison_result : type a b. (a, b) comparison -> int = function
+  | Less_than -> -1
+  | Equal -> 0
+  | Greater_than -> 1
+
+(*********************************************)
+(* Fancy modules *)
+
+module type T = sig
+  type t
+end
+
+module type T1 = sig
+  type 'a t
+end
+
+module type T2 = sig
+  type ('a, 'b) t
+end
+
+module type T3 = sig
+  type ('a, 'b, 'c) t
+end
+
+module type T4 = sig
+  type ('a, 'b, 'c, 'd) t
+end
+
+let remove_double_underscores s =
+  let len = String.length s in
+  let buf = Buffer.create len in
+  let skip = ref false in
+  let rec loop i =
+    if i < len
+    then (
+      let c = String.get s i in
+      if c = '.' then skip := true;
+      if (not !skip) && c = '_' && i + 1 < len && String.get s (i + 1) = '_'
+      then (
+        Buffer.add_char buf '.';
+        skip := true;
+        loop (i + 2))
+      else (
+        Buffer.add_char buf c;
+        loop (i + 1)))
+  in
+  loop 0;
+  Buffer.contents buf
+
+module Json = struct
+
+  (* [escape_unicode] is based on [Bytes.unsafe_escape], which is used
+     for the format specifier [%S]. It is adjusted to output unicode escape
+     chacarcters \u00HH instead of the usual OCaml character literals \DDD.
+     Adds quotes around the input string. *)
+  let escape_unicode str =
+    let s = Bytes.of_string str in
+    let n = ref 2 in (* for the quotes *)
+    for i = 0 to Bytes.length s - 1 do
+      n := !n +
+        (match Bytes.unsafe_get s i with
+        | '\"' | '\\' | '\n' | '\t' | '\r' | '\b' -> 2
+        | ' ' .. '~' -> 1
+        | _ -> 6)
+    done;
+    begin
+      let s' = Bytes.create !n in
+      Bytes.unsafe_set s' 0 '\"';
+      n := 1;
+      for i = 0 to Bytes.length s - 1 do
+        begin match Bytes.unsafe_get s i with
+        | ('\"' | '\\') as c ->
+            Bytes.unsafe_set s' !n '\\'; incr n; Bytes.unsafe_set s' !n c
+        | '\n' ->
+            Bytes.unsafe_set s' !n '\\'; incr n; Bytes.unsafe_set s' !n 'n'
+        | '\t' ->
+            Bytes.unsafe_set s' !n '\\'; incr n; Bytes.unsafe_set s' !n 't'
+        | '\r' ->
+            Bytes.unsafe_set s' !n '\\'; incr n; Bytes.unsafe_set s' !n 'r'
+        | '\b' ->
+            Bytes.unsafe_set s' !n '\\'; incr n; Bytes.unsafe_set s' !n 'b'
+        | (' ' .. '~') as c -> Bytes.unsafe_set s' !n c
+        | c ->
+            let a = Char.code c in
+            let hex_char n =
+              if n < 10 then Char.chr (48 + n)  (* '0'-'9' *)
+              else Char.chr (55 + n)            (* 'A'-'F' *)
+            in
+            Bytes.unsafe_set s' !n '\\';
+            incr n;
+            Bytes.unsafe_set s' !n 'u';
+            incr n;
+            Bytes.unsafe_set s' !n '0';
+            incr n;
+            Bytes.unsafe_set s' !n '0';
+            incr n;
+            Bytes.unsafe_set s' !n (hex_char (a / 16));
+            incr n;
+            Bytes.unsafe_set s' !n (hex_char (a mod 16));
+        end;
+        incr n
+      done;
+      Bytes.unsafe_set s' !n '\"';
+      String.of_bytes s'
+    end
+
+
+  let field name value = Printf.sprintf "%s: %s" (escape_unicode name) value
+
+  let string value = escape_unicode value
+
+  let int value = string_of_int value
+
+  (* Use %.17g instead of string_of_float to avoid invalid JSON output.
+     [string_of_float] can produce "1." for whole numbers, which is not valid
+     JSON. %.17g provides full double precision and produces valid JSON
+     numbers. *)
+  let float value = Printf.sprintf "%.17g" value
+
+  let object_ fields =
+    let field_strings = String.concat ",\n" fields in
+    Printf.sprintf "{\n%s\n}" field_strings
+
+  let array items =
+    let item_strings = String.concat ",\n" items in
+    Printf.sprintf "[\n%s\n]" item_strings
+
+  let null = "null"
+
+  let option f = function None -> null | Some v -> f v
+end
+
+module Nonempty_list = struct
+  type nonrec 'a t = ( :: ) of 'a * 'a list
+
+  let to_list (x :: xs) : _ list = x :: xs
+
+  let of_list_opt : _ list -> _ t option = function
+    | [] -> None
+    | (x :: xs)-> Some (x :: xs)
+
+  let map f (x :: xs) = f x :: List.map f xs
+
+  let pp_print ?pp_sep f ppf t =
+    Format.pp_print_list ?pp_sep f ppf (to_list t)
+
+  let (@) (x :: xs) (y :: ys) =
+    x :: List.(xs @ (y :: ys))
+end
+
+module Maybe_bounded = struct
+  type t =
+    | Unbounded
+    | Bounded of { mutable bound: int }
+
+  let decr = function
+    | Unbounded -> ()
+    | Bounded r when r.bound > 0 -> r.bound <- r.bound - 1
+    | Bounded _ -> ()
+
+  let incr = function
+    | Unbounded -> ()
+    | Bounded r ->
+      if Int.equal r.bound Int.max_int
+      then
+        let msg = Format.asprintf "incr called with max_int (%d)" Int.max_int in
+        raise (Invalid_argument msg)
+      else
+        r.bound <- r.bound + 1
+
+  let is_depleted = function
+    | Unbounded -> false
+    | Bounded r -> r.bound <= 0
+
+  let is_in_bounds n t =
+    if n < 0 then false
+    else
+      match t with
+      | Unbounded -> true
+      | Bounded r -> n < r.bound
+
+  let is_out_of_bounds n t =
+    if n < 0 then true
+    else
+      match t with
+      | Unbounded -> false
+      | Bounded r -> n >= r.bound
+
+  let of_int n = if n < 0 then Bounded { bound = 0 } else Bounded { bound = n }
+
+  let of_option = function
+    | None -> Unbounded
+    | Some n -> of_int n
+end
