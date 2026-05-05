@@ -12,11 +12,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* Merlin-specific: change some module paths to match the compiler *)
-module Misc = struct
-  include Misc_stdlib
-end
-
 module Fmt = Format_doc
 
 module type Axis_ops = sig

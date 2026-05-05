@@ -13,13 +13,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* Merlin-only: change some module paths to match the compiler *)
-module Misc = struct
-  include Misc
-  module Stdlib = Misc_stdlib
-  module Nonempty_list = Misc_stdlib.Nonempty_list
-end
-
 (* Operations on core types *)
 
 open Misc
@@ -7066,7 +7059,7 @@ let match_class_declarations env patt_params patt_type subj_params subj_type =
         let ls = List.length subj_params in
         if lp  <> ls then
           raise (Failure [CM_Parameter_arity_mismatch (lp, ls)]);
-        Misc.List.iteri2 (fun n p s ->
+        Stdlib.List.iteri2 (fun n p s ->
           try eqtype true type_pairs subst env p s with Equality_trace trace ->
             raise (Failure
                      [CM_Type_parameter_mismatch

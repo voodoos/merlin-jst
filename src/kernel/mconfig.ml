@@ -350,8 +350,8 @@ let merlin_flags =
       "<command> Use <command> as a merlin reader" );
     ( "-assocsuffix",
       Marg.param "suffix:reader" (fun assoc_pair merlin ->
-          match Misc.rev_string_split ~on:':' assoc_pair with
-          | [ reader; suffix ] ->
+          match String.split_on_char ~sep:':' assoc_pair with
+          | [ suffix; reader ] ->
             { merlin with
               extension_to_reader =
                 (suffix, reader) :: merlin.extension_to_reader
@@ -361,8 +361,8 @@ let merlin_flags =
     ( "-addsuffix",
       Marg.param "implementation Suffix, interface Suffix"
         (fun suffix_pair merlin ->
-          match Misc.rev_string_split ~on:':' suffix_pair with
-          | [ intf; impl ] ->
+          match String.split_on_char ~sep:':' suffix_pair with
+          | [ impl; intf ] ->
             { merlin with suffixes = (impl, intf) :: merlin.suffixes }
           | _ -> merlin),
       "Add a suffix implementation,interface pair" );
@@ -1222,12 +1222,12 @@ let cmt_path config =
    @ config.merlin.hidden_build_path)
 
 let global_modules ?(include_current = false) config =
-  let modules = Misc.modules_in_path ~ext:".cmi" (build_path config) in
+  let modules = modules_in_path ~ext:".cmi" (build_path config) in
   if include_current then modules
   else
     match config.query.filename with
     | "" -> modules
-    | filename -> List.remove (Misc.unitname filename) modules
+    | filename -> List.remove (unitname filename) modules
 
 (** {1 Accessors for other information} *)
 
@@ -1235,14 +1235,14 @@ let filename t = t.query.filename
 
 let unitname t =
   match t.merlin.unit_name with
-  | Some name -> Misc.unitname name
+  | Some name -> unitname name
   | None ->
-    let basename = Misc.unitname t.query.filename in
+    let basename = unitname t.query.filename in
     (* CR: get rid of wrapping_prefix. it is only here for legacy reasons at the moment *)
     begin match t.merlin.wrapping_prefix with
-    | Some prefix -> Misc.unitname (prefix ^ basename)
+    | Some prefix -> unitname (prefix ^ basename)
     | None ->
       String.Map.find_opt basename t.merlin.unit_name_for
-      |> Option.map ~f:Misc.unitname
+      |> Option.map ~f:unitname
       |> Option.value ~default:basename
     end

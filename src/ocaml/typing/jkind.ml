@@ -12,13 +12,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* Merlin-specific: change some module paths to match the compiler *)
-module Misc = struct
-  include Misc
-  module Stdlib = Misc_stdlib
-  include Misc_stdlib
-end
-
 open Mode
 open Jkind_types
 open Types

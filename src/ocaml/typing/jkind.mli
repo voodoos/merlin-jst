@@ -75,16 +75,16 @@ module Sub_result : sig
   type t =
     | Equal
     | Less
-    | Not_le of Sub_failure_reason.t Misc_stdlib.Nonempty_list.t
+    | Not_le of Sub_failure_reason.t Misc.Nonempty_list.t
 
   val of_le_result :
-    failure_reason:(unit -> Sub_failure_reason.t Misc_stdlib.Nonempty_list.t) ->
-    Misc_stdlib.Le_result.t ->
+    failure_reason:(unit -> Sub_failure_reason.t Misc.Nonempty_list.t) ->
+    Misc.Le_result.t ->
     t
 
   val combine : t -> t -> t
 
-  val require_le : t -> (unit, Sub_failure_reason.t Misc_stdlib.Nonempty_list.t) result
+  val require_le : t -> (unit, Sub_failure_reason.t Misc.Nonempty_list.t) result
 
   val is_le : t -> bool
 end
@@ -792,9 +792,9 @@ val sub :
 
 type sub_or_intersect =
   | Sub  (** The first jkind is a subjkind of the second. *)
-  | Disjoint of Sub_failure_reason.t Misc_stdlib.Nonempty_list.t
+  | Disjoint of Sub_failure_reason.t Misc.Nonempty_list.t
       (** The two jkinds have no common ground. *)
-  | May_have_intersection of Sub_failure_reason.t Misc_stdlib.Nonempty_list.t
+  | May_have_intersection of Sub_failure_reason.t Misc.Nonempty_list.t
       (** The first jkind is not a subjkind of the second, but the two jkinds
           may have an intersection: try harder. *)
 

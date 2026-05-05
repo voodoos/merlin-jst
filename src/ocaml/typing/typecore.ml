@@ -27,13 +27,6 @@ open Typedtree
 open Btype
 open Ctype
 
-(* Merlin-specific: change some module paths to match the compiler *)
-module Misc = struct
-  include Misc
-  module Stdlib = Misc_stdlib
-  include Misc_stdlib
-end
-
 let raise_error = Msupport.raise_error
 
 type comprehension_type =
@@ -1059,9 +1052,9 @@ let constant : Parsetree.constant -> (Typedtree.constant, error) result =
       Ok (Const_unboxed_float f)
   | Pconst_unboxed_float (f, Some 's') ->
       if Language_extension.is_enabled Small_numbers then Ok (Const_unboxed_float32 f)
-      else Error (Float32_literal (Misc.Stdlib.format_as_unboxed_literal f))
+      else Error (Float32_literal (Misc.format_as_unboxed_literal f))
   | Pconst_unboxed_float (x, Some c) ->
-      Error (Unknown_literal (Misc.Stdlib.format_as_unboxed_literal x, c))
+      Error (Unknown_literal (Misc.format_as_unboxed_literal x, c))
   | Pconst_unboxed_integer (i, suffix) ->
       begin match constant_integer i ~suffix:(Some suffix) with
       | Ok (Int8 v) -> Ok (Const_untagged_int8 v)

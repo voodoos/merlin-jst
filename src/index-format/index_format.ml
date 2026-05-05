@@ -146,7 +146,7 @@ type file_content =
 
 let read ~file =
   let ic = open_in_bin file in
-  Merlin_utils.Misc.try_finally
+  Ocaml_utils.Misc.try_finally
     ~always:(fun () -> close_in ic)
     (fun () ->
       let file_magic_number = ref (Cmt_format.read_magic_number ic) in

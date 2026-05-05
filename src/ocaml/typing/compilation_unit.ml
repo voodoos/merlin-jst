@@ -17,8 +17,8 @@
 [@@@ocaml.warning "+a-9-40-41-42"]
 
 open! Int_replace_polymorphic_compare
-module List = Misc.List
-module String = Misc.String
+module List = Misc.Stdlib.List
+module String = Misc.Stdlib.String
 module Fmt = Format_doc
 
 type error =

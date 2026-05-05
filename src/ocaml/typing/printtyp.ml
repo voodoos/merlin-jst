@@ -15,8 +15,8 @@
 
 (* Printing functions *)
 
-module M = Misc.String.Map
-module S = Misc.String.Set
+module M = Misc.Stdlib.String.Map
+module S = Misc.Stdlib.String.Set
 
 open Misc
 open Ctype
@@ -28,6 +28,8 @@ open Mode
 open Btype
 open Outcometree
 
+module String = Misc.Stdlib.String
+module Int = Misc.Stdlib.Int
 module Sig_component_kind = Shape.Sig_component_kind
 module Style = Misc.Style
 

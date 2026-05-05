@@ -18,6 +18,9 @@
 val version: string
         (* The current version number of the system *)
 
+val as_debug_prefix_map_flag : string
+(** The flag to use for assembler debug prefix map ("" if none) *)
+
 val interface_suffix: string ref
         (* Suffix for interface file names *)
 
@@ -42,6 +45,12 @@ val flat_float_array: bool
 val reserved_header_bits : int
 val runtime5 : bool
 val syntax_quotations : bool
+
+(** Access to configuration values *)
+val print_config : out_channel -> unit
+
+val config_var : string -> string option
+(** the configuration value of a variable, if it exists *)
 
 (**/**)
 

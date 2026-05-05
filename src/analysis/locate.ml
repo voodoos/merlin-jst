@@ -92,7 +92,7 @@ end = struct
     | CMS of string
     | CMSI of string
 
-  let file_path_to_mod_name f = Misc.unitname (Filename.basename f)
+  let file_path_to_mod_name f = unitname (Filename.basename f)
 
   let ml s = ML (file_path_to_mod_name s)
   let mll s = MLL (file_path_to_mod_name s)
@@ -103,7 +103,7 @@ end = struct
   let cmsi s = CMSI (file_path_to_mod_name s)
 
   let of_filename fn =
-    match Misc.rev_string_split ~on:'.' fn with
+    match String.split_on_char ~sep:'.' fn |> List.rev with
     | [] | [ _ ] -> None
     | ext :: _ ->
       let ext = String.lowercase ext in
@@ -908,7 +908,7 @@ let get_linked_uids ~config ~comp_unit decl_uid =
 let find_definition_uid ~config ~env ~(decl : Env_lookup.item) path =
   let namespace = decl.namespace in
   let module Reduce = Shape_reduce.Make (struct
-    let fuel () = Misc_stdlib.Maybe_bounded.of_int 10
+    let fuel () = Misc.Maybe_bounded.of_int 10
     let read_unit_shape ~diagnostics:_ ~unit_name =
       log ~title:"read_unit_shape" "inspecting %s" unit_name;
       match
@@ -925,10 +925,10 @@ let find_definition_uid ~config ~env ~(decl : Env_lookup.item) path =
         None
 
     let projection_rules_for_merlin_enabled = true
-    let fuel_for_compilation_units () : Misc_stdlib.Maybe_bounded.t = Unbounded
-    let max_shape_reduce_steps_per_variable () : Misc_stdlib.Maybe_bounded.t =
+    let fuel_for_compilation_units () : Misc.Maybe_bounded.t = Unbounded
+    let max_shape_reduce_steps_per_variable () : Misc.Maybe_bounded.t =
       Unbounded
-    let max_compilation_unit_depth () : Misc_stdlib.Maybe_bounded.t = Unbounded
+    let max_compilation_unit_depth () : Misc.Maybe_bounded.t = Unbounded
   end) in
   let shape = Env.shape_of_path ~namespace env path in
   log ~title:"shape_of_path" "initial: %a" Logger.fmt

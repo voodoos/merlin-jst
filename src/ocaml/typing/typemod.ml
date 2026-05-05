@@ -27,7 +27,7 @@ module Style = Misc.Style
 let () = Includemod_errorprinter.register ()
 
 module Sig_component_kind = Shape.Sig_component_kind
-module String = Misc.String
+module String = Misc.Stdlib.String
 
 type hiding_error =
   | Illegal_shadowing of {
@@ -4834,7 +4834,7 @@ let package_units initial_env objfiles target_cmi modulename =
       let name = Compilation_unit.name modulename in
       let kind = Cmi_format.Normal { cmi_impl = modulename; cmi_arg_for } in
       let cmi =
-        Env.save_signature_with_imports ~alerts:Misc.String.Map.empty
+        Env.save_signature_with_imports ~alerts:Misc.Stdlib.String.Map.empty
           sg name kind target_cmi (Array.of_list imports)
       in
       let sign = Subst.Lazy.force_signature cmi.Cmi_format.cmi_sign in

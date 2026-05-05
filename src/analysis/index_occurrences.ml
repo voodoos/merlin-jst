@@ -90,7 +90,7 @@ let iterator ~current_buffer_path ~index ~reduce_for_uid =
 
 let items index (config : Mconfig.t) items =
   let module Shape_reduce = Shape_reduce.Make (struct
-    let fuel () = Misc_stdlib.Maybe_bounded.of_int 10
+    let fuel () = Misc.Maybe_bounded.of_int 10
 
     let read_unit_shape ~diagnostics:_ ~unit_name =
       log ~title:"read_unit_shape" "inspecting %s" unit_name;
@@ -113,10 +113,10 @@ let items index (config : Mconfig.t) items =
         None
 
     let projection_rules_for_merlin_enabled = true
-    let fuel_for_compilation_units () : Misc_stdlib.Maybe_bounded.t = Unbounded
-    let max_shape_reduce_steps_per_variable () : Misc_stdlib.Maybe_bounded.t =
+    let fuel_for_compilation_units () : Misc.Maybe_bounded.t = Unbounded
+    let max_shape_reduce_steps_per_variable () : Misc.Maybe_bounded.t =
       Unbounded
-    let max_compilation_unit_depth () : Misc_stdlib.Maybe_bounded.t = Unbounded
+    let max_compilation_unit_depth () : Misc.Maybe_bounded.t = Unbounded
   end) in
   let current_buffer_path =
     Filename.concat config.query.directory config.query.filename

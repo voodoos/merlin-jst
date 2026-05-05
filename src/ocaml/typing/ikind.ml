@@ -12,13 +12,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* Merlin-specific: change some module paths to match the compiler *)
-module Misc = struct
-  include Misc
-  module Stdlib = Misc_stdlib
-  include Misc_stdlib
-end
-
 (* Global feature toggles for the ikinds experiment.
    These are intended to be easy to flip while iterating on
    performance or correctness. *)

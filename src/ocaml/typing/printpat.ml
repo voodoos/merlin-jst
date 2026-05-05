@@ -20,12 +20,6 @@ open Typedtree
 open Types
 open Format_doc
 
-(* Merlin-specific: change some module paths to match the compiler *)
-module Misc = struct
-  include Misc
-  include Misc_stdlib
-end
-
 let is_cons = function
 | {cstr_name = "::"} -> true
 | _ -> false
@@ -51,11 +45,11 @@ let pretty_const c = match c with
 | Const_untagged_int16 i ->
   Printf.sprintf "%sS" (Misc.format_as_unboxed_literal (Int.to_string i))
 | Const_unboxed_int32 i ->
-  Printf.sprintf "%sl" (Misc_stdlib.format_as_unboxed_literal (Int32.to_string i))
+  Printf.sprintf "%sl" (Misc.format_as_unboxed_literal (Int32.to_string i))
 | Const_unboxed_int64 i ->
-  Printf.sprintf "%sL" (Misc_stdlib.format_as_unboxed_literal (Int64.to_string i))
+  Printf.sprintf "%sL" (Misc.format_as_unboxed_literal (Int64.to_string i))
 | Const_unboxed_nativeint i ->
-  Printf.sprintf "%sn" (Misc_stdlib.format_as_unboxed_literal (Nativeint.to_string i))
+  Printf.sprintf "%sn" (Misc.format_as_unboxed_literal (Nativeint.to_string i))
 
 let bool ppf = function
   | false -> fprintf ppf "false"

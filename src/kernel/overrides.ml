@@ -79,7 +79,7 @@ module Override = struct
             ({ txt = Lident "payload"; _ }, payload_expression)
           ],
           None ) ->
-      let open Misc_stdlib.Monad.Result.Syntax in
+      let open Misc.Stdlib.Monad.Result.Syntax in
       let* loc_start = expr_to_pos loc_start_expr in
       let* loc_end = expr_to_pos loc_end_expr in
       let* loc_ghost =

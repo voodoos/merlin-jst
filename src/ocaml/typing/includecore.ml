@@ -1563,7 +1563,7 @@ let type_declarations ?(equality = false) ~loc env ~mark name
           mark usage cstrs1;
           if equality then mark Env.Exported cstrs2
         end;
-        Misc_stdlib.Option.first_some
+        Misc.Stdlib.Option.first_some
           (Variant_diffing.compare_with_representation ~loc env
               decl1.type_params
               decl2.type_params
@@ -1574,13 +1574,13 @@ let type_declarations ?(equality = false) ~loc env ~mark name
           (fun () -> compare_unsafe_mode_crossing ~env umc1 umc2)
       end
     | (Type_record(labels1,rep1,umc1), Type_record(labels2,rep2,umc2)) -> begin
-        Misc_stdlib.Option.first_some
+        Misc.Stdlib.Option.first_some
           (mark_and_compare_records Legacy labels1 rep1 labels2 rep2)
           (fun () -> compare_unsafe_mode_crossing ~env umc1 umc2)
       end
     | (Type_record_unboxed_product(labels1,rep1,umc1),
        Type_record_unboxed_product(labels2,rep2,umc2)) -> begin
-        Misc_stdlib.Option.first_some
+        Misc.Stdlib.Option.first_some
           (mark_and_compare_records Unboxed_product labels1 rep1 labels2 rep2)
           (fun () -> compare_unsafe_mode_crossing ~env umc1 umc2)
       end

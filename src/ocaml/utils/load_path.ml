@@ -12,13 +12,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* Merlin-specific: change some module paths to match the compiler *)
-module Misc = struct
-  include Misc
-  module Stdlib = Misc_stdlib
-  include Misc_stdlib
-end
-
 open Local_store
 
 exception Parse_error of string
@@ -339,7 +332,7 @@ module Path_cache : sig
   (* Search for a basename in cache. Ignore case if [uncap] is true *)
   val find : uncap:bool -> string -> string * visibility
 end = struct
-  module STbl = Misc.String.Tbl
+  module STbl = Misc.Stdlib.String.Tbl
 
   (* Mappings from basenames to full filenames *)
   type visible_registry = Clflags.visible_include STbl.t

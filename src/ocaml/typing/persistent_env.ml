@@ -350,8 +350,8 @@ let register_pers_for_short_paths penv modname ps components =
     List.exists
       (function
         | Alerts alerts ->
-          String.Map.mem "deprecated" alerts ||
-          String.Map.mem "ocaml.deprecated" alerts
+          Misc.Stdlib.String.Map.mem "deprecated" alerts ||
+          Misc.Stdlib.String.Map.mem "ocaml.deprecated" alerts
         | _ -> false)
       ps.ps_name_info.pn_import.imp_flags
   in
@@ -623,7 +623,7 @@ and compute_global penv modname ~params ~check ~allow_excess_args =
     let compare_by_param param1 (param2, _) =
       Global_module.Parameter_name.compare param1 param2
     in
-    Misc_stdlib.List.merge_iter
+    Misc.Stdlib.List.merge_iter
       ~cmp:compare_by_param
       params
       arg_global_by_param_name

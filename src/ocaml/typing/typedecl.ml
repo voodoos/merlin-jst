@@ -13,13 +13,6 @@
 (*                                                                        *)
 (**************************************************************************)
 
-(* Merlin-only: change some module paths to match the compiler *)
-module Misc = struct
-  include Misc
-  module Stdlib = Misc_stdlib
-  module Nonempty_list = Misc_stdlib.Nonempty_list
-end
-
 (**** Typing of type definitions ****)
 
 open Misc
@@ -29,7 +22,7 @@ open Primitive
 open Types
 open Typetexp
 
-module String = Misc.String
+module String = Misc.Stdlib.String
 
 type native_repr_kind = Unboxed | Untagged | Unpacked
 
