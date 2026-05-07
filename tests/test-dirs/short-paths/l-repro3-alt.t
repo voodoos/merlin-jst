@@ -31,6 +31,11 @@ Short-paths should prefer Header.t but prints Lib_b.Header.t.
   > EOF
 
   $ $OCAMLC -o lib_b.cmi -c -impl lib_b.ml -I ../lib_a
+  $ $MERLIN_TEST_OCAML_PATH/bin/ocamlobjinfo -quiet -discourse lib_b.cmi
+  Discourse:
+  Header: alias: Lib_a.Header [Lib_a!.Header] Lib_a.Header [Lib_a!.Header]
+  
+  t: Header.t [Header/276[1].t]
 
   $ cd ..
 
@@ -47,13 +52,12 @@ Short-paths should prefer Header.t but prints Lib_b.Header.t.
   > EOF
 
   $ cat >.merlin <<'EOF'
-  > FLG -short-paths -nostdlib
+  > FLG -short-paths
   > B .
   > B lib_a
   > B lib_b
   > EOF
 
-FIXME: fixed by adding everything in U when opening, but there may be a better way
   $ $MERLIN single type-enclosing -position 2:27 -index 0 \
   > -filename usage.ml <usage.ml | jq '.value[0].type'
-  "Lib_b.Header.t"
+  "Header.t"

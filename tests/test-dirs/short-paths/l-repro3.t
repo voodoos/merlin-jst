@@ -70,4 +70,4 @@
 
   $ $MERLIN single type-enclosing -position 2:30 -index 0 \
   > -filename repro3_usage.ml <repro3_usage.ml | jq '.value[0].type'
-  "Repro3_lib_b.Header_version.t"
+  "Header_version.t"
