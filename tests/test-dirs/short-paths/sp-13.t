@@ -11,7 +11,7 @@ This mocks the Async --include--> Async_kernel --exports--> Deferred
 
   $ $OCAMLC -c async_kernel__.ml -no-alias-deps 2>/dev/null
   $ $MERLIN_TEST_OCAML_PATH/bin/ocamlobjinfo -quiet -discourse async_kernel__.cmi
-  Discourse: <longident> [<paths>]
+  Discourse:
   Deferred: alias: Async_kernel__Deferred [Async_kernel__Deferred!]
     Async_kernel__Deferred [Async_kernel__Deferred!]
   
@@ -62,7 +62,7 @@ This mocks the Async --include--> Async_kernel --exports--> Deferred
 
   $ $OCAMLC -c async.ml -I ../async_kernel
   $ $MERLIN_TEST_OCAML_PATH/bin/ocamlobjinfo -quiet -discourse async.cmi
-  Discourse: <longident> [<paths>]
+  Discourse:
   Deferred: alias: Async_kernel.Deferred [Async_kernel!.Deferred]
     Deferred [Async_kernel__!.Deferred]
   
