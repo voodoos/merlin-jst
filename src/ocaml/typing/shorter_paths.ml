@@ -257,7 +257,9 @@ let find_uid env kind path =
 let find_path_in_env env (kind, lid, path) =
   (* TODO it might be worth it to memoïze this function *)
   match find_by_name env kind lid with
-  | exception Not_found ->
+  (* TODO Env.find_type_by_name can raise Assertion_failure when the case Papply
+     is reached in Env.lookup_type_path_full *)
+  | exception (Not_found | Assert_failure _) ->
     log ~title:"find_path_in_env" "%s name not found: %a" (string_of_kind kind)
       Logger.fmt
       (Fun.flip Pprintast.longident lid);
@@ -426,7 +428,7 @@ let rec path_mask (path : Path.t) (lid : Longident.t) : Path.t =
       | (Pdot _ | Papply _), Lident s ->
         let scope = Path.scope path in
         Pident (Ident.create_scoped ~scope s)
-      | _ -> assert false
+      | _ -> path
     in
     Hashtbl.add !path_masks_cache (lid, path) masked_path;
     masked_path
