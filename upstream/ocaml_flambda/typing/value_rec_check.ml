@@ -162,7 +162,7 @@ let classify_expression : Typedtree.expression -> sd =
         let size = classify_module_expression env mexp in
         let env = Ident.add mid size env in
         classify_expression env e
-    | Texp_ident (path, _, _, _, _) ->
+    | Texp_ident (path, _, _, _, _, _) ->
         classify_path env path
 
     (* non-binding cases *)
@@ -226,7 +226,8 @@ let classify_expression : Typedtree.expression -> sd =
         (* CR vlaviron: Dynamic would probably be a better choice *)
         Static
 
-    | Texp_apply ({exp_desc = Texp_ident (_, _, vd, Id_prim _, _)}, _, _, _, _)
+    | Texp_apply ({exp_desc = Texp_ident (_, _, vd, Id_prim _, _, _)},
+        _, _, _, _)
       when is_ref vd ->
         Static
     | Texp_apply (_, args, _, _, _)
@@ -259,6 +260,9 @@ let classify_expression : Typedtree.expression -> sd =
           (* other cases compile to a lazy block holding a function *)
           Static
       end
+    | Texp_eval _ ->
+      (* CR metaprogramming mshinwell: Make sure this is correct *)
+      Static
 
     | Texp_new _
     | Texp_instvar _
@@ -273,7 +277,10 @@ let classify_expression : Typedtree.expression -> sd =
     | Texp_assert _
     | Texp_try _
     | Texp_override _
-    | Texp_letop _ ->
+    | Texp_letop _
+    (* CR metaprogramming aivaskovic: verify for quotations and splices *)
+    | Texp_quotation _
+    | Texp_antiquotation _ ->
         Dynamic
   and classify_value_bindings rec_flag env bindings =
     (* We use a non-recursive classification, classifying each
@@ -621,7 +628,7 @@ let array_mode exp elt_sort = match Typeopt.array_kind exp elt_sort with
     (* This is counted as a use, because constructing a generic array
        involves inspecting to decide whether to unbox (PR#6939). *)
     Dereference
-  | Lambda.Paddrarray | Lambda.Pintarray ->
+  | Lambda.Paddrarray | Lambda.Pgcignorableaddrarray | Lambda.Pintarray ->
     (* non-generic, non-float arrays act as constructors *)
     Guard
   | Lambda.Punboxedfloatarray _ | Lambda.Punboxedoruntaggedintarray _
@@ -636,7 +643,7 @@ let array_mode exp elt_sort = match Typeopt.array_kind exp elt_sort with
 *)
 let rec expression : Typedtree.expression -> term_judg =
   fun exp -> match exp.exp_desc with
-    | Texp_ident (pth, _, _, _, _) ->
+    | Texp_ident (pth, _, _, _, _, _) ->
       path pth
     | Texp_let (rec_flag, bindings, body) ->
       (*
@@ -695,8 +702,8 @@ let rec expression : Typedtree.expression -> term_judg =
     | Texp_mutvar id ->
         single id.txt << Dereference
     | Texp_apply
-        ({exp_desc = Texp_ident (_, _, vd, Id_prim _, _)}, [_, Arg (arg, _)], _,
-         _, _)
+        ({exp_desc = Texp_ident (_, _, vd, Id_prim _, _, _)}, [_, Arg (arg, _)],
+         _, _, _)
       when is_ref vd ->
       (*
         G |- e: m[Guard]
@@ -1086,6 +1093,14 @@ let rec expression : Typedtree.expression -> term_judg =
         expression exp2
       ]
     | Texp_hole _ -> empty
+    | Texp_quotation e ->
+        (* The quoted code may be spliced into a dereferencing context. *)
+        expression e << Dereference
+    | Texp_antiquotation e ->
+        expression e << Dereference
+    | Texp_eval _ ->
+      (* CR metaprogramming mshinwell: Make sure this is correct *)
+      empty
 
 (* Function bodies.
     G |-{body} b : m

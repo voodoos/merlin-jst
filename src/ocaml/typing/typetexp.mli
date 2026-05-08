@@ -31,14 +31,16 @@ module TyVarEnv : sig
   (** Evaluate in a narrowed type-variable scope *)
 
   type poly_univars
-  val make_poly_univars : string Location.loc list -> poly_univars
+  val make_poly_univars :
+    Env.t -> (string Location.loc * Env.stage) list -> poly_univars
     (** A variant of [make_poly_univars_jkinds] that gets variables
         without jkind annotations *)
 
   val make_poly_univars_jkinds :
+    Env.t ->
     context:(string -> Jkind.History.annotation_context_lr) ->
-    (string Location.loc * Parsetree.jkind_annotation option) list ->
-    poly_univars
+    (string Location.loc * Parsetree.jkind_annotation option * Env.stage) list
+    -> poly_univars
     (** remember that a list of strings connotes univars; this must
         always be paired with a [check_poly_univars]. *)
 
@@ -117,6 +119,11 @@ val transl_simple_type:
         -> ?univars:TyVarEnv.poly_univars
         -> closed:bool -> Alloc.Const.t
         -> Parsetree.core_type -> Typedtree.core_type
+val transl_simple_type_with_discourse:
+        Env.t -> new_var_jkind:jkind_initialization_choice
+        -> ?univars:TyVarEnv.poly_univars
+        -> closed:bool -> Alloc.Const.t
+        -> Parsetree.core_type -> Typedtree.core_type * Discourse_types.t
 val transl_simple_type_univars:
         Env.t -> Parsetree.core_type -> Typedtree.core_type
 val transl_simple_type_delayed
@@ -128,9 +135,10 @@ val transl_simple_type_delayed
            Returns the type, an instance of the corresponding type_expr, and a
            function that binds the type variable. *)
 val transl_type_scheme:
-        Env.t -> Parsetree.core_type -> Typedtree.core_type
+        Env.t -> Parsetree.core_type -> Typedtree.core_type * Discourse_types.t
 val transl_type_param:
-  Env.t -> Path.t -> jkind_lr -> Parsetree.core_type -> Typedtree.core_type
+  Env.t -> Path.t -> jkind_lr -> Parsetree.core_type
+  -> Typedtree.core_type
 (* the Path.t above is of the type/class whose param we are processing;
    the level defaults to the current level. The jkind_lr is the jkind to
    use if no annotation is provided. *)
@@ -181,6 +189,12 @@ type error =
   | Bad_jkind_annot of type_expr * Jkind.Violation.t
   | Did_you_mean_unboxed of Longident.t
   | Invalid_label_for_call_pos of Parsetree.arg_label
+  | Invalid_variable_stage of
+      {name : string;
+       intro_stage : Env.stage;
+       usage_stage : Env.stage}
+  | Mismatched_jkind_annotation of
+    { name : string; explicit_jkind : jkind_lr; implicit_jkind : jkind_lr }
 
 exception Error of Location.t * Env.t * error
 

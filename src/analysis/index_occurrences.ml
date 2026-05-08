@@ -44,8 +44,8 @@ let should_ignore_lid (lid : Longident.t Location.loc) =
   *)
   Location.is_none lid.loc
 
-let iterator ~current_buffer_path ~index ~stamp ~reduce_for_uid =
-  let add uid loc = Stamped_hashtable.add index ~stamp (uid, loc) () in
+let iterator ~current_buffer_path ~index ~reduce_for_uid =
+  let add uid loc = index := Shape.Uid.Map.add_to_list uid loc !index in
   let f ~namespace env path (lid : Longident.t Location.loc) =
     log ~title:"index_buffer" "Path: %a" Logger.fmt (Fun.flip Path.print path);
     let lid = { lid with loc = set_fname ~file:current_buffer_path lid.loc } in
@@ -89,11 +89,11 @@ let iterator ~current_buffer_path ~index ~stamp ~reduce_for_uid =
   in
   Ast_iterators.iterator_on_usages ~include_hidden:true ~f
 
-let items ~index ~stamp (config : Mconfig.t) items =
+let items index (config : Mconfig.t) items =
   let module Shape_reduce = Shape_reduce.Make (struct
-    let fuel = 10
+    let fuel () = Misc_stdlib.Maybe_bounded.of_int 10
 
-    let read_unit_shape ~unit_name =
+    let read_unit_shape ~diagnostics:_ ~unit_name =
       log ~title:"read_unit_shape" "inspecting %s" unit_name;
       let read unit_name =
         let cms = Format.sprintf "%s.cms" unit_name in
@@ -112,12 +112,22 @@ let items ~index ~stamp (config : Mconfig.t) items =
       | None ->
         log ~title:"read_unit_shape" "failed to find %s" unit_name;
         None
+
+    let projection_rules_for_merlin_enabled = true
+    let fuel_for_compilation_units () : Misc_stdlib.Maybe_bounded.t = Unbounded
+    let max_shape_reduce_steps_per_variable () : Misc_stdlib.Maybe_bounded.t =
+      Unbounded
+    let max_compilation_unit_depth () : Misc_stdlib.Maybe_bounded.t = Unbounded
   end) in
   let current_buffer_path =
     Filename.concat config.query.directory config.query.filename
   in
   let reduce_for_uid = Shape_reduce.reduce_for_uid in
-  let iterator = iterator ~current_buffer_path ~index ~stamp ~reduce_for_uid in
-  match items with
-  | `Impl items -> List.iter ~f:(iterator.structure_item iterator) items
-  | `Intf items -> List.iter ~f:(iterator.signature_item iterator) items
+  let index = ref index in
+  let iterator = iterator ~current_buffer_path ~index ~reduce_for_uid in
+  let () =
+    match items with
+    | `Impl items -> List.iter ~f:(iterator.structure_item iterator) items
+    | `Intf items -> List.iter ~f:(iterator.signature_item iterator) items
+  in
+  !index

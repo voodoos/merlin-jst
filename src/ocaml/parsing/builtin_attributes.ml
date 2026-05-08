@@ -49,7 +49,8 @@ let unchecked_zero_alloc_attributes = Attribute_table.create 1
 let mark_zero_alloc_attribute_checked txt loc =
   Attribute_table.remove unchecked_zero_alloc_attributes { txt; loc }
 let register_zero_alloc_attribute attr =
-    Attribute_table.replace unchecked_zero_alloc_attributes attr ()
+    Attribute_table.replace unchecked_zero_alloc_attributes attr
+     (Warnings.backup ())
 let warn_unchecked_zero_alloc_attribute () =
     (* When using -i, attributes will not have been translated, so we can't
      warn about missing ones. *)
@@ -57,9 +58,14 @@ let warn_unchecked_zero_alloc_attribute () =
   else
   let keys = List.of_seq (Attribute_table.to_seq_keys unchecked_zero_alloc_attributes) in
   let keys = List.sort attr_order keys in
+  (* Treatment of warnings is similar to [Typecore.force_delayed_checks]. *)
+  let w_old = Warnings.backup () in
   List.iter (fun sloc ->
+    let w = Attribute_table.find unchecked_zero_alloc_attributes sloc in
+    Warnings.restore w;
     Location.prerr_warning sloc.loc (Warnings.Unchecked_zero_alloc_attribute))
-    keys
+    keys;
+  Warnings.restore w_old
 
 let warn_unused () =
   let keys = List.of_seq (Attribute_table.to_seq_keys unused_attrs) in
@@ -122,6 +128,10 @@ let builtin_attrs =
   ; "or_null_reexport"
   ; "no_recursive_modalities"
   ; "jane.non_erasable.instances"
+  ; "cold"
+  ; "regalloc"
+  ; "regalloc_param"
+  ; "implicit_kind"
   ]
 
 let builtin_attrs =
@@ -732,6 +742,44 @@ let error_message_attr l =
     | _ -> None in
   List.find_map inner l
 
+let get_implicit_jkind_attr x =
+  let extract_var_and_jkind typ =
+    match typ.ptyp_desc with
+    | Ptyp_var (var_name, Some jkind_annot) ->
+        var_name, jkind_annot
+    | _ -> raise Exit
+  in
+  let parse_implicit_jkind_payload = function
+    | PTyp typ ->
+        begin match typ.ptyp_desc with
+        | Ptyp_var (_, Some _) ->
+            (* Single variable: ('a : immediate) *)
+            [extract_var_and_jkind typ]
+        | Ptyp_tuple typs ->
+            (* Multiple variables: ('a : immediate) * ('b : int) *)
+            List.map (fun (label_opt, typ) ->
+              match label_opt with
+              | None -> extract_var_and_jkind typ
+              | Some _ -> raise Exit
+            ) typs
+        | _ -> raise Exit
+        end
+    | _ -> raise Exit
+  in
+  match x.attr_name.txt with
+  | "ocaml.implicit_kind" | "implicit_kind" ->
+    begin match parse_implicit_jkind_payload x.attr_payload with
+    | pairs ->
+      mark_used x.attr_name;
+      pairs
+    | exception Exit ->
+      warn_payload x.attr_loc x.attr_name.txt
+        "implicit_kind attribute expects: \
+        ('var1 : jkind1) * ('var2 : jkind2) ...";
+      []
+    end
+  | _ -> []
+
 type zero_alloc_check =
   { strict: bool;
     opt: bool;
@@ -1138,6 +1186,11 @@ let get_tracing_probe_payload (payload : Parsetree.payload) =
     | _ -> Error ()
   in
   Ok { name; name_loc; enabled_at_init; arg }
+
+let get_eval_payload payload =
+  match payload with
+  | PTyp typ -> Ok typ
+  | _ -> Error ()
 
 let has_atomic attrs = has_attribute "atomic" attrs
 

@@ -19,28 +19,30 @@
 open Asttypes
 open Types
 open Btype
+module Jkind = Btype.Jkind0
 
 (* Simplified version of Ctype.free_vars *)
 let free_vars ?(param=false) ty =
   let ret = ref TypeSet.empty in
-  let rec loop ty =
-    if try_mark_node ty then
-      match get_desc ty with
-      | Tvar _ ->
-          ret := TypeSet.add ty !ret
-      | Tvariant row ->
-        iter_row loop row;
-        if not (static_row row) then begin
-          match get_desc (row_more row) with
-          | Tvar _ when param -> ret := TypeSet.add ty !ret
-          | _ -> loop (row_more row)
-        end
-      (* XXX: What about Tobject ? *)
-      | _ ->
-          iter_type_expr loop ty
-  in
-  loop ty;
-  unmark_type ty;
+  with_type_mark begin fun mark ->
+    let rec loop ty =
+      if try_mark_node mark ty then
+        match get_desc ty with
+        | Tvar _ ->
+            ret := TypeSet.add ty !ret
+        | Tvariant row ->
+          iter_row loop row;
+          if not (static_row row) then begin
+            match get_desc (row_more row) with
+            | Tvar _ when param -> ret := TypeSet.add ty !ret
+            | _ -> loop (row_more row)
+          end
+        (* XXX: What about Tobject ? *)
+        | _ ->
+            iter_type_expr loop ty
+    in
+    loop ty
+  end;
   !ret
 
 let newgenconstr path tyl = newgenty (Tconstr (path, tyl, ref Mnil))
@@ -70,10 +72,11 @@ let constructor_args ~current_unit priv cd_args cd_res path rep =
       in
       let type_params = TypeSet.elements arg_vars_set in
       let arity = List.length type_params in
-      (* CR layouts v2.8: We could call [Jkind.normalize ~mode:Require_best] on this
-         jkind, and plausibly gain some perf wins by building up smaller jkinds that are
-         cheaper to deal with later. But doing so runs into some confusing mutual
-         recursion that's non-trivial to debug. Reinvestigate later *)
+      (* CR layouts v2.8: We could call [Jkind.normalize ~mode:Require_best] on
+         this jkind, and plausibly gain some perf wins by building up smaller
+         jkinds that are cheaper to deal with later. But doing so runs into some
+         confusing mutual recursion that's non-trivial to debug. Reinvestigate
+         later. Internal ticket 5102.  *)
       let jkind = Jkind.for_boxed_record lbls in
       let tdecl =
         {
@@ -92,14 +95,15 @@ let constructor_args ~current_unit priv cd_args cd_res path rep =
           type_unboxed_default = false;
           type_uid = Uid.mk ~current_unit;
           type_unboxed_version = None;
+          type_discourse = Discourse_types.empty;
         }
       in
       existentials,
       [
         {
           ca_type = newgenconstr path type_params;
-          ca_sort = Jkind.Sort.Const.value;
-          ca_modalities = Mode.Modality.Value.Const.id;
+          ca_sort = Jkind_types.Sort.Const.value;
+          ca_modalities = Mode.Modality.Const.id;
           ca_loc = Location.none
         }
       ],
@@ -135,14 +139,14 @@ let constructor_descrs ~current_unit ty_path decl cstrs rep =
          users to write their own null constructors. *)
       (* CR layouts v3.3: generalize to [any]. *)
       [| Constructor_uniform_value, [| |]
-       ; Constructor_uniform_value, [| Jkind.Sort.Const.value |] |],
+       ; Constructor_uniform_value, [| Jkind_types.Sort.Const.value |] |],
       false
   in
   let num_consts = ref 0 and num_nonconsts = ref 0 in
   let cstr_constant =
     Array.map
       (fun (_, sorts) ->
-         let all_void = Array.for_all Jkind.Sort.Const.all_void sorts in
+         let all_void = Array.for_all Jkind_types.Sort.Const.all_void sorts in
          (* constant constructors are constructors of non-[@@unboxed] variants
             with 0 bits of payload *)
          let is_const = all_void && not is_unboxed in
@@ -194,6 +198,9 @@ let constructor_descrs ~current_unit ty_path decl cstrs rep =
         cstr_attributes = cd_attributes;
         cstr_inlined;
         cstr_uid = cd_uid;
+        (* A constructor's discourse is the one if its type.
+           See [Discourse] rule D7. *)
+        cstr_discourse = decl.type_discourse;
       } in
     (src_index+1, const_tag, nonconst_tag, (cd_id, cstr) :: acc)
   in
@@ -229,6 +236,7 @@ let extension_descr ~current_unit path_ext ext =
       cstr_attributes = ext.ext_attributes;
       cstr_inlined;
       cstr_uid = ext.ext_uid;
+      cstr_discourse = Discourse_types.empty;
     }
 
 let none =
@@ -242,17 +250,18 @@ let dummy_label (type rep) (record_form : rep record_form)
   | Unboxed_product -> Record_unboxed_product
   in
   { lbl_name = ""; lbl_res = none; lbl_arg = none;
-    lbl_mut = Immutable; lbl_modalities = Mode.Modality.Value.Const.id;
-    lbl_sort = Jkind.Sort.Const.void;
+    lbl_mut = Immutable; lbl_modalities = Mode.Modality.Const.id;
+    lbl_sort = Jkind_types.Sort.Const.void;
     lbl_pos = -1; lbl_all = [||];
     lbl_repres = repres;
     lbl_private = Public;
     lbl_loc = Location.none;
     lbl_attributes = [];
     lbl_uid = Uid.internal_not_actually_unique;
+    lbl_discourse = Discourse_types.empty;
   }
 
-let label_descrs record_form ty_res lbls repres priv =
+let label_descrs record_form ty_res lbls repres decl =
   let all_labels = Array.make (List.length lbls) (dummy_label record_form) in
   let rec describe_labels pos = function
       [] -> []
@@ -267,10 +276,11 @@ let label_descrs record_form ty_res lbls repres priv =
             lbl_pos = pos;
             lbl_all = all_labels;
             lbl_repres = repres;
-            lbl_private = priv;
+            lbl_private = decl.type_private;
             lbl_loc = l.ld_loc;
             lbl_attributes = l.ld_attributes;
             lbl_uid = l.ld_uid;
+            lbl_discourse = decl.type_discourse;
           } in
         all_labels.(pos) <- lbl;
         (l.ld_id, lbl) :: describe_labels (pos+1) rest in
@@ -305,7 +315,7 @@ let labels_of_type ty_path decl =
   match decl.type_kind with
   | Type_record(labels, rep, _) ->
       label_descrs Legacy (newgenconstr ty_path decl.type_params)
-        labels rep decl.type_private
+        labels rep decl
   | Type_record_unboxed_product _
   | Type_variant _ | Type_abstract _ | Type_open -> []
 
@@ -313,6 +323,6 @@ let unboxed_labels_of_type ty_path decl =
   match decl.type_kind with
   | Type_record_unboxed_product(labels, rep, _) ->
       label_descrs Unboxed_product (newgenconstr ty_path decl.type_params)
-        labels rep decl.type_private
+        labels rep decl
   | Type_record _
   | Type_variant _ | Type_abstract _ | Type_open -> []

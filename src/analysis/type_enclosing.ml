@@ -9,6 +9,7 @@ type type_info =
   | Type of Env.t * Types.type_expr
   | Type_decl of Env.t * Ident.t * Types.type_declaration
   | Type_constr of Env.t * Types.constructor_description
+  | Jkind of Env.t * Types.jkind_lr
   | String of string
 
 type typed_enclosings =
@@ -34,6 +35,15 @@ let print_type ~verbosity type_info =
     wrap_printing_env env (fun () ->
         Printtyp.modtype env ppf m;
         Format.flush_str_formatter ())
+  | Jkind (env, jkind) ->
+    wrap_printing_env env (fun () ->
+        let verbosity : Jkind.Format_verbosity.t =
+          match Mconfig.Verbosity.to_int ~for_smart:0 verbosity > 0 with
+          | false -> Expanded
+          | true -> Expanded_with_all_mod_bounds
+        in
+        Jkind.format_verbose ~verbosity ppf jkind;
+        Format.flush_str_formatter ())
   | String s -> s
 
 let from_nodes ~path =
@@ -57,6 +67,21 @@ let from_nodes ~path =
     | Module_declaration_name { md_type = { mty_type = m } }
     | Module_type_declaration_name { mtd_type = Some { mty_type = m } } ->
       ret (Modtype (env, m))
+    | Jkind_annotation annot -> (
+      (* CR-someday: We need to parse the annotation because the compiler doesn't include
+         the parsed jkind in the relevant spots. We should track it so that this is less
+         hacky. It would also make it easier to deal with with-bounds. *)
+      (* [Jkind.of_annotation] will fail to parse jkinds with with-bounds. For now, this
+         isn't important. Usually, users will be hovering a jkind to know what an
+         abbreviation means. *)
+      try
+        (* The context isn't important. It's just used for printing error messages, which
+           we immediately discard anyways. *)
+        let jkind =
+          Jkind.of_annotation ~context:(Type_variable "fake_for_merlin") annot
+        in
+        ret (Jkind (env, jkind))
+      with Jkind.Error.User_error _ -> None)
     | Class_field
         { cf_desc = Tcf_method (_, _, Tcfk_concrete (_, { exp_type })) } ->
     begin

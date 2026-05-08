@@ -22,6 +22,8 @@ open Btype
 
 open Local_store
 
+module Jkind = Btype.Jkind0
+
 type jkind_error =
   | Unconstrained_jkind_variable
 
@@ -33,10 +35,17 @@ type type_replacement =
 
 type additional_action =
   | Prepare_for_saving of
-      { prepare_jkind : 'l 'r. Location.t -> ('l * 'r) jkind -> ('l * 'r) jkind }
-    (* The [Prepare_for_saving] function should be applied to all jkinds when
+      { prepare_jkind : 'l 'r. Location.t -> ('l * 'r) jkind -> ('l * 'r) jkind;
+        prepare_mode : Mode.Alloc.lr -> Mode.Alloc.lr;
+        prepare_modality : Mode.Modality.t -> Mode.Modality.t
+      }
+    (* The [prepare_jkind] function should be applied to all jkinds when
        saving; this commons them up, truncates their histories, and runs
-       a check that all unconstrained variables have been defaulted to value. *)
+       a check that all unconstrained variables have been defaulted to value.
+
+       The [prepare_mode]/[prepare_modality] functions should be applied to all
+       modes/modalities when saving; this ensures the saved file doesn't contain
+       mode variables. *)
   | Duplicate_variables
   | No_action
 
@@ -115,6 +124,7 @@ type additional_action_config =
 module Builtins_memo : sig
   val find :
     quality:('l * 'r) jkind_quality ->
+    ran_out_of_fuel_during_normalize:bool ->
     ('l * 'r) Jkind.Const.t ->
     ('l * 'r) jkind option
 end = struct
@@ -122,7 +132,12 @@ end = struct
 
   type 'd builtins = ('d Jkind.Const.t * 'd jkind) list
 
-  let make_builtins (type l r) (quality : (l * r) jkind_quality) : (l * r) builtins =
+  let make_builtins
+        (type l r)
+        (quality : (l * r) jkind_quality)
+        ~ran_out_of_fuel_during_normalize
+    : (l * r) builtins
+    =
     Jkind.Const.Builtin.all
     |> List.map (fun (builtin : Jkind.Const.Builtin.t) ->
       let const_jkind : (l * r) Jkind.Const.t =
@@ -131,33 +146,56 @@ end = struct
       Jkind.of_const
         const_jkind
         ~quality
+        ~ran_out_of_fuel_during_normalize
         ~annotation:(Some { pjkind_loc = Location.none;
-                            pjkind_desc = Abbreviation builtin.name })
-        ~why:Jkind.History.Imported)
+                            pjkind_desc = Pjk_abbreviation builtin.name })
+        ~why:Jkind_intf.History.Imported)
 
-  let best_builtins : (allowed * disallowed) builtins = make_builtins Best
-  let not_best_builtins : (allowed * allowed) builtins = make_builtins Not_best
+  let best_builtins =
+    let sufficient_fuel =
+      make_builtins Best ~ran_out_of_fuel_during_normalize:false
+    in
+    let ran_out_of_fuel =
+      make_builtins Best ~ran_out_of_fuel_during_normalize:true
+    in
+    fun ~ran_out_of_fuel_during_normalize : (allowed * disallowed) builtins ->
+      match ran_out_of_fuel_during_normalize with
+      | false -> sufficient_fuel
+      | true -> ran_out_of_fuel
+
+  let not_best_builtins =
+    let sufficient_fuel =
+      make_builtins Not_best ~ran_out_of_fuel_during_normalize:false
+    in
+    let ran_out_of_fuel =
+      make_builtins Not_best ~ran_out_of_fuel_during_normalize:true
+    in
+    fun ~ran_out_of_fuel_during_normalize : (allowed * allowed) builtins ->
+      match ran_out_of_fuel_during_normalize with
+      | false -> sufficient_fuel
+      | true -> ran_out_of_fuel
 
   let find
         (type l r)
         ~(quality : (l * r) jkind_quality)
+        ~ran_out_of_fuel_during_normalize
         (const : (l * r) Jkind.Const.t)
     : (l * r) jkind option
     =
     (match quality with
      | Best ->
        List.find_opt (fun ((builtin, _) : (allowed * disallowed) Jkind.Const.t * _) ->
-         Jkind.Const.no_with_bounds_and_equal
+         Jkind.Const.shallow_no_with_bounds_and_equal
            (const |> Jkind.Const.disallow_right)
            (builtin |> Jkind.Const.allow_left))
-       best_builtins
+       (best_builtins ~ran_out_of_fuel_during_normalize)
        |> Option.map (fun (_, jkind) -> jkind |> Jkind.allow_left)
      | Not_best ->
        List.find_opt (fun (builtin, _) ->
-         Jkind.Const.no_with_bounds_and_equal
+         Jkind.Const.shallow_no_with_bounds_and_equal
            const
            (builtin |> Jkind.Const.allow_left |> Jkind.Const.allow_right))
-         not_best_builtins
+         (not_best_builtins ~ran_out_of_fuel_during_normalize)
        |> Option.map (fun (_, jkind) -> jkind |> Jkind.allow_left |> Jkind.allow_right)
     )
 end
@@ -181,13 +219,35 @@ let with_additional_action =
         let prepare_jkind (type l r) loc (jkind : (l * r) jkind) =
           match Jkind.get_const jkind with
           | Some const ->
-            begin match Builtins_memo.find ~quality:jkind.quality const with
+            let memoized =
+              Builtins_memo.find
+                ~quality:jkind.quality
+                ~ran_out_of_fuel_during_normalize:
+                  jkind.ran_out_of_fuel_during_normalize
+                const
+            in
+            begin match memoized with
             | Some jkind -> jkind
-            | None -> Jkind.of_const ~quality:jkind.quality const ~annotation:None ~why:Imported
+            | None ->
+              Jkind.of_const
+                ~quality:jkind.quality
+                ~ran_out_of_fuel_during_normalize:
+                  jkind.ran_out_of_fuel_during_normalize
+                const
+                ~annotation:None
+                ~why:Imported
             end
           | None -> raise(Error (loc, Unconstrained_jkind_variable))
         in
-        Prepare_for_saving { prepare_jkind }
+        (* CR-someday zqian: preserve the hints *)
+        (* modes and modalities should have been zapped already *)
+        let prepare_mode mode =
+          Mode.Alloc.(mode |> to_const_exn |> of_const)
+        in
+        let prepare_modality modality =
+          Mode.Modality.(modality |> to_const_exn|> of_const)
+        in
+        Prepare_for_saving { prepare_jkind; prepare_mode; prepare_modality }
   in
   { s with additional_action; last_compose = None }
 
@@ -404,7 +464,7 @@ let rec typexp copy_scope s ty =
         let ty' =
           match s.additional_action with
           | Duplicate_variables -> newpersty desc
-          | Prepare_for_saving { prepare_jkind } ->
+          | Prepare_for_saving { prepare_jkind; _ } ->
               newpersty (norm desc ~prepare_jkind)
           | No_action -> newty2 ~level:(get_level ty) desc
         in
@@ -481,7 +541,8 @@ let rec typexp copy_scope s ty =
               let more' =
                 match mored with
                   Tsubst (ty, None) -> ty
-                | Tconstr _ | Tnil | Tof_kind _ -> typexp copy_scope s more
+                | Tconstr _ | Tquote _ | Tsplice _ | Tnil | Tof_kind _ ->
+                    typexp copy_scope s more
                 | Tunivar _ | Tvar _ ->
                     if should_duplicate_vars then newpersty mored
                     else if dup && is_Tvar more then newgenty mored
@@ -507,6 +568,17 @@ let rec typexp copy_scope s ty =
           end
       | Tfield(_label, kind, _t1, t2) when field_kind_repr kind = Fabsent ->
           Tlink (typexp copy_scope s t2)
+      | Tarrow ((label, marg, mret), arg, ret, comm) ->
+          let marg, mret =
+            match s.additional_action with
+            | Prepare_for_saving { prepare_mode; _ } ->
+              prepare_mode marg, prepare_mode mret
+            | _ -> marg, mret
+          in
+          let arg = typexp copy_scope s arg in
+          let ret = typexp copy_scope s ret in
+          let comm = copy_commu comm in
+          Tarrow ((label, marg, mret), arg, ret, comm)
       | _ -> copy_type_desc (typexp copy_scope s) desc
     in
     Transient_expr.set_stub_desc ty' desc;
@@ -564,6 +636,7 @@ let constructor_declaration copy_scope s c =
     cd_loc = loc s c.cd_loc;
     cd_attributes = attrs s c.cd_attributes;
     cd_uid = c.cd_uid;
+    cd_discourse = c.cd_discourse;
   }
 
 let unsafe_mode_crossing copy_scope s loc
@@ -607,7 +680,7 @@ let rec type_declaration' copy_scope s decl =
       begin
         let jkind =
           match s.additional_action with
-          | Prepare_for_saving { prepare_jkind } ->
+          | Prepare_for_saving { prepare_jkind; _ } ->
             prepare_jkind decl.type_loc decl.type_jkind
           | Duplicate_variables | No_action -> decl.type_jkind
         in
@@ -624,6 +697,7 @@ let rec type_declaration' copy_scope s decl =
     type_uid = decl.type_uid;
     type_unboxed_version =
       Option.map (type_declaration' copy_scope s) decl.type_unboxed_version;
+    type_discourse = decl.type_discourse;
   }
 
 let type_declaration s decl =
@@ -668,6 +742,7 @@ let class_declaration' copy_scope s decl =
     cty_loc = loc s decl.cty_loc;
     cty_attributes = attrs s decl.cty_attributes;
     cty_uid = decl.cty_uid;
+    cty_discourse = decl.cty_discourse;
   }
 
 let class_declaration s decl =
@@ -682,6 +757,7 @@ let cltype_declaration' copy_scope s decl =
     clty_loc = loc s decl.clty_loc;
     clty_attributes = attrs s decl.clty_attributes;
     clty_uid = decl.clty_uid;
+    clty_discourse = decl.clty_discourse;
   }
 
 let cltype_declaration s decl =
@@ -868,8 +944,14 @@ let force_type_expr ty = Wrap.force (fun _ s ty ->
   For_copy.with_scope (fun copy_scope -> typexp copy_scope s loc ty)) ty
 
 let rec subst_lazy_value_description s descr =
+  let val_modalities =
+    match s.additional_action with
+    | Prepare_for_saving { prepare_modality; _ } ->
+        prepare_modality descr.val_modalities
+    | _ -> descr.val_modalities
+  in
   { val_type = Wrap.substitute ~compose Keep s descr.val_type;
-    val_modalities = descr.val_modalities;
+    val_modalities;
     val_kind = descr.val_kind;
     val_loc = loc s descr.val_loc;
     val_zero_alloc =
@@ -885,15 +967,24 @@ let rec subst_lazy_value_description s descr =
       | _ -> descr.val_zero_alloc);
     val_attributes = attrs s descr.val_attributes;
     val_uid = descr.val_uid;
+    val_discourse = descr.val_discourse;
   }
 
 and subst_lazy_module_decl scoping s md =
   let md_type = subst_lazy_modtype scoping s md.md_type in
+  let md_modalities =
+    match s.additional_action with
+    | Prepare_for_saving { prepare_modality; _ } ->
+        prepare_modality md.md_modalities
+    | _ -> md.md_modalities
+  in
   { md_type;
-    md_modalities = md.md_modalities;
+    md_modalities;
     md_attributes = attrs s md.md_attributes;
     md_loc = loc s md.md_loc;
-    md_uid = md.md_uid }
+    md_uid = md.md_uid;
+    md_discourse = md.md_discourse;
+    md_discourse_alias = md.md_discourse_alias; }
 
 and subst_lazy_modtype scoping s = function
   | Mty_ident p ->
@@ -910,15 +1001,17 @@ and subst_lazy_modtype scoping s = function
       end
   | Mty_signature sg ->
       Mty_signature(subst_lazy_signature scoping s sg)
-  | Mty_functor(Unit, res) ->
-      Mty_functor(Unit, subst_lazy_modtype scoping s res)
-  | Mty_functor(Named (None, arg), res) ->
-      Mty_functor(Named (None, (subst_lazy_modtype scoping s) arg),
-                   subst_lazy_modtype scoping s res)
-  | Mty_functor(Named (Some id, arg), res) ->
+  | Mty_functor(Unit, res, mres) ->
+      Mty_functor(Unit, subst_lazy_modtype scoping s res, mres)
+  | Mty_functor(Named (None, arg, marg), res, mres) ->
+      Mty_functor(Named (None, (subst_lazy_modtype scoping s) arg, marg),
+                   subst_lazy_modtype scoping s res, mres)
+  | Mty_functor(Named (Some id, arg, marg), res, mres) ->
       let id' = Ident.rename id in
-      Mty_functor(Named (Some id', (subst_lazy_modtype scoping s) arg),
-                  subst_lazy_modtype scoping (add_module id (Pident id') s) res)
+      Mty_functor(Named (Some id', (subst_lazy_modtype scoping s) arg, marg),
+                  subst_lazy_modtype scoping (add_module id (Pident id') s)
+                    res,
+                  mres)
   | Mty_alias p ->
       Mty_alias (module_path s p)
   | Mty_for_hole -> Mty_for_hole
@@ -929,7 +1022,8 @@ and subst_lazy_modtype_decl scoping s mtd =
   { mtd_type = Option.map (subst_lazy_modtype scoping s) mtd.mtd_type;
     mtd_attributes = attrs s mtd.mtd_attributes;
     mtd_loc = loc s mtd.mtd_loc;
-    mtd_uid = mtd.mtd_uid }
+    mtd_uid = mtd.mtd_uid;
+    mtd_discourse = mtd.mtd_discourse }
 
 and subst_lazy_signature scoping s sg =
   Wrap.substitute ~compose scoping s sg

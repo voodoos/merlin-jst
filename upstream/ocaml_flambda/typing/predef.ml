@@ -18,6 +18,7 @@
 open Path
 open Types
 open Btype
+module Jkind = Btype.Jkind0
 
 let builtin_idents = ref []
 
@@ -26,6 +27,10 @@ let wrap create s =
   builtin_idents := (s, id) :: !builtin_idents;
   id
 
+(* Note: [ident_create] creates identifiers with [Ident.Predef], and later
+   portions of the compiler assume that expressions with these identifiers must
+   have types with layout value (see, e.g., the compilation of [Pgetpredef]
+   in `lambda.ml`). *)
 let ident_create = wrap Ident.create_predef
 
 let ident_int = ident_create "int"
@@ -51,6 +56,9 @@ and ident_extension_constructor = ident_create "extension_constructor"
 and ident_floatarray = ident_create "floatarray"
 and ident_lexing_position = ident_create "lexing_position"
 and ident_atomic_loc = ident_create "atomic_loc"
+(* CR metaprogramming aivaskovic: there is a question about naming;
+   keep `expr` for now instead of `code` *)
+and ident_code = ident_create "expr"
 
 and ident_or_null = ident_create "or_null"
 and ident_idx_imm = ident_create "idx_imm"
@@ -60,18 +68,21 @@ and ident_int8x16 = ident_create "int8x16"
 and ident_int16x8 = ident_create "int16x8"
 and ident_int32x4 = ident_create "int32x4"
 and ident_int64x2 = ident_create "int64x2"
+and ident_float16x8 = ident_create "float16x8"
 and ident_float32x4 = ident_create "float32x4"
 and ident_float64x2 = ident_create "float64x2"
 and ident_int8x32 = ident_create "int8x32"
 and ident_int16x16 = ident_create "int16x16"
 and ident_int32x8 = ident_create "int32x8"
 and ident_int64x4 = ident_create "int64x4"
+and ident_float16x16 = ident_create "float16x16"
 and ident_float32x8 = ident_create "float32x8"
 and ident_float64x4 = ident_create "float64x4"
 and ident_int8x64 = ident_create "int8x64"
 and ident_int16x32 = ident_create "int16x32"
 and ident_int32x16 = ident_create "int32x16"
 and ident_int64x8 = ident_create "int64x8"
+and ident_float16x32 = ident_create "float16x32"
 and ident_float32x16 = ident_create "float32x16"
 and ident_float64x8 = ident_create "float64x8"
 
@@ -100,6 +111,7 @@ and path_lexing_position = Pident ident_lexing_position
 and path_idx_imm = Pident ident_idx_imm
 and path_idx_mut = Pident ident_idx_mut
 and path_atomic_loc = Pident ident_atomic_loc
+and path_code = Pident ident_code
 
 and path_or_null = Pident ident_or_null
 
@@ -107,22 +119,26 @@ and path_int8x16 = Pident ident_int8x16
 and path_int16x8 = Pident ident_int16x8
 and path_int32x4 = Pident ident_int32x4
 and path_int64x2 = Pident ident_int64x2
+and path_float16x8 = Pident ident_float16x8
 and path_float32x4 = Pident ident_float32x4
 and path_float64x2 = Pident ident_float64x2
 and path_int8x32 = Pident ident_int8x32
 and path_int16x16 = Pident ident_int16x16
 and path_int32x8 = Pident ident_int32x8
 and path_int64x4 = Pident ident_int64x4
+and path_float16x16 = Pident ident_float16x16
 and path_float32x8 = Pident ident_float32x8
 and path_float64x4 = Pident ident_float64x4
 and path_int8x64 = Pident ident_int8x64
 and path_int16x32 = Pident ident_int16x32
 and path_int32x16 = Pident ident_int32x16
 and path_int64x8 = Pident ident_int64x8
+and path_float16x32 = Pident ident_float16x32
 and path_float32x16 = Pident ident_float32x16
 and path_float64x8 = Pident ident_float64x8
 
 let path_unboxed_float = Path.unboxed_version path_float
+and path_unboxed_unit = Path.unboxed_version path_unit
 and path_unboxed_float32 = Path.unboxed_version path_float32
 and path_unboxed_nativeint = Path.unboxed_version path_nativeint
 and path_unboxed_char = Path.unboxed_version path_char
@@ -136,18 +152,21 @@ and path_unboxed_int8x16 = Path.unboxed_version path_int8x16
 and path_unboxed_int16x8 = Path.unboxed_version path_int16x8
 and path_unboxed_int32x4 = Path.unboxed_version path_int32x4
 and path_unboxed_int64x2 = Path.unboxed_version path_int64x2
+and path_unboxed_float16x8 = Path.unboxed_version path_float16x8
 and path_unboxed_float32x4 = Path.unboxed_version path_float32x4
 and path_unboxed_float64x2 = Path.unboxed_version path_float64x2
 and path_unboxed_int8x32 = Path.unboxed_version path_int8x32
 and path_unboxed_int16x16 = Path.unboxed_version path_int16x16
 and path_unboxed_int32x8 = Path.unboxed_version path_int32x8
 and path_unboxed_int64x4 = Path.unboxed_version path_int64x4
+and path_unboxed_float16x16 = Path.unboxed_version path_float16x16
 and path_unboxed_float32x8 = Path.unboxed_version path_float32x8
 and path_unboxed_float64x4 = Path.unboxed_version path_float64x4
 and path_unboxed_int8x64 = Path.unboxed_version path_int8x64
 and path_unboxed_int16x32 = Path.unboxed_version path_int16x32
 and path_unboxed_int32x16 = Path.unboxed_version path_int32x16
 and path_unboxed_int64x8 = Path.unboxed_version path_int64x8
+and path_unboxed_float16x32 = Path.unboxed_version path_float16x32
 and path_unboxed_float32x16 = Path.unboxed_version path_float32x16
 and path_unboxed_float64x8 = Path.unboxed_version path_float64x8
 
@@ -175,7 +194,9 @@ and type_extension_constructor =
 and type_floatarray = newgenty (Tconstr(path_floatarray, [], ref Mnil))
 and type_lexing_position = newgenty (Tconstr(path_lexing_position, [], ref Mnil))
 and type_atomic_loc t = newgenty (Tconstr(path_atomic_loc, [t], ref Mnil))
+and type_code t = newgenty (Tconstr(path_code, [t], ref Mnil))
 
+and type_unboxed_unit = newgenty (Tconstr(path_unboxed_unit, [], ref Mnil))
 and type_unboxed_float = newgenty (Tconstr(path_unboxed_float, [], ref Mnil))
 and type_unboxed_float32 = newgenty (Tconstr(path_unboxed_float32, [], ref Mnil))
 and type_unboxed_nativeint =
@@ -194,18 +215,21 @@ and type_int8x16 = newgenty (Tconstr(path_int8x16, [], ref Mnil))
 and type_int16x8 = newgenty (Tconstr(path_int16x8, [], ref Mnil))
 and type_int32x4 = newgenty (Tconstr(path_int32x4, [], ref Mnil))
 and type_int64x2 = newgenty (Tconstr(path_int64x2, [], ref Mnil))
+and type_float16x8 = newgenty (Tconstr(path_float16x8, [], ref Mnil))
 and type_float32x4 = newgenty (Tconstr(path_float32x4, [], ref Mnil))
 and type_float64x2 = newgenty (Tconstr(path_float64x2, [], ref Mnil))
 and type_int8x32 = newgenty (Tconstr(path_int8x32, [], ref Mnil))
 and type_int16x16 = newgenty (Tconstr(path_int16x16, [], ref Mnil))
 and type_int32x8 = newgenty (Tconstr(path_int32x8, [], ref Mnil))
 and type_int64x4 = newgenty (Tconstr(path_int64x4, [], ref Mnil))
+and type_float16x16 = newgenty (Tconstr(path_float16x16, [], ref Mnil))
 and type_float32x8 = newgenty (Tconstr(path_float32x8, [], ref Mnil))
 and type_float64x4 = newgenty (Tconstr(path_float64x4, [], ref Mnil))
 and type_int8x64 = newgenty (Tconstr(path_int8x64, [], ref Mnil))
 and type_int16x32 = newgenty (Tconstr(path_int16x32, [], ref Mnil))
 and type_int32x16 = newgenty (Tconstr(path_int32x16, [], ref Mnil))
 and type_int64x8 = newgenty (Tconstr(path_int64x8, [], ref Mnil))
+and type_float16x32 = newgenty (Tconstr(path_float16x32, [], ref Mnil))
 and type_float32x16 = newgenty (Tconstr(path_float32x16, [], ref Mnil))
 and type_float64x8 = newgenty (Tconstr(path_float64x8, [], ref Mnil))
 
@@ -217,6 +241,8 @@ and type_unboxed_int32x4 =
   newgenty (Tconstr(path_unboxed_int32x4, [], ref Mnil))
 and type_unboxed_int64x2 =
   newgenty (Tconstr(path_unboxed_int64x2, [], ref Mnil))
+and type_unboxed_float16x8 =
+  newgenty (Tconstr(path_unboxed_float16x8, [], ref Mnil))
 and type_unboxed_float32x4 =
   newgenty (Tconstr(path_unboxed_float32x4, [], ref Mnil))
 and type_unboxed_float64x2 =
@@ -229,6 +255,8 @@ and type_unboxed_int32x8 =
   newgenty (Tconstr(path_unboxed_int32x8, [], ref Mnil))
 and type_unboxed_int64x4 =
   newgenty (Tconstr(path_unboxed_int64x4, [], ref Mnil))
+and type_unboxed_float16x16 =
+  newgenty (Tconstr(path_unboxed_float16x16, [], ref Mnil))
 and type_unboxed_float32x8 =
   newgenty (Tconstr(path_unboxed_float32x8, [], ref Mnil))
 and type_unboxed_float64x4 =
@@ -241,6 +269,8 @@ and type_unboxed_int32x16 =
   newgenty (Tconstr(path_unboxed_int32x16, [], ref Mnil))
 and type_unboxed_int64x8 =
   newgenty (Tconstr(path_unboxed_int64x8, [], ref Mnil))
+and type_unboxed_float16x32 =
+  newgenty (Tconstr(path_unboxed_float16x32, [], ref Mnil))
 and type_unboxed_float32x16 =
   newgenty (Tconstr(path_unboxed_float32x16, [], ref Mnil))
 and type_unboxed_float64x8 =
@@ -248,6 +278,7 @@ and type_unboxed_float64x8 =
 
 let ident_match_failure = ident_create "Match_failure"
 and ident_out_of_memory = ident_create "Out_of_memory"
+and ident_out_of_fibers = ident_create "Out_of_fibers"
 and ident_invalid_argument = ident_create "Invalid_argument"
 and ident_failure = ident_create "Failure"
 and ident_not_found = ident_create "Not_found"
@@ -263,6 +294,7 @@ and ident_undefined_recursive_module =
 let all_predef_exns = [
   ident_match_failure;
   ident_out_of_memory;
+  ident_out_of_fibers;
   ident_invalid_argument;
   ident_failure;
   ident_not_found;
@@ -301,19 +333,17 @@ and ident_some = ident_create "Some"
 and ident_null = ident_create "Null"
 and ident_this = ident_create "This"
 
-let option_argument_sort = Jkind.Sort.Const.value
+let option_argument_sort = Jkind_types.Sort.Const.value
 let option_argument_jkind = Jkind.Builtin.value_or_null ~why:(
   Type_argument {parent_path = path_option; position = 1; arity = 1})
 
 let list_jkind param =
   Jkind.Builtin.immutable_data ~why:Boxed_variant |>
-  Jkind.add_with_bounds
-    ~modality:Mode.Modality.Value.Const.id
-    ~type_expr:param |>
+  Jkind.add_with_bounds ~modality:Mode.Modality.Const.id ~type_expr:param |>
   Jkind.mark_best
 
-let list_sort = Jkind.Sort.Const.value
-let list_argument_sort = Jkind.Sort.Const.value
+let list_sort = Jkind_types.Sort.Const.value
+let list_argument_sort = Jkind_types.Sort.Const.value
 let list_argument_jkind = Jkind.Builtin.value_or_null ~why:(
   Type_argument {parent_path = path_list; position = 1; arity = 1})
 
@@ -331,12 +361,10 @@ let mk_add_type add_type =
         let type_jkind =
           Jkind.of_builtin ~why:(Unboxed_primitive type_ident) unboxed_jkind
         in
-        let type_kind =
-          match kind with
-            | Type_abstract Definition -> Type_abstract Definition
-            | _ ->
-              Misc.fatal_error "Predef.mk_add_type: non-abstract unboxed kind"
-        in
+        (* All unboxed versions of types explicitly added in the predef are
+           abstract, as they are special cased. Other unboxed versions are
+           automatically derived. *)
+        let type_kind = Type_abstract Definition in
         let type_manifest =
           match manifest with
           | None -> None
@@ -426,7 +454,7 @@ let mk_add_type2 add_type type_ident ~jkind ~param1_jkind ~param2_jkind
     { type_params = [param1; param2];
       type_arity = 2;
       type_kind = Type_abstract Definition;
-      type_jkind = Jkind.mark_best (jkind);
+      type_jkind = Jkind.mark_best jkind;
       type_loc = Location.none;
       type_private = Asttypes.Public;
       type_manifest = None;
@@ -447,7 +475,7 @@ let mk_add_extension add_extension id args =
       let raise_error () = Misc.fatal_error
           "sanity check failed: non-value jkind in predef extension \
             constructor; should this have Constructor_mixed shape?" in
-      match (sort : Jkind.Sort.Const.t) with
+      match (sort : Jkind_types.Sort.Const.t) with
       | Base Value -> ()
       | Base (Void | Untagged_immediate | Float32 | Float64 | Word | Bits8 |
              Bits16 | Bits32 | Bits64 | Vec128 | Vec256 | Vec512)
@@ -463,7 +491,7 @@ let mk_add_extension add_extension id args =
               {
                 ca_type;
                 ca_sort;
-                ca_modalities=Mode.Modality.Value.Const.id;
+                ca_modalities=Mode.Modality.Const.id;
                 ca_loc=Location.none
               })
             args);
@@ -496,7 +524,7 @@ let variant constrs =
 let unrestricted tvar ca_sort =
   {ca_type=tvar;
    ca_sort;
-   ca_modalities=Mode.Modality.Value.Const.id;
+   ca_modalities=Mode.Modality.Const.id;
    ca_loc=Location.none}
 
 (* CR layouts: Changes will be needed here as we add support for the built-ins
@@ -515,7 +543,7 @@ let build_initial_env add_type add_extension empty_env =
        ~jkind:(fun param ->
          Jkind.Builtin.mutable_data ~why:(Primitive ident_array) |>
          Jkind.add_with_bounds
-           ~modality:Mode.Modality.Value.Const.id
+           ~modality:Mode.Modality.Const.id
            ~type_expr:param)
   |> add_type1 ident_iarray
        ~variance:Variance.covariant
@@ -524,7 +552,7 @@ let build_initial_env add_type add_extension empty_env =
        ~jkind:(fun param ->
          Jkind.Builtin.immutable_data ~why:(Primitive ident_iarray) |>
          Jkind.add_with_bounds
-           ~modality:Mode.Modality.Value.Const.id
+           ~modality:Mode.Modality.Const.id
            ~type_expr:param)
   |> add_type ident_bool
        ~kind:(variant [ cstr ident_false []; cstr ident_true []])
@@ -532,7 +560,8 @@ let build_initial_env add_type add_extension empty_env =
   |> add_type ident_char ~jkind:Jkind.Const.Builtin.immediate
        ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_int8
   |> add_type ident_exn ~kind:Type_open ~jkind:Jkind.Const.Builtin.exn
-  |> add_type ident_extension_constructor ~jkind:Jkind.Const.Builtin.immutable_data
+  |> add_type ident_extension_constructor
+       ~jkind:Jkind.Const.Builtin.immutable_data
   |> add_type_with_jkind ident_float ~jkind:(Jkind.for_float ident_float)
       ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_float
   |> add_type ident_floatarray ~jkind:Jkind.Const.Builtin.mutable_data
@@ -550,7 +579,7 @@ let build_initial_env add_type add_extension empty_env =
           It can at least cross locality, because it's always heap-allocated.
           It might also cross portability, linearity, uniqueness subject to its
           parameter. But I'm also fine not doing that for now (and wait until
-          users complains).  *)
+          users complains). Internal ticket 5103. *)
        ~jkind:(fun _ -> Jkind.for_non_float ~why:(Primitive ident_lazy_t))
   |> add_type1 ident_list
        ~variance:Variance.covariant
@@ -574,7 +603,7 @@ let build_initial_env add_type add_extension empty_env =
        ~jkind:(fun param ->
          Jkind.Builtin.immutable_data ~why:Boxed_variant |>
          Jkind.add_with_bounds
-           ~modality:Mode.Modality.Value.Const.id
+           ~modality:Mode.Modality.Const.id
            ~type_expr:param)
   |> add_type2 ident_idx_imm
        ~param1_jkind:(
@@ -591,7 +620,7 @@ let build_initial_env add_type add_extension empty_env =
          }))
        ~jkind:(
          Jkind.of_builtin ~why:(Primitive ident_idx_imm)
-           Jkind.Const.Builtin.bits64)
+           Jkind.Const.Builtin.kind_of_idx)
        ~type_variance:[Variance.full; Variance.covariant]
        ~type_separability:[Separability.Ind; Separability.Ind]
   |> add_type2 ident_idx_mut
@@ -609,7 +638,7 @@ let build_initial_env add_type add_extension empty_env =
          }))
        ~jkind:(
          Jkind.of_builtin ~why:(Primitive ident_idx_mut)
-           Jkind.Const.Builtin.bits64)
+           Jkind.Const.Builtin.kind_of_idx)
        ~type_variance:[Variance.full; Variance.full]
        ~type_separability:[Separability.Ind; Separability.Ind]
   |> add_type_with_jkind ident_lexing_position
@@ -619,9 +648,9 @@ let build_initial_env add_type add_extension empty_env =
              {
                ld_id=id;
                ld_mutable=Immutable;
-               ld_modalities=Mode.Modality.Value.Const.id;
+               ld_modalities=Mode.Modality.Const.id;
                ld_type=field_type;
-               ld_sort=Jkind.Sort.Const.value;
+               ld_sort=Jkind_types.Sort.Const.value;
                ld_loc=Location.none;
                ld_attributes=[];
                ld_uid=Uid.of_predef_id id;
@@ -640,51 +669,62 @@ let build_initial_env add_type add_extension empty_env =
          )
        )
        (* CR layouts v2.8: Possibly remove this -- and simplify [mk_add_type] --
-          when we have a better jkind subsumption check. *)
+          when we have a better jkind subsumption check. Internal ticket 5104 *)
        ~jkind:Jkind.(
          of_builtin Const.Builtin.immutable_data
            ~why:(Primitive ident_lexing_position) |>
-         add_with_bounds ~modality:Mode.Modality.Value.Const.id ~type_expr:type_int |>
-         add_with_bounds ~modality:Mode.Modality.Value.Const.id ~type_expr:type_int |>
-         add_with_bounds ~modality:Mode.Modality.Value.Const.id ~type_expr:type_int |>
-         add_with_bounds ~modality:Mode.Modality.Value.Const.id ~type_expr:type_string)
+         add_with_bounds ~modality:Mode.Modality.Const.id ~type_expr:type_int |>
+         add_with_bounds ~modality:Mode.Modality.Const.id ~type_expr:type_int |>
+         add_with_bounds ~modality:Mode.Modality.Const.id ~type_expr:type_int |>
+         add_with_bounds ~modality:Mode.Modality.Const.id
+          ~type_expr:type_string)
   |> add_type1 ident_atomic_loc
        ~variance:Variance.full
        ~separability:Separability.Ind
        ~param_jkind:(
          Jkind.Builtin.value_or_null ~why:(Primitive ident_atomic_loc))
        ~jkind:(fun param ->
-         Jkind.Builtin.mutable_data ~why:(Primitive ident_atomic_loc) |>
+         Jkind.Builtin.sync_data ~why:(Primitive ident_atomic_loc) |>
          Jkind.add_with_bounds
-           ~modality:Mode.Modality.Value.Const.id
+           ~modality:Mode.Modality.Const.id
            ~type_expr:param)
   |> add_type ident_string ~jkind:Jkind.Const.Builtin.immutable_data
+  |> add_type1 ident_code
+       ~variance:Variance.covariant
+       ~separability:Separability.Ind
+       ~jkind:(fun param ->
+         Jkind.Builtin.immutable_data ~why:Tquote |>
+           Jkind.add_with_bounds
+             ~modality:Mode.Modality.Const.id
+             ~type_expr:param)
   |> add_type ident_bytes ~jkind:Jkind.Const.Builtin.mutable_data
   |> add_type ident_unit
        ~kind:(variant [cstr ident_void []])
        ~jkind:Jkind.Const.Builtin.immediate
+       ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_unit
   (* Predefined exceptions - alphabetical order *)
   |> add_extension ident_assert_failure
        [newgenty (Ttuple[None, type_string; None, type_int; None, type_int]),
-        Jkind.Sort.Const.value]
+        Jkind_types.Sort.Const.value]
   |> add_extension ident_division_by_zero []
   |> add_extension ident_end_of_file []
   |> add_extension ident_failure [type_string,
-       Jkind.Sort.Const.value]
+       Jkind_types.Sort.Const.value]
   |> add_extension ident_invalid_argument [type_string,
-       Jkind.Sort.Const.value]
+       Jkind_types.Sort.Const.value]
   |> add_extension ident_match_failure
        [newgenty (Ttuple[None, type_string; None, type_int; None, type_int]),
-       Jkind.Sort.Const.value]
+       Jkind_types.Sort.Const.value]
   |> add_extension ident_not_found []
   |> add_extension ident_out_of_memory []
+  |> add_extension ident_out_of_fibers []
   |> add_extension ident_stack_overflow []
   |> add_extension ident_sys_blocked_io []
   |> add_extension ident_sys_error [type_string,
-       Jkind.Sort.Const.value]
+       Jkind_types.Sort.Const.value]
   |> add_extension ident_undefined_recursive_module
        [newgenty (Ttuple[None, type_string; None, type_int; None, type_int]),
-       Jkind.Sort.Const.value]
+       Jkind_types.Sort.Const.value]
 
 let add_simd_stable_extension_types add_type env =
   let _, add_type = mk_add_type add_type in
@@ -697,6 +737,8 @@ let add_simd_stable_extension_types add_type env =
       ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_128bit_vectors
   |> add_type ident_int64x2 ~jkind:Jkind.Const.Builtin.immutable_data
       ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_128bit_vectors
+  |> add_type ident_float16x8 ~jkind:Jkind.Const.Builtin.immutable_data
+      ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_128bit_vectors
   |> add_type ident_float32x4 ~jkind:Jkind.Const.Builtin.immutable_data
       ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_128bit_vectors
   |> add_type ident_float64x2 ~jkind:Jkind.Const.Builtin.immutable_data
@@ -708,6 +750,8 @@ let add_simd_stable_extension_types add_type env =
   |> add_type ident_int32x8 ~jkind:Jkind.Const.Builtin.immutable_data
       ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_256bit_vectors
   |> add_type ident_int64x4 ~jkind:Jkind.Const.Builtin.immutable_data
+      ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_256bit_vectors
+  |> add_type ident_float16x16 ~jkind:Jkind.Const.Builtin.immutable_data
       ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_256bit_vectors
   |> add_type ident_float32x8 ~jkind:Jkind.Const.Builtin.immutable_data
       ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_256bit_vectors
@@ -727,6 +771,8 @@ let add_simd_alpha_extension_types add_type env =
       ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_512bit_vectors
   |> add_type ident_int64x8 ~jkind:Jkind.Const.Builtin.immutable_data
       ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_512bit_vectors
+  |> add_type ident_float16x32 ~jkind:Jkind.Const.Builtin.immutable_data
+      ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_512bit_vectors
   |> add_type ident_float32x16 ~jkind:Jkind.Const.Builtin.immutable_data
       ~unboxed_jkind:Jkind.Const.Builtin.kind_of_unboxed_512bit_vectors
   |> add_type ident_float64x8 ~jkind:Jkind.Const.Builtin.immutable_data
@@ -745,7 +791,7 @@ let add_small_number_extension_types add_type env =
 let add_small_number_beta_extension_types _add_type env =
   env
 
-let or_null_argument_sort = Jkind.Sort.Const.value
+let or_null_argument_sort = Jkind_types.Sort.Const.value
 
 let or_null_kind tvar =
   let cstrs =
@@ -757,9 +803,7 @@ let or_null_kind tvar =
 let or_null_jkind param =
   Jkind.Const.Builtin.value_or_null_mod_everything
   |> Jkind.of_builtin ~why:(Primitive ident_or_null)
-  |> Jkind.add_with_bounds
-    ~modality:Mode.Modality.Value.Const.id
-    ~type_expr:param
+  |> Jkind.add_with_bounds ~modality:Mode.Modality.Const.id ~type_expr:param
   |> Jkind.mark_best
 
 let add_or_null add_type env =

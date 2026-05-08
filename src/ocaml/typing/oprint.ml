@@ -202,9 +202,9 @@ let print_out_string ppf s =
     fprintf ppf "%S" s
 
 (* We cannot use the [float32] type in the compiler. *)
-external float32_format : string -> Obj.t -> string = "caml_format_float32"
+(* external float32_format : string -> Obj.t -> string = "caml_format_float32" *)
 
-let float32_to_string f = Stdlib.valid_float_lexem (float32_format "%.9g" f)
+let float32_to_string _ = assert false
 
 let print_constr ppf name =
   match name with
@@ -229,6 +229,8 @@ let print_out_value ppf tree =
     | tree -> print_simple_tree ppf tree
   and print_constr_param ppf = function
     | Oval_int i -> parenthesize_if_neg ppf "%i" i (i < 0)
+    | Oval_int8 i -> parenthesize_if_neg ppf "%is" i (i < 0)
+    | Oval_int16 i -> parenthesize_if_neg ppf "%iS" i (i < 0)
     | Oval_int32 i -> parenthesize_if_neg ppf "%lil" i (i < 0l)
     | Oval_int64 i -> parenthesize_if_neg ppf "%LiL" i (i < 0L)
     | Oval_nativeint i -> parenthesize_if_neg ppf "%nin" i (i < 0n)
@@ -246,6 +248,8 @@ let print_out_value ppf tree =
   and print_simple_tree ppf =
     function
       Oval_int i -> fprintf ppf "%i" i
+    | Oval_int8 i -> fprintf ppf "%is" i
+    | Oval_int16 i -> fprintf ppf "%iS" i
     | Oval_int32 i -> fprintf ppf "%lil" i
     | Oval_int64 i -> fprintf ppf "%LiL" i
     | Oval_nativeint i -> fprintf ppf "%nin" i
@@ -291,6 +295,7 @@ let print_out_value ppf tree =
     | Oval_unboxed_tuple tree_list ->
         fprintf ppf "@[<1>#(%a)@]" (print_labeled_tree_list print_tree_1 ",")
           tree_list
+    | Oval_code e -> CamlinternalQuote.Code.print ppf e
     | tree -> fprintf ppf "@[<1>(%a)@]" (cautious print_tree_1) tree
   and print_fields first ppf =
     function
@@ -353,30 +358,13 @@ let ty_var ~non_gen ppf s =
   disallowed in parsing of this file, but non-legacy modes might still pop
   up. For example, the current file might cite values from other files that
   mention non-legacy modes *)
-let print_out_mode_legacy ppf = function
-  | Omd_local -> fprintf ppf "local_"
+let print_out_mode = pp_print_string
 
-let print_out_mode_new = pp_print_string
-
-let print_out_mode_legacy_space ppf m =
-  print_out_mode_legacy ppf m;
-  pp_print_space ppf ()
-
-let print_out_modes_legacy ppf l =
-  pp_print_list print_out_mode_legacy_space ppf l
-
-let print_out_modes_new ppf l =
+let print_out_modes ppf l =
   (match l with
   | [] -> ()
   | _ -> pp_print_string ppf " @ ");
-  pp_print_list ~pp_sep:pp_print_space print_out_mode_new ppf l
-
-let partition_modes l =
-  List.partition_map
-    (function
-    | Omd_legacy m -> Left m
-    | Omd_new m -> Right m
-    ) l
+  pp_print_list ~pp_sep:pp_print_space print_out_mode ppf l
 
 (* Labeled tuples with the first element labeled sometimes require parens. *)
 let is_initially_labeled_tuple ty =
@@ -384,14 +372,9 @@ let is_initially_labeled_tuple ty =
   | Otyp_tuple ((Some _, _) :: _) -> true
   | _ -> false
 
-let print_out_modality_legacy ppf = function
-  | Ogf_global -> Format.fprintf ppf "global_"
+let print_out_modality = pp_print_string
 
-let print_out_modality ppf = function
-  | Ogf_legacy m -> print_out_modality_legacy ppf m
-  | Ogf_new m -> pp_print_string ppf m
-
-let print_out_modalities_new ppf l =
+let print_out_modalities ppf l =
   match l with
   | [] -> ()
   | _ ->
@@ -400,24 +383,27 @@ let print_out_modalities_new ppf l =
     pp_print_space ppf ();
     pp_print_list ~pp_sep:pp_print_space pp_print_string ppf l
 
-let print_out_modalities_legacy =
-  pp_print_list
-  (fun ppf m ->
-    print_out_modality_legacy ppf m;
-    pp_print_space ppf ())
-
-let partition_modalities l =
-  List.partition_map (function
-  | Ogf_legacy m -> Left m
-  | Ogf_new m -> Right m
-  ) l
-
 let print_arg_label_and_out_type ppf (lbl : arg_label) ty ~print_type =
   match lbl with
   | Nolabel -> print_type ppf ty
   | Labelled l -> fprintf ppf "%a:%a" print_lident l print_type ty
   | Position l -> fprintf ppf "%a:[%%call_pos]" print_lident l
   | Optional l -> fprintf ppf "?%a:%a" print_lident l print_type ty
+
+exception Cannot_cancel
+
+let rec cancel_quote_splice ty =
+  let rec cancel_once = function
+  | Otyp_quote (Otyp_splice t) -> t
+  | Otyp_splice (Otyp_quote t) -> t
+  | Otyp_quote t -> Otyp_quote (cancel_once t)
+  | Otyp_splice t -> Otyp_splice (cancel_once t)
+  | _ -> raise Cannot_cancel
+  in
+  try
+    let ty' = cancel_once ty in
+    cancel_quote_splice ty'
+  with Cannot_cancel -> ty
 
 let rec print_out_type_0 ppf =
   function
@@ -439,23 +425,15 @@ let rec print_out_type_0 ppf =
    - Or, there is at least one mode to print.
  *)
 and print_out_type_mode ~arg mode ppf ty =
-  let m_legacy, m_new = partition_modes mode in
-  let has_modes =
-    match m_legacy with
-    | [] -> false
-    | _ -> true
-  in
   let parens =
-    is_initially_labeled_tuple ty
-    && (arg || has_modes)
+    is_initially_labeled_tuple ty && arg
   in
-  print_out_modes_legacy ppf m_legacy;
   if parens then
     pp_print_char ppf '(';
   print_out_type_2 ppf ty;
   if parens then
     pp_print_char ppf ')';
-  print_out_modes_new ppf m_new
+  print_out_modes ppf mode
 
 and print_out_type_1 ppf =
   function
@@ -478,12 +456,10 @@ and print_out_ret ppf =
     | Orm_no_parens ->
       print_out_type_1 ppf ty
     | Orm_any rm | Orm_parens rm ->
-      let m_legacy, m_new = partition_modes rm in
-      print_out_modes_legacy ppf m_legacy;
       pp_print_char ppf '(';
       print_out_type_1 ppf ty;
       pp_print_char ppf ')';
-      print_out_modes_new ppf m_new
+      print_out_modes ppf rm
     end
   | Otyp_ret (Orm_any rm, ty) -> print_out_type_mode ~arg:false rm ppf ty
   | _ -> assert false
@@ -565,6 +541,20 @@ and print_out_type_3 ppf =
   | Otyp_of_kind jk ->
     fprintf ppf "(type@ :@ %a)" print_out_jkind jk
   | Otyp_ret _ -> assert false
+  | Otyp_quote t -> (
+      let t' = cancel_quote_splice (Otyp_quote t) in
+      match t' with
+      | Otyp_quote t' ->
+        fprintf ppf "@[<1><[@,%a@,]>@]"
+          print_out_type_0 t'
+      | t' -> print_out_type ppf t')
+  | Otyp_splice t -> (
+      let t' = cancel_quote_splice (Otyp_splice t) in
+      match t' with
+      | Otyp_splice t' ->
+        fprintf ppf "@[<1>$@,(%a)@]"
+          print_out_type_0 t'
+      | t' -> print_out_type ppf t')
 and print_out_type ppf typ =
   print_out_type_0 ppf typ
 and print_simple_out_type ppf typ =
@@ -615,13 +605,11 @@ and print_out_label ppf (name, mut, arg, gbl) =
     | Nonatomic -> ()
     | Atomic -> fprintf ppf " [@@atomic]"
   in
-  let m_legacy, m_new = partition_modalities gbl in
-  fprintf ppf "@[<2>%s%a%a :@ %a%a%a@];"
+  fprintf ppf "@[<2>%s%a :@ %a%a%a@];"
     mut
-    print_out_modalities_legacy m_legacy
     print_lident name
     print_out_type arg
-    print_out_modalities_new m_new
+    print_out_modalities gbl
     print_atomic atomic
 
 and print_out_jkind_const ppf ojkind =
@@ -720,7 +708,7 @@ let out_label = ref print_out_label
 
 let out_modality = ref print_out_modality
 
-let out_modes_new = ref print_out_modes_new
+let out_modes = ref print_out_modes
 
 let out_jkind_const = ref print_out_jkind_const
 
@@ -807,8 +795,6 @@ let out_module_type = ref (fun _ -> failwith "Oprint.out_module_type")
 let out_sig_item = ref (fun _ -> failwith "Oprint.out_sig_item")
 let out_signature = ref (fun _ -> failwith "Oprint.out_signature")
 let out_type_extension = ref (fun _ -> failwith "Oprint.out_type_extension")
-let out_functor_parameters =
-  ref (fun _ -> failwith "Oprint.out_functor_parameters")
 
 (* For anonymous functor arguments, the logic to choose between
    the long-form
@@ -830,18 +816,6 @@ let out_functor_parameters =
      S1 -> S2 -> functor (Y : S3) -> S4 -> S5 -> sig end
 *)
 
-(* take a module type that may be a functor type,
-   and return the longest prefix list of arguments
-   that should be printed in long form. *)
-
-let rec collect_functor_args acc = function
-  | Omty_functor (param, mty_res) ->
-      collect_functor_args (param :: acc) mty_res
-  | non_functor -> (acc, non_functor)
-let collect_functor_args mty =
-  let l, rest = collect_functor_args [] mty in
-  List.rev l, rest
-
 let constructor_of_extension_constructor
     (ext : out_extension_constructor) : out_constructor
 =
@@ -851,48 +825,50 @@ let constructor_of_extension_constructor
     ocstr_return_type = ext.oext_ret_type;
   }
 
-let split_anon_functor_arguments params =
-  let rec uncollect_anonymous_suffix acc rest = match acc with
-    | Some (None, mty_arg) :: acc ->
-        uncollect_anonymous_suffix acc
-          (Some (None, mty_arg) :: rest)
-    | _ :: _ | [] ->
-        (acc, rest)
-  in
-  let (acc, rest) = uncollect_anonymous_suffix (List.rev params) [] in
-  (List.rev acc, rest)
+let rec print_out_module_type ppf = function
+  | Omty_functor (param, res, mres) ->
+      fprintf ppf "@[<2>%a@]" print_out_functor (param, res, mres)
+  | _ as mty -> print_simple_out_module_type ppf mty
 
-let rec print_out_module_type ppf mty =
-  print_out_functor ppf mty
+and print_out_module_type_with_modes ppf (mty, mm) =
+  match mm with
+  | [] -> print_out_module_type ppf mty
+  | _ :: _ ->
+      fprintf ppf "%a%a" print_simple_out_module_type mty print_out_modes mm
 
-and print_out_functor_parameters ppf l =
-  let print_nonanon_arg ppf = function
-    | None ->
-        fprintf ppf "()"
-    | Some (param, mty) ->
-        fprintf ppf "(%s : %a)"
-          (Option.value param ~default:"_")
-          print_out_module_type mty
-  in
-  let rec print_args ppf = function
-    | [] -> ()
-    | Some (None, mty_arg) :: l ->
-        fprintf ppf "%a ->@ %a"
-          print_simple_out_module_type mty_arg
-          print_args l
-    | _ :: _ as non_anonymous_functor ->
-        let args, anons = split_anon_functor_arguments non_anonymous_functor in
-        fprintf ppf "@[<2>functor@ %a@]@ ->@ %a"
-          (pp_print_list ~pp_sep:pp_print_space print_nonanon_arg) args
-          print_args anons
-  in
-  print_args ppf l
+(** Prints functor parameter in the context of long form [functor ...]. *)
+and print_out_functor_parameter ppf = function
+  | None -> fprintf ppf "()"
+  | Some (name, mty, mm) -> fprintf ppf "(%s : %a)"
+     (Option.value name ~default:"_")
+     print_out_module_type_with_modes (mty, mm)
 
-and print_out_functor ppf t =
-  let params, non_functor = collect_functor_args t in
-  fprintf ppf "@[<2>%a%a@]"
-    print_out_functor_parameters params
-    print_simple_out_module_type non_functor
+and print_out_functor ppf (param, res, mres) =
+  match param with
+  | Some (None, mty, mm) ->
+      fprintf ppf "%a ->@ %a"
+        print_simple_out_module_type_with_modes (mty, mm)
+        print_out_module_type_with_modes (res, mres)
+  | _ ->
+      fprintf ppf "@[<2>functor@ %a%a"
+        print_out_functor_parameter param
+        print_out_functor_return_with_modes (res, mres)
+
+(** The caller has printed [functor (X : S) ... (Y : T)] and we need to print
+    the functor return. *)
+and print_out_functor_return_with_modes ppf (mty, mm) =
+  let print_as_fresh () =
+    fprintf ppf "@]@ ->@ %a" print_out_module_type_with_modes (mty, mm)
+  in
+  match mty with
+  | Omty_functor (param, res, mres) ->
+      begin match param, mm with
+      | (None | Some (Some _, _, _)), [] ->
+          fprintf ppf "@ %a%a" print_out_functor_parameter param
+            print_out_functor_return_with_modes (res, mres)
+      | _ -> print_as_fresh ()
+      end
+  | _ -> print_as_fresh ()
 and print_simple_out_module_type ppf =
   function
     Omty_abstract -> ()
@@ -912,7 +888,11 @@ and print_simple_out_module_type ppf =
        print_simple_out_module_type mty
        print_ident id
        (if unaliasable then " [@unaliasable]" else "")
-
+and print_simple_out_module_type_with_modes ppf (mty, mm) =
+  match mm with
+  | [] -> print_simple_out_module_type ppf mty
+  | _ :: _ ->
+      fprintf ppf "%a%a" print_simple_out_module_type mty print_out_modes mm
 and print_out_signature ppf =
   function
     [] -> ()
@@ -964,14 +944,14 @@ and print_out_sig_item ppf =
       fprintf ppf "@[<2>module type %s =@ %a@]" name !out_module_type mty
   | Osig_module (name, Omty_alias id, moda, _) ->
       fprintf ppf "@[<2>module %s =@ %a%a@]" name print_ident id
-        print_out_modalities_new moda
+        print_out_modalities moda
   | Osig_module (name, mty, moda, rs) ->
       fprintf ppf "@[<2>%s %s :@ %a%a@]"
         (match rs with Orec_not -> "module"
                      | Orec_first -> "module rec"
                      | Orec_next -> "and")
         name !out_module_type mty
-        print_out_modalities_new moda
+        print_out_modalities moda
   | Osig_type(td, rs) ->
         print_out_type_decl
           (match rs with
@@ -991,7 +971,7 @@ and print_out_sig_item ppf =
       in
       fprintf ppf "@[<2>%s %a :@ %a%a%a%a@]" kwd value_ident oval_name
         !out_type oval_type
-        print_out_modalities_new oval_modalities
+        print_out_modalities oval_modalities
         pr_prims oval_prims
         (fun ppf -> List.iter (fun a -> fprintf ppf "@ [@@@@%s]" a.oattr_name))
         oval_attributes
@@ -1083,10 +1063,8 @@ and print_out_type_decl kwd ppf td =
     print_out_attrs td.otype_attributes
 
 and print_simple_out_gf_type ppf (ty, gf) =
-  let m_legacy, m_new = partition_modalities gf in
-  print_out_modalities_legacy ppf m_legacy;
   print_simple_out_type ppf ty;
-  print_out_modalities_new ppf m_new
+  print_out_modalities ppf gf
 
 and print_out_constr_args ppf tyl =
   print_typlist print_simple_out_gf_type " *" ppf tyl
@@ -1172,7 +1150,6 @@ let _ = out_module_type := print_out_module_type
 let _ = out_signature := print_out_signature
 let _ = out_sig_item := print_out_sig_item
 let _ = out_type_extension := print_out_type_extension
-let _ = out_functor_parameters := print_out_functor_parameters
 
 (* Phrases *)
 

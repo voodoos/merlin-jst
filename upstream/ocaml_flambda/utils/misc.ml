@@ -25,8 +25,8 @@ let fatal_errorf fmt =
 
 let fatal_error msg = fatal_errorf "%s" msg
 
-let unboxed_small_int_arrays_are_not_implemented () =
-  fatal_error "unboxed int8/int16 and untagged int arrays are not implemented"
+let splices_should_not_exist_after_eval () =
+  fatal_error "slambda splices should not exist in lambda after slambda eval"
 
 (* Exceptions *)
 
@@ -709,6 +709,14 @@ let remove_dir dirname =
   with Sys_error _msg ->
     ()
 
+let remove_dir_contents dirname =
+  try
+    Array.iter
+      (fun entry -> remove_file (Filename.concat dirname entry))
+      (Sys.readdir dirname);
+    remove_dir dirname
+  with Sys_error _ -> ()
+
 (* Expand a -I option: if it starts with +, make it relative to the standard
    library directory *)
 
@@ -786,11 +794,19 @@ let output_to_file_via_temporary ?(mode = [Open_text]) filename fn =
   | exception exn ->
       close_out oc; remove_file temp_filename; raise exn
 
-let protect_writing_to_file ~filename ~f =
+let successful_output_files = ref []
+
+let protect_output_to_file filename f =
   let outchan = open_out_bin filename in
   try_finally ~always:(fun () -> close_out outchan)
     ~exceptionally:(fun () -> remove_file filename)
-    (fun () -> f outchan)
+    (fun () ->
+      let a = f outchan in
+      successful_output_files := filename :: !successful_output_files;
+      a)
+
+let remove_successful_output_files () =
+  List.iter remove_file !successful_output_files; successful_output_files := []
 
 let prng = lazy(Random.State.make_self_init ())
 
@@ -854,6 +870,46 @@ module Int_literal_converter = struct
   let int32 s = cvt_int_aux s Int32.neg Int32.of_string
   let int64 s = cvt_int_aux s Int64.neg Int64.of_string
   let nativeint s = cvt_int_aux s Nativeint.neg Nativeint.of_string
+
+  (* Follows "parse_sign_and_base" in runtime/ints.c *)
+  let parse_signedness s =
+    let char_at i =
+      if String.length s > i
+      then Some s.[i]
+      else None
+    in
+    let p =
+      match char_at 0 with
+      | Some ('-' | '+') -> 1
+      | Some _ | None -> 0
+    in
+    match char_at p with
+    | Some '0' ->
+      begin match char_at (p+1) with
+      | Some ('x' | 'X' | 'o' | 'O' | 'b' | 'B' | 'u' | 'U') -> false
+      | Some _ | None -> true
+      end
+    | Some _ | None -> true
+
+  let cvt_small_int str ~bits =
+    let i = int_of_string str in
+    let max_int = (1 lsl (bits-1)) - 1 in
+    let min_int = -(1 lsl (bits-1)) in
+    let max_uint = (1 lsl bits) - 1 in
+    let lower_limit, upper_limit =
+      if parse_signedness str
+      then min_int, max_int + 1
+      else -max_uint, max_uint
+    in
+    if i < lower_limit || i > upper_limit
+    then failwith "small int overflow";
+    (* handle overflow *)
+    if i > max_int then i - (max_uint + 1)
+    else if i < min_int then i + (max_uint + 1)
+    else i
+
+  let int8 s = cvt_small_int s ~bits:8
+  let int16 s = cvt_small_int s ~bits:16
 end
 
 (* [find_first_mono p] assumes that there exists a natural number
@@ -1556,12 +1612,14 @@ let is_print_longer_than size p =
   let out_spaces n = count_down n in
   let out_flush _ = () in
   let out_indent _ = () in
+  let out_width = Format.utf_8_scalar_width in
   let out_functions : Format.formatter_out_functions = {
     out_string;
     out_flush;
     out_newline;
     out_spaces;
-    out_indent}
+    out_indent;
+    out_width}
   in
   let ppf = Format.formatter_of_out_functions out_functions in
   try p ppf; false
@@ -1922,6 +1980,89 @@ let remove_double_underscores s =
   loop 0;
   Buffer.contents buf
 
+module Json = struct
+
+  (* [escape_unicode] is based on [Bytes.unsafe_escape], which is used
+     for the format specifier [%S]. It is adjusted to output unicode escape
+     chacarcters \u00HH instead of the usual OCaml character literals \DDD.
+     Adds quotes around the input string. *)
+  let escape_unicode str =
+    let s = Bytes.of_string str in
+    let n = ref 2 in (* for the quotes *)
+    for i = 0 to Bytes.length s - 1 do
+      n := !n +
+        (match Bytes.unsafe_get s i with
+        | '\"' | '\\' | '\n' | '\t' | '\r' | '\b' -> 2
+        | ' ' .. '~' -> 1
+        | _ -> 6)
+    done;
+    begin
+      let s' = Bytes.create !n in
+      Bytes.unsafe_set s' 0 '\"';
+      n := 1;
+      for i = 0 to Bytes.length s - 1 do
+        begin match Bytes.unsafe_get s i with
+        | ('\"' | '\\') as c ->
+            Bytes.unsafe_set s' !n '\\'; incr n; Bytes.unsafe_set s' !n c
+        | '\n' ->
+            Bytes.unsafe_set s' !n '\\'; incr n; Bytes.unsafe_set s' !n 'n'
+        | '\t' ->
+            Bytes.unsafe_set s' !n '\\'; incr n; Bytes.unsafe_set s' !n 't'
+        | '\r' ->
+            Bytes.unsafe_set s' !n '\\'; incr n; Bytes.unsafe_set s' !n 'r'
+        | '\b' ->
+            Bytes.unsafe_set s' !n '\\'; incr n; Bytes.unsafe_set s' !n 'b'
+        | (' ' .. '~') as c -> Bytes.unsafe_set s' !n c
+        | c ->
+            let a = Char.code c in
+            let hex_char n =
+              if n < 10 then Char.chr (48 + n)  (* '0'-'9' *)
+              else Char.chr (55 + n)            (* 'A'-'F' *)
+            in
+            Bytes.unsafe_set s' !n '\\';
+            incr n;
+            Bytes.unsafe_set s' !n 'u';
+            incr n;
+            Bytes.unsafe_set s' !n '0';
+            incr n;
+            Bytes.unsafe_set s' !n '0';
+            incr n;
+            Bytes.unsafe_set s' !n (hex_char (a / 16));
+            incr n;
+            Bytes.unsafe_set s' !n (hex_char (a mod 16));
+        end;
+        incr n
+      done;
+      Bytes.unsafe_set s' !n '\"';
+      String.of_bytes s'
+    end
+
+
+  let field name value = Printf.sprintf "%s: %s" (escape_unicode name) value
+
+  let string value = escape_unicode value
+
+  let int value = string_of_int value
+
+  (* Use %.17g instead of string_of_float to avoid invalid JSON output.
+     [string_of_float] can produce "1." for whole numbers, which is not valid
+     JSON. %.17g provides full double precision and produces valid JSON
+     numbers. *)
+  let float value = Printf.sprintf "%.17g" value
+
+  let object_ fields =
+    let field_strings = String.concat ",\n" fields in
+    Printf.sprintf "{\n%s\n}" field_strings
+
+  let array items =
+    let item_strings = String.concat ",\n" items in
+    Printf.sprintf "[\n%s\n]" item_strings
+
+  let null = "null"
+
+  let option f = function None -> null | Some v -> f v
+end
+
 module Nonempty_list = struct
   type nonrec 'a t = ( :: ) of 'a * 'a list
 
@@ -1938,4 +2079,49 @@ module Nonempty_list = struct
 
   let (@) (x :: xs) (y :: ys) =
     x :: List.(xs @ (y :: ys))
+end
+
+module Maybe_bounded = struct
+  type t =
+    | Unbounded
+    | Bounded of { mutable bound: int }
+
+  let decr = function
+    | Unbounded -> ()
+    | Bounded r when r.bound > 0 -> r.bound <- r.bound - 1
+    | Bounded _ -> ()
+
+  let incr = function
+    | Unbounded -> ()
+    | Bounded r ->
+      if Int.equal r.bound Int.max_int
+      then
+        let msg = Format.asprintf "incr called with max_int (%d)" Int.max_int in
+        raise (Invalid_argument msg)
+      else
+        r.bound <- r.bound + 1
+
+  let is_depleted = function
+    | Unbounded -> false
+    | Bounded r -> r.bound <= 0
+
+  let is_in_bounds n t =
+    if n < 0 then false
+    else
+      match t with
+      | Unbounded -> true
+      | Bounded r -> n < r.bound
+
+  let is_out_of_bounds n t =
+    if n < 0 then true
+    else
+      match t with
+      | Unbounded -> false
+      | Bounded r -> n >= r.bound
+
+  let of_int n = if n < 0 then Bounded { bound = 0 } else Bounded { bound = n }
+
+  let of_option = function
+    | None -> Unbounded
+    | Some n -> of_int n
 end

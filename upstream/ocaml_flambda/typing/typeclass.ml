@@ -490,7 +490,7 @@ let enter_ancestor_met ~loc name ~sign ~meths ~cl_num ~ty ~attrs met_env =
   let check s = Warnings.Unused_ancestor s in
   let kind = Val_anc (sign, meths, cl_num) in
   let desc =
-    { val_type = ty; val_modalities = Modality.Value.id; val_kind = kind;
+    { val_type = ty; val_modalities = Modality.undefined; val_kind = kind;
       val_attributes = attrs;
       val_zero_alloc = Zero_alloc.default;
       Types.val_loc = loc;
@@ -506,7 +506,7 @@ let add_self_met loc id sign self_var_kind vars cl_num
   in
   let kind = Val_self (sign, self_var_kind, vars, cl_num) in
   let desc =
-    { val_type = ty; val_modalities = Modality.Value.id; val_kind = kind;
+    { val_type = ty; val_modalities = Modality.undefined; val_kind = kind;
       val_attributes = attrs;
       val_zero_alloc = Zero_alloc.default;
       Types.val_loc = loc;
@@ -522,7 +522,7 @@ let add_instance_var_met loc label id sign cl_num attrs met_env =
   in
   let kind = Val_ivar (mut, cl_num) in
   let desc =
-    { val_type = ty; val_modalities = Modality.Value.id; val_kind = kind;
+    { val_type = ty; val_modalities = Modality.undefined; val_kind = kind;
       val_attributes = attrs;
       Types.val_loc = loc;
       val_zero_alloc = Zero_alloc.default;
@@ -1026,15 +1026,21 @@ and class_structure cl_num virt self_scope final val_env met_env loc
      - cannot refer to local or once variables in the
      environment
      - access to unique variables will be relaxed to shared *)
-  (* CR zqian: We should add [Env.add_sync_lock] which restricts
-  syncness/contention to legacy, but that lock would be a no-op. However, we
-  should be future-proof for potential axes who legacy is set otherwise. The
-  best is to call [Env.add_legacy_lock] (which can be defined by
-  [Env.add_closure_lock]) that covers all axes. *)
-  let val_env = Env.add_escape_lock Class (Env.add_unboxed_lock val_env) in
-  let val_env = Env.add_share_lock Class val_env in
-  let met_env = Env.add_escape_lock Class (Env.add_unboxed_lock met_env) in
-  let met_env = Env.add_share_lock Class met_env in
+  let pp : Mode.Hint.pinpoint =
+    match final with
+    | Not_final -> (loc, Class)
+    | Final -> (loc, Object)
+  in
+  let val_env =
+    val_env
+    |> Env.add_unboxed_lock
+    |> Env.add_const_closure_lock pp Mode.Value.Comonadic.Const.legacy
+  in
+  let met_env =
+    met_env
+    |> Env.add_unboxed_lock
+    |> Env.add_const_closure_lock pp Mode.Value.Comonadic.Const.legacy
+  in
   let par_env = met_env in
 
   (* Location of self. Used for locations of self arguments *)
@@ -1254,7 +1260,8 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
             (id,
              {exp_desc =
               Texp_ident(path, mknoloc (Longident.Lident (Ident.name id)), vd,
-                         Id_value, aliased_many_use);
+                         Id_value, aliased_many_use,
+                         Mode.Value.(disallow_right legacy));
               exp_loc = Location.none; exp_extra = [];
               exp_type = Ctype.instance vd.val_type;
               exp_attributes = []; (* check *)
@@ -1272,8 +1279,11 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
         Typecore.check_partial val_env pat.pat_type pat.pat_loc
           [{c_lhs = pat; c_guard = None; c_rhs = dummy}]
       in
-      let val_env' = Env.add_escape_lock Class val_env' in
-      let val_env' = Env.add_share_lock Class val_env' in
+      let val_env' =
+        val_env'
+        |> Env.add_const_closure_lock (scl.pcl_loc, Class)
+            Value.Comonadic.Const.legacy
+      in
       let cl =
         Ctype.with_raised_nongen_level
           (fun () -> class_expr cl_num val_env' met_env virt self_scope scl') in
@@ -1459,7 +1469,8 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
              let expr =
                {exp_desc =
                 Texp_ident(path, mknoloc(Longident.Lident (Ident.name id)),vd,
-                           Id_value, aliased_many_use);
+                           Id_value, aliased_many_use,
+                           Mode.Value.(disallow_right legacy));
                 exp_loc = Location.none; exp_extra = [];
                 exp_type = ty;
                 exp_attributes = [];
@@ -1468,7 +1479,7 @@ and class_expr_aux cl_num val_env met_env virt self_scope scl =
              in
              let desc =
                {val_type = expr.exp_type;
-                val_modalities = Modality.Value.id;
+                val_modalities = Modality.undefined;
                 val_kind = Val_ivar (Immutable, cl_num);
                 val_attributes = [];
                 val_zero_alloc = Zero_alloc.default;
@@ -2384,7 +2395,10 @@ let report_error env ppf =
   | Non_value_binding (nm, err) ->
     fprintf ppf
       "@[Variables bound in a class must have layout value.@ %a@]"
-      (Jkind.Violation.report_with_name ~name:nm) err
+      (Jkind.Violation.report_with_name
+         ~name:nm
+         ~level:(Ctype.get_current_level ()))
+      err
   | Non_value_let_binding (nm, sort) ->
     fprintf ppf
       "@[The types of variables bound by a 'let' in a class function@ \

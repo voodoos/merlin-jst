@@ -223,11 +223,11 @@ module Gen = struct
     | Mty_signature sig_items ->
       let env = Env.add_signature sig_items env in
       Mod.structure @@ structure env sig_items
-    | Mty_functor (param, out) ->
+    | Mty_functor (param, out, _) ->
       let param =
         match param with
         | Unit -> Parsetree.Unit
-        | Named (id, in_) ->
+        | Named (id, in_, _) ->
           Parsetree.Named
             ( Location.mknoloc (Option.map ~f:Ident.name id),
               Ptyp_of_type.module_type in_,
@@ -517,12 +517,16 @@ module Gen = struct
               let arg, name = make_arg env label tyleft in
               let value_description =
                 { val_type = tyleft;
-                  val_kind = Val_reg;
+                  val_kind =
+                    (* CR-someday: this sort should be based on the jkind of [tyleft]. But
+                       this isn't important since this value is just used for printing. *)
+                    Val_reg (Base Value);
                   val_loc = Location.none;
                   val_attributes = [];
                   val_zero_alloc = Zero_alloc.default;
-                  val_modalities = Mode.Modality.Value.id;
-                  val_uid = Uid.mk ~current_unit:(Env.get_unit_name ())
+                  val_modalities = Mode.Modality.(of_const Const.id);
+                  val_uid = Uid.mk ~current_unit:(Env.get_unit_name ());
+                  val_discourse = Discourse_types.empty
                 }
               in
               let env =
@@ -558,6 +562,7 @@ module Gen = struct
           List.map choices ~f:(fun choice ->
               Ast_helper.Exp.unboxed_tuple choice)
         | Tvariant row_desc -> variant env rtyp row_desc
+        | Tquote _ | Tsplice _ -> []
         | Tpackage (path, lids_args) -> begin
           let open Ast_helper in
           try

@@ -145,6 +145,12 @@ val cmt_magic_number: string
 val cms_magic_number: string
 (** Magic number for compiled shapes files *)
 
+val cmj_magic_number: string
+(** Magic number for Js_of_ocaml IR files *)
+
+val cmja_magic_number: string
+(** Magic number for Js_of_ocaml IR archive files *)
+
 val linear_magic_number: string
 (** Magic number for Linear internal representation files *)
 
@@ -323,6 +329,9 @@ val tsan : bool
 val parameterised_modules : bool
 (** Whether parameterised modules are supported *)
 
+val syntax_quotations : bool
+(** Whether runtime quotations syntax is enabled. *)
+
 (** Access to configuration values *)
 val print_config : out_channel -> unit
 
@@ -340,6 +349,9 @@ val has_pclmul : bool
 
 val has_popcnt : bool
 (* Whether the compiler was configured on a machine with POPCNT *)
+
+val has_lzcnt : bool
+(* Whether the compiler was configured on a machine with LZCNT *)
 
 val has_sse3 : bool
 (* Whether the compiler was configured on a machine with SSE3 *)
@@ -364,6 +376,12 @@ val has_avx : bool
 
 val has_avx2 : bool
 (* Whether the compiler was configured on a machine with AVX2 *)
+
+val has_f16c : bool
+(* Whether the compiler was configured on a machine with F16C *)
+
+val has_fma : bool
+(* Whether the compiler was configured on a machine with FMA *)
 
 val oxcaml_dwarf : bool
 (* Whether OxCaml DWARF is used by default *)

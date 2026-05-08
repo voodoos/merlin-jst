@@ -29,8 +29,9 @@ val fatal_errorf: ('a, Format.formatter, unit, 'b) format4 -> 'a
   (** Format the arguments according to the given format string
       and raise [Fatal_error] with the resulting string. *)
 
-val unboxed_small_int_arrays_are_not_implemented : unit -> _
-  (** Unboxed small int arrays are not implemented. *)
+val splices_should_not_exist_after_eval : unit -> _
+  (** Raise a [Fatal_error] explaining that a slambda splice shouldn't exist in
+      lambda code after slambda eval has happened. *)
 
 exception Fatal_error
 
@@ -135,6 +136,8 @@ module Stdlib : sig
     (** If all elements of the given list are [Some _] then [Some xs]
         is returned with the [xs] being the contents of those [Some]s, with
         order preserved.  Otherwise return [None]. *)
+
+    val map : ('a -> 'b) -> 'a t -> 'b t
 
     val map_option : ('a -> 'b option) -> 'a t -> 'b t option
     (** [map_option f l] is [some_if_all_elements_are_some (map f l)], but with
@@ -438,6 +441,11 @@ val remove_dir: string -> unit
        (** Delete the given directory if it exists, is a directory, and is
            empty. Never raises an error. *)
 
+val remove_dir_contents: string -> unit
+       (** Delete all files in the given directory, then delete the directory
+           itself. Only handles flat directories (no subdirectories).
+           Never raises an error. *)
+
 val expand_directory: string -> string -> string
        (** [expand_directory alt file] eventually expands a [+] at the
            beginning of file into [alt] (an alternate root directory) *)
@@ -472,14 +480,15 @@ val output_to_file_via_temporary:
            the channel is closed and the temporary file is renamed to
            [filename]. *)
 
-val protect_writing_to_file
-   : filename:string
-  -> f:(out_channel -> 'a)
-  -> 'a
-      (** Open the given [filename] for writing (in binary mode), pass
-          the [out_channel] to the given function, then close the
-          channel. If the function raises an exception then [filename]
-          will be removed. *)
+val protect_output_to_file : string -> (out_channel -> 'a) -> 'a
+      (** Open the given filename for binary writing, pass the [out_channel] to
+          the given function, then close the channel. If the function raises an
+          exception, then [filename] will be removed and the backtrace is
+          printed; otherwise, the file name is recorded, and the file can still
+          be retroactively removed by [remove_successful_output_files]. *)
+
+val remove_successful_output_files : unit -> unit
+(** Remove all successful writes done by [protect_output_to_file]. *)
 
 val mk_temp_dir : ?perms: int -> string -> string -> string
        (** Create a temporary directory with a random number in the name. *)
@@ -541,6 +550,12 @@ module Int_literal_converter : sig
     (** Convert a string to an integer.  Unlike {!Stdlib.int_of_string},
         this function accepts the string representation of [max_int + 1]
         and returns [min_int] in this case. *)
+
+  val int8 : string -> int
+    (** Likewise, at type [int8] *)
+
+  val int16 : string -> int
+    (** Likewise, at type [int16] *)
 
   val int32 : string -> int32
     (** Likewise, at type [int32] *)
@@ -1131,6 +1146,42 @@ type alerts = string Stdlib.String.Map.t
 
 val remove_double_underscores : string -> string
 
+(** {1 JSON utilities} *)
+module Json : sig
+  (** Simple (and not very robust) JSON generation utilities.
+
+      Everything is string based, creating lots of intermediate strings.
+      Moreover, [Json.string] uses a custom string encoding based on the code
+      for the format specifier [%S], but with escapes for [\u00HH] instead of
+      OCaml's [\DDD]. *)
+
+  val field : string -> string -> string
+  (** [field name value] creates a JSON field with the given name and value. *)
+
+  val string : string -> string
+  (** [string value] formats a string value as a JSON string. *)
+
+  val int : int -> string
+  (** [int value] formats an integer value as a JSON number. *)
+
+  val float : float -> string
+  (** [float value] formats a float value as a JSON number. *)
+
+  val object_ : string list -> string
+  (** [object_ fields] creates a JSON object from a list of field strings. *)
+
+  val array : string list -> string
+  (** [array items] creates a JSON array from a list of item strings. *)
+
+  val null : string
+  (** [null] is the JSON null literal. *)
+
+  val option : ('a -> string) -> 'a option -> string
+  (** [option f opt] formats an optional value as JSON.
+      Returns the JSON [null] literal for [None],
+      or applies [f] to the value for [Some v]. *)
+end
+
 (** Non-empty lists *)
 module Nonempty_list : sig
   type nonrec 'a t = ( :: ) of 'a * 'a list
@@ -1147,4 +1198,41 @@ module Nonempty_list : sig
     unit
 
   val (@) : 'a t -> 'a t -> 'a t
+end
+
+(** A bounded non-negative integer. The possible ranges are [0 ..< n],
+    represented by [Bounded { bound = n}] and [0 ..< ∞] represented by
+    [Unbounded]. *)
+module Maybe_bounded : sig
+  type t =
+    | Unbounded
+    | Bounded of { mutable bound: int }
+    (** The [bound] is not included. *)
+
+  (** [decr] decreases the current bound and truncates at zero. As such, [decr]
+      and then [incr] is not always a no-op. *)
+  val decr : t -> unit
+
+  (** [incr] increases the current bound. Raises an exception when attempting
+      to increment [max_int]. *)
+  val incr : t -> unit
+
+  val is_depleted : t -> bool
+
+  (** [is_in_bounds n t] returns [true] if [n] is in bounds.
+      A number counts as in bounds if it is non-negative and strictly smaller
+      than the bound. For [Unbounded], returns [true] if [n >= 0]. *)
+  val is_in_bounds : int -> t -> bool
+
+  (** [is_out_of_bounds n t] returns [true] if [n] is out of bounds. A number is
+      out of bounds if it is negative or greater than or equal to the bound. For
+      [Unbounded], returns [false] if [n < 0] and [true] otherwise. *)
+  val is_out_of_bounds : int -> t -> bool
+
+  (** [of_option opt] maps [None] to no bound and [Some n] to the bound [n]
+      (not inclusive). *)
+  val of_option : int option -> t
+
+  (** [of_int n] creates a bounded integer with bound [n] (not inclusive). *)
+  val of_int : int -> t
 end

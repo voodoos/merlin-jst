@@ -50,8 +50,8 @@ module type Lattices = sig
 end
 
 (** Extend [Lattices] with monotone functions (including identity) to form a
-   category. Among those monotone functions some will have left and right
-   adjoints. *)
+    category. Among those monotone functions some will have left and right
+    adjoints. *)
 module type Lattices_mono = sig
   include Lattices with type 'a elt := 'a
 
@@ -61,9 +61,8 @@ module type Lattices_mono = sig
       ['d] is ['l] * ['r], where ['l] can be:
       - [allowed], meaning the morphism can be on the left because it has right
         adjoint.
-      - [disallowed], meaning the morphism cannot be on the left because
-        it does not have right adjoint.
-      Similar for ['r]. *)
+      - [disallowed], meaning the morphism cannot be on the left because it does
+        not have right adjoint. Similar for ['r]. *)
   type ('a, 'b, 'd) morph constraint 'd = 'l * 'r
 
   (* Due to the implementation in [solver.ml], a mode doesn't have sufficient
@@ -88,7 +87,7 @@ module type Lattices_mono = sig
      As a result, in the interaction between the solver and the lattices,
      [morph] always comes with its target object. *)
 
-  (** Give the source object of a morphism  *)
+  (** Give the source object of a morphism *)
   val src : 'b obj -> ('a, 'b, 'd) morph -> 'a obj
 
   (** Give the identity morphism on an object *)
@@ -134,7 +133,7 @@ module type Lattices_mono = sig
      what we want, which is "\exists r. allowed * r". But ocaml doesn't like
      existentials, and this weaker version is good enough for us *)
 
-  (** Give left adjoint of a morphism  *)
+  (** Give left adjoint of a morphism *)
   val left_adjoint :
     'b obj -> ('a, 'b, 'l * allowed) morph -> ('b, 'a, left_only) morph
 
@@ -147,13 +146,13 @@ module type Lattices_mono = sig
   (** Apply morphism on constant *)
   val apply : 'b obj -> ('a, 'b, 'd) morph -> 'a -> 'b
 
-  (** Checks if two morphisms are equal. If so, returns [Some Refl].
-    Used for deduplication only; it is fine (but not recommended) to return
-   [None] for equal morphisms.
+  (** Checks if two morphisms are equal. If so, returns [Some Refl]. Used for
+      deduplication only; it is fine (but not recommended) to return [None] for
+      equal morphisms.
 
-    While a [morph] must be acompanied by a destination [obj] to uniquely
-    identify a morphism, two [morph] sharing the same destination can be
-    compared on their own. *)
+      While a [morph] must be acompanied by a destination [obj] to uniquely
+      identify a morphism, two [morph] sharing the same destination can be
+      compared on their own. *)
   val eq_morph :
     ('a0, 'b, 'l0 * 'r0) morph ->
     ('a1, 'b, 'l1 * 'r1) morph ->
@@ -162,6 +161,12 @@ module type Lattices_mono = sig
   (** Print morphism *)
   val print_morph : 'b obj -> Format.formatter -> ('a, 'b, 'd) morph -> unit
 end
+
+type 'd branch =
+  | Join : ('l * disallowed) branch
+  | Meet : (disallowed * 'r) branch
+  constraint 'd = _ * _
+[@@ocaml.warning "-62"]
 
 module type Solver_mono = sig
   (* These first few types will be replaced with types from
@@ -174,17 +179,21 @@ module type Solver_mono = sig
   (** The object type from the [Lattices_mono] we're working with *)
   type 'a obj
 
-  type 'a error
+  type pinpoint
+
+  type 'd hint_morph constraint 'd = 'l * 'r
+
+  type 'd hint_const constraint 'd = 'l * 'r
 
   (* Backtracking facilities used by [types.ml] *)
 
   (** Represents a sequence of state mutations caused by mode operations. All
-  mutating operations in this module take a [log:changes ref option] and
-  append to it all changes made, regardless of success or failure. It is
-  [option] only for performance reasons; the caller should never provide
-  [log:None]. The caller is responsible for taking care of the appended log:
-  they can either revert the changes using [undo_changes], or commit the
-  changes to the global log in [types.ml]. *)
+      mutating operations in this module take a [log:changes ref option] and
+      append to it all changes made, regardless of success or failure. It is
+      [option] only for performance reasons; the caller should never provide
+      [log:None]. The caller is responsible for taking care of the appended log:
+      they can either revert the changes using [undo_changes], or commit the
+      changes to the global log in [types.ml]. *)
   type changes
 
   (** An empty sequence of changes. *)
@@ -193,14 +202,22 @@ module type Solver_mono = sig
   (** Undo the sequence of changes recorded. *)
   val undo_changes : changes -> unit
 
-  (** A mode with carrier type ['a] and allowance ['d]. See
-  Note [Allowance] in allowance.mli.*)
+  (** A mode with carrier type ['a] and allowance ['d]. See Note [Allowance] in
+      allowance.mli.*)
   type ('a, 'd) mode constraint 'd = 'l * 'r
 
   include Allow_disallow with type ('a, _, 'd) sided = ('a, 'd) mode
 
-  (** Returns the mode representing the given constant. *)
-  val of_const : 'a obj -> 'a -> ('a, 'l * 'r) mode
+  (** Returns the mode representing the given constant, explained by the
+      optional hint. *)
+  val of_const :
+    'a obj -> ?hint:('l * 'r) hint_const -> 'a -> ('a, 'l * 'r) mode
+
+  (* CR-soon zqian: [to_const_exn] should return hints as well. *)
+
+  (** Given a mode whose lower and upper bounds are equal, returns that bound.
+      Raises exception if the condition does not hold. *)
+  val to_const_exn : 'a obj -> ('a, allowed * allowed) mode -> 'a
 
   (** The minimum mode in the lattice *)
   val min : 'a obj -> ('a, 'l * 'r) mode
@@ -208,8 +225,10 @@ module type Solver_mono = sig
   (** The maximum mode in the lattice *)
   val max : 'a obj -> ('a, 'l * 'r) mode
 
-  (** Pushes the mode variable to the lowest constant possible.
-      Expensive.
+  (* CR-someday zqian: [zap_*] should take optional hint, pointing to the location in
+     the source code where zapping happens *)
+
+  (** Pushes the mode variable to the lowest constant possible. Expensive.
       WARNING: the lattice must be finite for this to terminate.*)
   val zap_to_floor :
     'a obj -> ('a, allowed * 'r) mode -> log:changes ref option -> 'a
@@ -221,23 +240,52 @@ module type Solver_mono = sig
   (** Create a new mode variable of the full range. *)
   val newvar : 'a obj -> ('a, 'l * 'r) mode
 
-  (** Try to constrain the first mode below the second mode. *)
+  (** Remove hints from all vars that have been created. This doesn't affect
+      hints that were applied on top of vars. For example:
+
+      let m = newvar () in submode m (apply ~hint:hint0 g n); let m' = apply
+      ~hint:hint1 f m in erase_hints ()
+
+      The last line erases the hints on [m] (caused by [n]), but [m'] has an
+      immutable hint on top of [m], which is not affected. *)
+  val erase_hints : unit -> unit
+
+  (** Raw hint returned by failed [submode a b]. To consume it, see
+      [populate_hint]. *)
+  type ('a, 'd) hint_raw constraint 'd = 'l * 'r
+
+  (** Raw error returned by failed [submode a b]. [left] will be the lowest mode
+      [a] can be, and [right] will be the highest mode [b] can be. And
+      [left <= right] will be false, which is why the submode failed.
+      [left_hint] explains why [left] is high, and [right_hint] explains why
+      [right] is low. To consume them, see [populate_hint] or [populate_error].
+  *)
+  type 'a error_raw =
+    { left : 'a;
+      left_hint : ('a, left_only) hint_raw;
+      right : 'a;
+      right_hint : ('a, right_only) hint_raw
+    }
+
+  (** Try to constrain the first mode below the second mode. [pinpoint]
+      describes the thing that has both modes. *)
   val submode :
+    pinpoint ->
     'a obj ->
     ('a, allowed * 'r) mode ->
     ('a, 'l * allowed) mode ->
     log:changes ref option ->
-    (unit, 'a error) result
+    (unit, 'a error_raw) result
 
   (** Creates a new mode variable above the given mode and returns [true]. In
-        the speical case where the given mode is top, returns the constant top
-        and [false]. *)
+      the speical case where the given mode is top, returns the constant top and
+      [false]. *)
   val newvar_above :
     'a obj -> ('a, allowed * 'r_) mode -> ('a, 'l * 'r) mode * bool
 
   (** Creates a new mode variable below the given mode and returns [true]. In
-        the speical case where the given mode is bottom, returns the constant
-        bottom and [false]. *)
+      the speical case where the given mode is bottom, returns the constant
+      bottom and [false]. *)
   val newvar_below :
     'a obj -> ('a, 'l_ * allowed) mode -> ('a, 'l * 'r) mode * bool
 
@@ -248,57 +296,162 @@ module type Solver_mono = sig
   val meet : 'a obj -> ('a, 'l * allowed) mode list -> ('a, right_only) mode
 
   (** Returns the lower bound of the mode. Because of our conservative internal
-      representation, further constraining is needed for precise bound.
-      This operation is therefore expensive and requires the mode to be allowed
-      on the left.
-      WARNING: the lattice must be finite for this to terminate. *)
+      representation, further constraining is needed for precise bound. This
+      operation is therefore expensive and requires the mode to be allowed on
+      the left. WARNING: the lattice must be finite for this to terminate. *)
   val get_floor : 'a obj -> ('a, allowed * 'r) mode -> 'a
 
   (** Returns the upper bound of the mode. Notes for [get_floor] applies. *)
   val get_ceil : 'a obj -> ('a, 'l * allowed) mode -> 'a
 
   (** Similar to [get_floor] but does not run the further constraining needed
-      for a precise bound. As a result, the returned bound is loose;
-      i.e., it might be lower than the real floor. *)
+      for a precise bound. As a result, the returned bound is loose; i.e., it
+      might be lower than the real floor. *)
   val get_loose_floor : 'a obj -> ('a, 'l * 'r) mode -> 'a
 
-  (** Similar to [get_ceil] but does not run the further constraining needed
-      for a precise bound. As a result, the returned bound is loose;
-      i.e., it might be higher than the real ceil. *)
+  (** Similar to [get_ceil] but does not run the further constraining needed for
+      a precise bound. As a result, the returned bound is loose; i.e., it might
+      be higher than the real ceil. *)
   val get_loose_ceil : 'a obj -> ('a, 'l * 'r) mode -> 'a
 
   (** Printing a mode for debugging. *)
   val print :
     ?verbose:bool -> 'a obj -> Format.formatter -> ('a, 'l * 'r) mode -> unit
 
-  (** Apply a monotone morphism. *)
+  (** Apply a monotone morphism explained by an optional hint *)
   val apply :
     'b obj ->
+    ?hint:('l * 'r) hint_morph ->
     ('a, 'b, 'l * 'r) morph ->
     ('a, 'l * 'r) mode ->
     ('b, 'l * 'r) mode
+
+  (** [('a, 'd) hint] explains a bound of type ['a] and allowance ['d], but
+      doesn't contain the bound itself. *)
+  type ('a, 'd) hint =
+    | Apply :
+        'd hint_morph * ('b, 'a, 'd) morph * ('b, 'd) ahint
+        -> ('a, 'd) hint
+        (** [Apply morph_hint morph x_hint] says the current bound is derived by
+            applying morphism [morph] (explained by [morph_hint]) to another
+            bound explained by [x_hint] *)
+    | Const : 'd hint_const -> ('a, 'd) hint
+        (** [Const const_hint] says the current bound is explained by
+            [const_hint] *)
+    | Branch : 'd branch * ('a, 'd) ahint * ('a, 'd) ahint -> ('a, 'd) hint
+        (** [branch b hint0 hint1] says the current bound is jointly explained
+            by [hint0] and [hint1]. *)
+    constraint 'd = _ * _
+  [@@ocaml.warning "-62"]
+
+  (** [('a, 'd) ahint] is a bound of type ['a] explained by a [('a, 'd) hint].
+  *)
+  and ('a, 'd) ahint = 'a * ('a, 'd) hint constraint 'd = _ * _
+
+  (** Mode error that's suitable for consumption. *)
+  type 'a error =
+    { left : ('a, left_only) ahint;
+      right : ('a, right_only) ahint
+    }
+
+  (** Takes a bound with a [hint_raw] given by [submode], and returns a [ahint]
+      that's suitable for consumption. *)
+  val populate_hint :
+    'a obj -> 'a -> ('a, 'l * 'r) hint_raw -> ('a, 'l * 'r) ahint
+
+  (** Takes a [error_raw] returned by [submode], and returns an [error] hint
+      that's suitable for consumption. *)
+  val populate_error : 'a obj -> 'a error_raw -> 'a error
+
+  module Unhint : sig
+    (** Unhinted mode is similar to [('a, 'd) mode], but its several outermost
+        morphism applications are unhinted. *)
+    type ('a, 'd) t constraint 'd = 'l * 'r
+
+    (** Treat a regular mode as an unhinted mode, by taking the identity
+        morphism as the outermost unhinted morphism. *)
+    val unhint : ('a, 'l * 'r) mode -> ('a, 'l * 'r) t
+
+    (** Takes an unhinted mode, annotate the outermost unhinted morphisms (as a
+        whole) with the given hint, which gives a regular mode. *)
+    val hint :
+      'a obj ->
+      ?hint:('l * 'r) hint_morph ->
+      ('a, 'l * 'r) t ->
+      ('a, 'l * 'r) mode
+
+    (** Apply another unhinted morphism to an unhinted mode. *)
+    val apply :
+      'b obj -> ('a, 'b, 'l * 'r) morph -> ('a, 'l * 'r) t -> ('b, 'l * 'r) t
+  end
+end
+
+(** Hint module to be provided by the user of the solver. *)
+module type Hint = sig
+  module Pinpoint : sig
+    (** Descriptions of things that have modes. *)
+    type t
+
+    (** Something that have modes but not described. *)
+    val unknown : t
+  end
+
+  module Morph : sig
+    (** Hints that explain morphisms. The allowance ['d] describes if the
+        morphism can be on the LHS or RHS of [submode]. *)
+    type 'd t constraint 'd = 'l * 'r
+
+    (** The hint for the identity morphism *)
+    val id : 'd t
+
+    (** Given a hint for a mode morphism with its destination pinpoint, return a
+        hint for the left adjoint of the morphism with the opposite pinpoint. *)
+    val left_adjoint :
+      Pinpoint.t -> (_ * allowed) t -> Pinpoint.t * (allowed * disallowed) t
+
+    (** Given a hint for a mode morphism with its destination pinpoint, return a
+        hint for the right adjoint of the morphism with the opposite pinpoint.
+    *)
+    val right_adjoint :
+      Pinpoint.t -> (allowed * _) t -> Pinpoint.t * (disallowed * allowed) t
+
+    (** The hint for unexplained morphs *)
+    val unknown : 'd t
+
+    include Allow_disallow with type (_, _, 'd) sided = 'd t
+  end
+
+  module Const : sig
+    (** Hints that explain constants. The allowance describes if the constant
+        can be on the LHS or RHS of [submode]. *)
+    type 'd t constraint 'd = 'l * 'r
+
+    (** The hint for unexplained constants *)
+    val unknown : ('l * 'r) t
+
+    (** The hint to explain using [max] on the RHS of [submode]. *)
+    val max : (disallowed * 'r) t
+
+    (** The hint to explain using [min] on the LHS of [submode]. *)
+    val min : ('l * disallowed) t
+
+    include Allow_disallow with type (_, _, 'd) sided = 'd t
+  end
 end
 
 module type S = sig
-  (** Error returned by failed [submode a b]. [left] will be the lowest mode [a]
-   can be, and [right] will be the highest mode [b] can be. And [left <= right]
-   will be false, which is why the submode failed. *)
-  type 'a error =
-    { left : 'a;
-      right : 'a
-    }
-
-  (** Takes a slow but type-correct [Equal] module and returns the
-      magic version, which is faster.
-      NOTE: for this to be sound, the function in the original module must be
-      just %equal (up to runtime representation). *)
+  (** Takes a slow but type-correct [Equal] module and returns the magic
+      version, which is faster. NOTE: for this to be sound, the function in the
+      original module must be just %equal (up to runtime representation). *)
   module Magic_equal (X : Equal) :
     Equal with type ('a, 'b, 'c) t = ('a, 'b, 'c) X.t
 
   (** Solver that supports lattices with monotone morphisms between them. *)
-  module Solver_mono (C : Lattices_mono) :
+  module Solver_mono (Hint : Hint) (C : Lattices_mono) :
     Solver_mono
       with type ('a, 'b, 'd) morph := ('a, 'b, 'd) C.morph
        and type 'a obj := 'a C.obj
-       and type 'a error = 'a error
+       and type pinpoint := Hint.Pinpoint.t
+       and type 'd hint_morph := 'd Hint.Morph.t
+       and type 'd hint_const := 'd Hint.Const.t
 end

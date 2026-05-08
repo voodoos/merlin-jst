@@ -42,16 +42,17 @@ type value_mismatch =
   | Not_a_primitive
   | Type of Errortrace.moregen_error
   | Zero_alloc of Zero_alloc.error
-  | Modality of Mode.Modality.Value.error
+  | Modality of Mode.Modality.error
   | Mode of Mode.Value.error
 
 exception Dont_match of value_mismatch
 
-type close_over_coercion = Env.locks * Longident.t * Location.t
-
 type mmodes =
   | All
-  | Specific of Mode.Value.l * Mode.Value.r * close_over_coercion option
+  | Specific :
+      ((Mode.allowed * 'r) Mode.Value.t * Typedtree.held_locks option) *
+      ('l * Mode.allowed) Mode.Value.t ->
+      mmodes
 
 let child_close_over_coercion_opt id c =
   match c with
@@ -60,19 +61,19 @@ let child_close_over_coercion_opt id c =
 
 let child_modes id = function
   | All -> All
-  | Specific (m0, m1, c) ->
+  | Specific ((m0, c), m1) ->
     let c = child_close_over_coercion_opt id c in
-    Specific (m0, m1, c)
+    Specific ((m0, c), m1)
 
 let child_modes_with_modalities id ~modalities:(moda0, moda1) = function
   | All ->
-    begin match Mode.Modality.Value.sub moda0 moda1 with
+    begin match Mode.Modality.sub moda0 moda1 with
       | Ok () -> Ok All
       | Error e -> Error e
     end
-  | Specific (m0, m1, c) ->
+  | Specific ((m0, c), m1)->
     let c = child_close_over_coercion_opt id c in
-    begin match Mode.Modality.Value.to_const_opt moda1 with
+    begin match Mode.Modality.to_const_opt moda1 with
     | None ->
       (* [wrap_constraint_with_shape] invokes inclusion check with
           identical modes and inferred modalities, which we workaround *)
@@ -81,21 +82,20 @@ let child_modes_with_modalities id ~modalities:(moda0, moda1) = function
       (* For children, we only check modality inclusion *)
       Ok All
     | Some moda1 ->
-      let m0 = Mode.Modality.Value.apply moda0 m0 in
-      let m1 = Mode.Modality.Value.Const.apply moda1 m1 in
-      Ok (Specific (m0, m1, c))
+      let m0 = Mode.Modality.apply moda0 m0 in
+      let m1 = Mode.Modality.Const.apply moda1 m1 in
+      Ok (Specific ((m0, c), m1))
     end
 
 let check_modes env ?(crossing = Crossing.max) ~item ?typ = function
   | All -> Ok ()
-  | Specific (m0, m1, c) ->
+  | Specific ((m0, c), m1) ->
       let m0 =
         match c with
-        | None -> m0
+        | None -> m0 |> Mode.Value.disallow_right
         | Some (locks, lid, loc) ->
             let m0 = Crossing.apply_left crossing m0 in
-            let m0 = Env.walk_locks ~env ~loc lid ~item typ (m0, locks) in
-            m0.mode
+            Env.walk_locks ~env ~loc lid ~item typ (m0, locks)
       in
       let m1 = Crossing.apply_right crossing m1 in
       Mode.Value.submode m0 m1
@@ -173,18 +173,26 @@ let value_descriptions ~loc env name
      match vd2.val_kind with
      | Val_prim p2 -> begin
          let locality = [ Mode.Locality.global; Mode.Locality.local ] in
+         let forkable = [ Mode.Forkable.forkable; Mode.Forkable.unforkable ] in
          let yielding = [ Mode.Yielding.unyielding; Mode.Yielding.yielding ] in
          List.iter (fun loc ->
+          List.iter (fun fork ->
            List.iter (fun yield ->
              let ty1, _, _, _ = Ctype.instance_prim p1 vd1.val_type in
-             let ty2, mode_l2, mode_y2, _ = Ctype.instance_prim p2 vd2.val_type in
+             let ty2, mode_l2, mode_fy2, _ =
+               Ctype.instance_prim p2 vd2.val_type
+             in
+             let mode_f2 = Option.map fst mode_fy2 in
+             let mode_y2 = Option.map snd mode_fy2 in
              Option.iter (Mode.Locality.equate_exn loc) mode_l2;
+             Option.iter (Mode.Forkable.equate_exn fork) mode_f2;
              Option.iter (Mode.Yielding.equate_exn yield) mode_y2;
              try
                Ctype.moregeneral env true ty1 ty2
              with Ctype.Moregen err ->
                raise (Dont_match (Type err))
            ) yielding
+          ) forkable
          ) locality;
          match primitive_descriptions p1 p2 with
          | None -> Tcoerce_none
@@ -266,7 +274,7 @@ type label_mismatch =
   | Type of Errortrace.equality_error
   | Mutability of position
   | Atomicity of position
-  | Modality of Modality.Value.equate_error
+  | Modality of Modality.equate_error
 
 type record_change =
   (Types.label_declaration, Types.label_declaration, label_mismatch)
@@ -286,7 +294,7 @@ type constructor_mismatch =
   | Inline_record of record_change list
   | Kind of position
   | Explicit_return_type of position
-  | Modality of int * Modality.Value.equate_error
+  | Modality of int * Modality.equate_error
 
 type extension_constructor_mismatch =
   | Constructor_privacy
@@ -333,10 +341,10 @@ type type_mismatch =
   | Unsafe_mode_crossing of unsafe_mode_crossing_mismatch
 
 let report_modality_sub_error first second ppf e =
+  let Modality.Error (ax, {left; right}) = e in
   let print_modality id ppf m =
-    Printtyp.modality ~id:(fun ppf -> Format.pp_print_string ppf id) ppf m
+    Printtyp.modality ~id:(fun ppf -> Format.pp_print_string ppf id) ax ppf m
   in
-  let Modality.Value.Error {left; right} = e in
   Format.fprintf ppf "%s is %a and %s is %a."
     (String.capitalize_ascii second)
     (print_modality "empty") right
@@ -344,17 +352,22 @@ let report_modality_sub_error first second ppf e =
     (print_modality "not") left
 
 let report_mode_sub_error got expected ppf e =
-  let Mode.Value.Error(ax, {left; right}) = e in
-  match ax with
-  | Comonadic Areality -> Format.fprintf ppf "This escapes its region."
-  | _ ->
-    Format.fprintf ppf "%s %a but %s %a."
-      (String.capitalize_ascii got)
-      (Misc.Style.as_inline_code (Value.Const.print_axis ax)) left
-      expected
-      (Misc.Style.as_inline_code (Value.Const.print_axis ax)) right
+  let {left; right} : _ Mode.simple_error =
+    Mode.Value.print_error (Location.none, Unknown) e
+  in
+  let open Format in
+  let open_box = dprintf "@[<hov 2>" in
+  let reopen_box = dprintf "@]@ %t" open_box in
+  fprintf ppf "%t%s " open_box (String.capitalize_ascii got);
+  begin match left ppf with
+  | Mode -> fprintf ppf "%tbut %s " reopen_box expected
+  | Mode_with_hint -> fprintf ppf ".%tHowever, %s " reopen_box expected
+  end;
+  ignore (right ppf);
+  fprintf ppf ".@]"
 
-let report_modality_equate_error first second ppf ((equate_step, sub_error) : Modality.Value.equate_error) =
+let report_modality_equate_error first second ppf
+  ((equate_step, sub_error) : Modality.equate_error) =
   match equate_step with
   | Left_le_right -> report_modality_sub_error first second ppf sub_error
   | Right_le_left -> report_modality_sub_error second first ppf sub_error
@@ -639,7 +652,7 @@ let report_unsafe_mode_crossing_mismatch first second ppf e =
       (choose_other ord first second)
   | Bounds_not_equal (first_umc, second_umc) ->
     (* CR layouts v2.8: It'd be nice to specifically highlight the offending axis,
-       rather than printing all axes here. *)
+       rather than printing all axes here. Internal ticket 5094. *)
     pr "Both specify [%@%@unsafe_allow_any_mode_crossing], but their \
         bounds are not equal@,\
         @[%s has:@ %a@]@ \
@@ -668,7 +681,8 @@ let report_type_mismatch first second decl env ppf err =
   | Parameter_jkind (ty, v) ->
       pr "The problem is in the kinds of a parameter:@,";
       Jkind.Violation.report_with_offender
-        ~offender:(fun pp -> Printtyp.type_expr pp ty) ppf v
+        ~offender:(fun pp -> Printtyp.type_expr pp ty)
+        ~level:(Ctype.get_current_level ()) ppf v
   | Private_variant (_ty1, _ty2, mismatch) ->
       report_private_variant_mismatch first second decl env ppf mismatch
   | Private_object (_ty1, _ty2, mismatch) ->
@@ -696,7 +710,8 @@ let report_type_mismatch first second decl env ppf err =
          "has a constructor represented as a null pointer";
       pr "@ Hint: add [%@%@or_null_reexport]."
   | Jkind v ->
-      Jkind.Violation.report_with_name ~name:first ppf v
+      Jkind.Violation.report_with_name ~name:first
+        ~level:(Ctype.get_current_level ()) ppf v
   | Unsafe_mode_crossing mismatch ->
     pr "They have different unsafe mode crossing behavior:@,@[<v 2>%a@]"
       (fun ppf (first, second, mismatch) ->
@@ -743,9 +758,7 @@ module Record_diffing = struct
         begin match err with
         | Some err -> Some err
         | None ->
-          match
-            Modality.Value.Const.equate ld1.ld_modalities ld2.ld_modalities
-          with
+          match Modality.Const.equate ld1.ld_modalities ld2.ld_modalities with
           | Ok () ->
             let tl1 = params1 @ [ld1.ld_type] in
             let tl2 = params2 @ [ld2.ld_type] in
@@ -955,7 +968,7 @@ module Variant_diffing = struct
           | exception Ctype.Equality err -> Some (Type err)
           | () -> List.combine arg1_gfs arg2_gfs
                   |> find_map_idx
-                    (fun (x,y) -> get_error @@ Modality.Value.Const.equate x y)
+                    (fun (x,y) -> get_error @@ Modality.Const.equate x y)
                   |> Option.map (fun (i, err) -> Modality (i, err))
         end
     | Types.Cstr_record l1, Types.Cstr_record l2 ->

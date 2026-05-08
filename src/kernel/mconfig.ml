@@ -447,6 +447,7 @@ let ocaml_ignored_flags =
     "-dlinear";
     "-dparsetree";
     "-dshape";
+    "-dslambda";
     "-drawclambda";
     "-drawflambda";
     "-drawlambda";
@@ -463,7 +464,7 @@ let ocaml_ignored_flags =
     "-i";
     "-inlining-report";
     "-keep-docs";
-    "-keep-docs";
+    "-no-keep-docs";
     "-keep-locs";
     "-linkall";
     "-make_runtime";
@@ -489,6 +490,7 @@ let ocaml_ignored_flags =
     "-only-erasable-extensions";
     "-opaque";
     "-output-complete-obj";
+    "-output-complete-exe";
     "-output-obj";
     "-p";
     "-pack";
@@ -622,15 +624,69 @@ let ocaml_ignored_flags =
     "-fno-avx2";
     "-favx";
     "-fno-avx";
+    "-ffma";
+    "-fno-fma";
+    "-ff16c";
+    "-fno-f16c";
     "-dllvmir";
     "-keep-llvmir";
-    "-llvm-path";
+    "-llvm-backend";
+    "-no-llvm-backend";
     "-ddwarf-types";
     "-ocamlcfg";
     "-cfg-prologue-validate";
     "-no-cfg-prologue-validate";
     "-cfg-prologue-shrink-wrap";
-    "-no-cfg-prologue-shrink-wrap"
+    "-no-cfg-prologue-shrink-wrap";
+    "-cfg-value-propagation";
+    "-no-cfg-value-propagation";
+    "-cfg-value-propagation-float";
+    "-no-cfg-value-propagation-float";
+    "-gdwarf-pedantic";
+    "-ddwarf-metrics";
+    "-afl-instrument";
+    "-probes";
+    "-no-probes";
+    "-probes-optimized";
+    "-no-probes-optimized";
+    "-disable-all-extensions";
+    "-nocwd";
+    "-with-runtime";
+    "-without-runtime";
+    "-ddebug-uids";
+    "-ddebug-uid-tables";
+    "-version";
+    "--version";
+    "-vnum";
+    "-warn-help";
+    "-help";
+    "--help";
+    "-match-context-rows";
+    "-safer-matching";
+    "-dno-unique-ids";
+    "-dunique-ids";
+    "-dno-locations";
+    "-dlocations";
+    "-dcamlprimc";
+    "-dtimings-precision";
+    "-dprofile-output";
+    "-locs";
+    "-no-locs";
+    "-flzcnt";
+    "-fno-lzcnt";
+    "-reaper-local-fields";
+    "-no-reaper-local-fields";
+    "-reaper-unbox";
+    "-no-reaper-unbox";
+    "-reaper-change-calling-conventions";
+    "-no-reaper-change-calling-conventions";
+    "-flambda2-expert-cmm-safe-subst";
+    "-no-flambda2-expert-cmm-safe-subst";
+    "-dissector";
+    "-ddissector";
+    "-ddissector-sizes";
+    "-ddissector-verbose";
+    "-ddissector-partitions"
   ]
 
 let ocaml_ignored_parametrized_flags =
@@ -667,11 +723,12 @@ let ocaml_ignored_parametrized_flags =
     "-use-runtime";
     "-error-style";
     "-dump-dir";
-    "-I-paths";
-    "-H-paths";
+    "-I-manifest";
+    "-H-manifest";
     (* flambda-backend specific *)
     "-extension";
     "-extension-universe";
+    "-no-extension";
     "-drawfexpr-to";
     "-dfexpr-to";
     "-dflexpect-to";
@@ -710,7 +767,27 @@ let ocaml_ignored_parametrized_flags =
     "-shape-format";
     "-gdwarf-compression";
     "-gdwarf-fission";
-    "-cfg-prologue-shrink-wrap-threshold"
+    "-cfg-prologue-shrink-wrap-threshold";
+    "-gdwarf-config-shape-reduce-depth";
+    "-gdwarf-config-shape-eval-depth";
+    "-gdwarf-config-max-cms-files-per-unit";
+    "-gdwarf-config-max-cms-files-per-variable";
+    "-gdwarf-config-max-type-to-shape-depth";
+    "-gdwarf-config-max-shape-reduce-steps-per-variable";
+    "-gdwarf-config-max-evaluation-steps-per-variable";
+    "-gdwarf-config-shape-reduce-fuel";
+    "-gdwarf-fidelity";
+    "-llvm-path";
+    "-afl-inst-ratio";
+    "-config-var";
+    "-stop-after";
+    "-plugin";
+    "-dump-into-file";
+    "-ddwarf-metrics-output-file";
+    "-reaper-debug-flags";
+    "-dissector-partition-size";
+    "-ddissector-inputs";
+    "-dfexpr-after"
   ]
 
 let ocaml_warnings_spec ~error =

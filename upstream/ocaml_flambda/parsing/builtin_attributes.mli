@@ -119,7 +119,6 @@ val mark_deprecated_mutable_used : Parsetree.attributes -> unit
     in late stages of compilation in the backend.
     Registering them helps detect code that is not checked,
     because it is optimized away by the middle-end.  *)
-val register_zero_alloc_attribute : string Location.loc -> unit
 val mark_zero_alloc_attribute_checked : string -> Location.t -> unit
 val warn_unchecked_zero_alloc_attribute : unit -> unit
 
@@ -242,6 +241,17 @@ val jkind : Parsetree.attributes -> jkind_attribute Location.loc option
     ignored. **)
 val error_message_attr : Parsetree.attributes -> string option
 
+(** If the argument is an "implicit_kind" attribute, marks it as used,
+    and returns a list of variable name and jkind annotation pairs.
+    Returns an empty list otherwise.
+
+    Expected syntax:
+    [@@@implicit_kind: ('var : jkind)]
+    [@@@implicit_kind: ('var1 : jkind1) * ('var2 : jkind2) ...]
+*)
+val get_implicit_jkind_attr :
+  Parsetree.attribute -> (string * Parsetree.jkind_annotation) list
+
 (** [get_int_payload] is a helper for working with attribute payloads.
     Given a payload that consist of a structure containing exactly
     {[
@@ -345,5 +355,10 @@ type tracing_probe =
 *)
 val get_tracing_probe_payload :
   Parsetree.payload -> (tracing_probe, unit) result
+
+(** Gets the payload of a [eval] extension node which evaluates quotes,
+    for example: [%eval: int] *)
+val get_eval_payload :
+  Parsetree.payload -> (Parsetree.core_type, unit) result
 
 val has_atomic: Parsetree.attributes -> bool

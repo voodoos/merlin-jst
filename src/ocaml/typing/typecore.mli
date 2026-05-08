@@ -195,15 +195,6 @@ val escape : loc:Location.t -> env:Env.t -> reason:submode_reason -> (Mode.allow
 
 val self_coercion : (Path.t * Location.t list ref) list ref
 
-type contention_context =
-  | Read_mutable
-  | Write_mutable
-  | Force_lazy
-
-type visibility_context =
-  | Read_mutable
-  | Write_mutable
-
 type unsupported_stack_allocation =
   | Lazy
   | Module
@@ -304,6 +295,9 @@ type error =
   | Literal_overflow of string
   | Unknown_literal of string * char
   | Float32_literal of string
+  | Int8_literal of string
+  | Int16_literal of string
+  | Untagged_char_literal of char
   | Illegal_letrec_pat
   | Illegal_letrec_expr
   | Illegal_mutable_pat
@@ -321,19 +315,15 @@ type error =
       { prev_el_type : type_expr; ua : Parsetree.unboxed_access }
   | Block_access_record_unboxed
   | Block_access_private_record
+  | Block_index_flattened_record of type_expr
   | Block_index_modality_mismatch of
-      { mut : bool; err : Mode.Modality.Value.equate_error }
-  | Submode_failed of
-      Mode.Value.error * submode_reason *
-      Env.locality_context option *
-      contention_context option *
-      visibility_context option *
-      Env.shared_context option
+      { mut : bool; err : Mode.Modality.equate_error }
+  | Block_index_atomic_unsupported
+  | Submode_failed of Mode.Value.error * submode_reason
   | Curried_application_complete of
       arg_label * Mode.Alloc.error * [`Prefix|`Single_arg|`Entire_apply]
   | Param_mode_mismatch of Mode.Alloc.equate_error
   | Uncurried_function_escapes of Mode.Alloc.error
-  | Local_return_annotation_mismatch of Location.t
   | Function_returns_local
   | Tail_call_local_returning
   | Bad_tail_annotation of [`Conflict|`Not_a_tailcall]
@@ -347,13 +337,13 @@ type error =
   | Mutable_var_not_rep of type_expr * Jkind.Violation.t
   | Invalid_label_for_src_pos of arg_label
   | Nonoptional_call_pos_label of string
-  | Cannot_stack_allocate of Env.locality_context option
   | Unsupported_stack_allocation of unsupported_stack_allocation
   | Not_allocation
   | Impossible_function_jkind of
       { some_args_ok : bool; ty_fun : type_expr; jkind : jkind_lr }
   | Overwrite_of_invalid_term
   | Unexpected_hole
+  | Eval_format
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error
@@ -363,7 +353,9 @@ val report_error: loc:Location.t -> Env.t -> error -> Location.error
 
 (* Forward declaration, to be filled in by Typemod.type_module *)
 val type_module:
-  (Env.t -> Parsetree.module_expr -> Typedtree.module_expr * Shape.t) ref
+  (Env.t -> Parsetree.module_expr ->
+    Typedtree.module_expr * Shape.t *
+    Discourse_types.t * (Longident.t loc * Discourse_types.Item.t) option) ref
 (* Forward declaration, to be filled in by Typemod.type_open *)
 val type_open:
   (?used_slot:bool ref -> override_flag -> Env.t -> Location.t ->

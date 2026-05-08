@@ -31,15 +31,21 @@ module Uid = Shape.Uid
 type constant =
     Const_int of int
   | Const_char of char
+  | Const_untagged_char of char
   | Const_string of string * Location.t * string option
   | Const_float of string
   | Const_float32 of string
   | Const_unboxed_float of string
   | Const_unboxed_float32 of string
+  | Const_int8 of int
+  | Const_int16 of int
   | Const_int32 of int32
   | Const_int64 of int64
   (* CR mshinwell: This should use [Targetint.t] not [nativeint] *)
   | Const_nativeint of nativeint
+  | Const_untagged_int of int
+  | Const_untagged_int8 of int
+  | Const_untagged_int16 of int
   | Const_unboxed_int32 of int32
   | Const_unboxed_int64 of int64
   | Const_unboxed_nativeint of nativeint
@@ -103,10 +109,19 @@ type unique_use = Mode.Uniqueness.r * Mode.Linearity.l
 
 val print_unique_use : Format.formatter -> unique_use -> unit
 
-type alloc_mode = {
-  mode : Mode.Alloc.r;
-  locality_context : Env.locality_context option;
-}
+type alloc_mode = Mode.Alloc.r
+
+(* CR-someday liam923: We'd like to split this into an arrow_modes and
+   value_modes type. *)
+type 'a modes = 'a Typemode.modes =
+  { mode_modes : 'a;
+    mode_desc : Mode.Alloc.atom Location.loc list
+  }
+
+type modalities = Typemode.modalities =
+  { moda_modalities : Mode.Modality.Const.t;
+    moda_desc : Mode.Modality.atom Location.loc list
+  }
 
 type texp_field_boxing =
   | Boxing of alloc_mode * unique_use
@@ -117,6 +132,38 @@ type texp_field_boxing =
       the field as the result of direct projection. *)
 
 val aliased_many_use : unique_use
+
+(** [label_ambiguity] specifies the result of type-driven label disambiguation.
+    Disambiguation occurs when the same label (record field or variant case)
+    occurs in many types, when performing operations like variant construction
+    or record access, but also when specifying record and variant patterns.
+
+    Where disambiguation was necessary (i.e. the label was ambiguous),
+    the disambiguated path and arity (number of parameters) of the resolved
+    type constructor is preserved so that we can insert a type annotation.
+
+    The [arity] is necessary to insert the right number of wildcards in the
+    type constructor's argument list, e.g.: [{ path = result; arity = 2 }]
+    results in the annotation [(_, _) result]. *)
+type label_ambiguity =
+  | Ambiguous of { path: Path.t; arity : int }
+  | Unambiguous
+
+type _ type_inspection =
+  | Label_disambiguation : label_ambiguity -> [< `pat | `exp ] type_inspection
+  | Polymorphic_parameter : 'a poly_param -> 'a type_inspection
+
+and _ poly_param =
+  | Param : Types.type_expr -> [ `pat ] poly_param
+  (** [Param t] is used when introducing a polymorphic parameter
+      with type scheme [t] *)
+  | Arrow : (Types.arg_label * Types.type_expr option) list ->
+            [ `exp ] poly_param
+  (** [Arrow params] is used when eliminating a polymorphic parameter,
+      with [params] including type schemes for polymorphic parameters *)
+  | Method : string loc * Types.type_expr -> [ `exp ] poly_param
+  (** [Method (m, t)] is used when applying a polymorphic method [m]
+      with type scheme [t] *)
 
 type pattern = value general_pattern
 and 'k general_pattern = 'k pattern_desc pattern_data
@@ -134,7 +181,7 @@ and 'a pattern_data =
    }
 
 and pat_extra =
-  | Tpat_constraint of core_type
+  | Tpat_constraint of core_type * Mode.Alloc.Const.t modes
         (** P : T          { pat_desc = P
                            ; pat_extra = (Tpat_constraint T, _, _) :: ... }
          *)
@@ -152,6 +199,11 @@ and pat_extra =
             (module _)     { pat_desc  = Tpat_any
             ; pat_extra = (Tpat_unpack, _, _) :: ... }
          *)
+  | Tpat_inspected_type of [ `pat ] type_inspection
+        (** Inserted when type inspection was necessary to resolve types
+            during inference. Generally, elaborated to a type constraint.
+
+            See specific [type_inspection] cases for details. *)
 
 and 'k pattern_desc =
   (* value patterns *)
@@ -289,8 +341,13 @@ and exp_extra =
         them here, as the cost of tracking this additional information is minimal. *)
   | Texp_stack
         (** stack_ E *)
-  | Texp_mode of Mode.Alloc.Const.Option.t
+  | Texp_mode of Mode.Alloc.Const.Option.t modes
         (** E : _ @@ M  *)
+  | Texp_inspected_type of [ `exp ] type_inspection
+        (** Inserted when type inspection was necessary to resolve types
+            during inference. Generally, elaborated to a type constraint.
+
+            See specific [type_inspection] cases for details. *)
 
 and arg_label = Types.arg_label =
   | Nolabel
@@ -314,7 +371,8 @@ and arg_label = Types.arg_label =
 *)
 and expression_desc =
     Texp_ident of
-      Path.t * Longident.t loc * Types.value_description * ident_kind * unique_use
+      Path.t * Longident.t loc * Types.value_description * ident_kind *
+        unique_use * Mode.Value.l
         (** x
             M.x
          *)
@@ -329,7 +387,7 @@ and expression_desc =
   | Texp_function of
       { params : function_param list;
         body : function_body;
-        ret_mode : Mode.Alloc.l;
+        ret_mode : Mode.Alloc.l modes;
         (* Mode where the function allocates, ie local for a function of
            type 'a -> local_ 'b, and heap for a function of type 'a -> 'b *)
         ret_sort : Jkind.sort;
@@ -524,6 +582,9 @@ and expression_desc =
        Position argument in function application *)
   | Texp_overwrite of expression * expression (** overwrite_ exp with exp *)
   | Texp_hole of unique_use (** _ *)
+  | Texp_quotation of expression
+  | Texp_antiquotation of expression
+  | Texp_eval of core_type * Jkind.sort
 
 and function_curry =
   | More_args of { partial_mode : Mode.Alloc.l }
@@ -545,7 +606,7 @@ and function_param =
     *)
     fp_kind: function_param_kind;
     fp_sort: Jkind.sort;
-    fp_mode: Mode.Alloc.l;
+    fp_mode: Mode.Alloc.l modes;
     fp_curry: function_curry;
     fp_newtypes: (Ident.t * string loc *
                   Parsetree.jkind_annotation option * Uid.t) list;
@@ -593,7 +654,7 @@ and function_cases =
     fc_param: Ident.t;
     fc_param_debug_uid : Shape.Uid.t;
     fc_loc: Location.t;
-    fc_exp_extra: exp_extra option;
+    fc_exp_extra: exp_extra list;
     fc_attributes: attributes;
     (** [fc_attributes] is just used in untypeast. *)
   }
@@ -783,14 +844,15 @@ and module_expr =
 and module_type_constraint =
   | Tmodtype_implicit
   (** The module type constraint has been synthesized during typechecking. *)
-  | Tmodtype_explicit of module_type
+  | Tmodtype_explicit of module_type * Mode.Value.lr modes
   (** The module type was in the source file. *)
 
 and functor_parameter =
   | Unit
   (* CR sspies: We should add an additional [debug_uid] here to support functor
      arguments in the debugger. *)
-  | Named of Ident.t option * string option loc * module_type
+  | Named of Ident.t option * string option loc * module_type *
+             Mode.Alloc.Const.t modes
 
 and module_expr_desc =
     Tmod_ident of Path.t * Longident.t loc
@@ -856,8 +918,14 @@ and value_binding =
 
 and module_coercion =
     Tcoerce_none
-  | Tcoerce_structure of (int * module_coercion) list *
-                         (Ident.t * int * module_coercion) list
+  | Tcoerce_structure of
+      { input_repr : Types.module_representation
+      ; output_repr : Types.module_representation
+      ; pos_cc_list : (int * module_coercion) list
+      ; id_pos_list : (Ident.t * int * module_coercion) list
+      (* [pos] (the [int]s in [pos_cc_list] and [id_pos_list]) is an index into
+         the list of fields in the input module *)
+      }
   | Tcoerce_functor of module_coercion * module_coercion
   | Tcoerce_primitive of primitive_coercion
   (** External declaration coerced to a regular value.
@@ -885,7 +953,7 @@ and module_type =
 and module_type_desc =
     Tmty_ident of Path.t * Longident.t loc
   | Tmty_signature of signature
-  | Tmty_functor of functor_parameter * module_type
+  | Tmty_functor of functor_parameter * module_type * Mode.Alloc.Const.t modes
   | Tmty_with of module_type * (Path.t * Longident.t loc * with_constraint) list
   | Tmty_typeof of module_expr
   | Tmty_alias of Path.t * Longident.t loc
@@ -903,7 +971,7 @@ and primitive_coercion =
 
 and signature = {
   sig_items : signature_item list;
-  sig_modalities : Mode.Modality.Value.Const.t;
+  sig_modalities : modalities;
   sig_type : Types.signature;
   sig_final_env : Env.t;
   sig_sloc : Location.t;
@@ -926,7 +994,7 @@ and signature_item_desc =
   | Tsig_modtype of module_type_declaration
   | Tsig_modtypesubst of module_type_declaration
   | Tsig_open of open_description
-  | Tsig_include of include_description * Mode.Modality.Value.Const.t
+  | Tsig_include of include_description * modalities
   | Tsig_class of class_description list
   | Tsig_class_type of class_type_declaration list
   | Tsig_attribute of attribute
@@ -938,7 +1006,7 @@ and module_declaration =
      md_uid: Uid.t;
      md_presence: Types.module_presence;
      md_type: module_type;
-     md_modalities: Mode.Modality.Value.t;
+     md_modalities: modalities;
      md_attributes: attributes;
      md_loc: Location.t;
     }
@@ -968,6 +1036,7 @@ and 'a open_infos =
     {
      open_expr: 'a;
      open_bound_items: Types.signature;
+     open_items_repr: Types.module_representation;
      open_override: override_flag;
      open_env: Env.t;
      open_loc: Location.t;
@@ -980,15 +1049,26 @@ and open_declaration = module_expr open_infos
 
 and include_kind =
   | Tincl_structure
-  | Tincl_functor of (Ident.t * module_coercion) list
+  | Tincl_functor of
+      { input_coercion : (Ident.t * module_coercion) list
+      ; input_repr : Types.module_representation
+      }
       (* S1 -> S2 *)
-  | Tincl_gen_functor of (Ident.t * module_coercion) list
+      (* Since [Types.module_representation = Jkind.sort array], this could've
+         been [of { inputs : (Ident.t * module_coercion * Jkind.sort) list }],
+         but the way [input_coercion] and [input_repr] are used makes keeping
+         them separate more natural. *)
+  | Tincl_gen_functor of
+      { input_coercion : (Ident.t * module_coercion) list
+      ; input_repr : Types.module_representation
+      }
       (* S1 -> () -> S2 *)
 
 and 'a include_infos =
     {
      incl_mod: 'a;
      incl_type: Types.signature;
+     incl_repr: Types.module_representation;
      incl_loc: Location.t;
      incl_kind: include_kind;
      incl_attributes: attribute list;
@@ -1018,7 +1098,8 @@ and core_type =
 
 and core_type_desc =
   | Ttyp_var of string option * Parsetree.jkind_annotation option
-  | Ttyp_arrow of arg_label * core_type * core_type
+  | Ttyp_arrow of arg_label * core_type * Mode.Alloc.Const.t modes *
+                  core_type * Mode.Alloc.Const.t modes
   | Ttyp_tuple of (string option * core_type) list
   | Ttyp_unboxed_tuple of (string option * core_type) list
   | Ttyp_constr of Path.t * Longident.t loc * core_type list
@@ -1030,6 +1111,8 @@ and core_type_desc =
   | Ttyp_poly of (string * Parsetree.jkind_annotation option) list * core_type
   | Ttyp_package of package_type
   | Ttyp_open of Path.t * Longident.t loc * core_type
+  | Ttyp_quote of core_type
+  | Ttyp_splice of core_type
   | Ttyp_of_kind of Parsetree.jkind_annotation
   | Ttyp_call_pos
       (** [Ttyp_call_pos] represents the type of the value of a Position
@@ -1062,11 +1145,19 @@ and object_field_desc =
   | OTtag of string loc * core_type
   | OTinherit of core_type
 
+(** For a value description, whether user syntax is interpreted as modes or as
+    modalities depends on whether the item is a signature value or a primitive.
+    See the comments on [Typedecl.transl_value_decl_modal] for more info. *)
+and value_description_modal_info =
+  | Valmi_sig_value of modalities
+  | Valmi_str_primitive of Mode.Alloc.Const.Option.t modes
+
 and value_description =
   { val_id: Ident.t;
     val_name: string loc;
     val_desc: core_type;
     val_val: Types.value_description;
+    val_modal_info: value_description_modal_info;
     val_prim: string list;
     val_loc: Location.t;
     val_attributes: attributes;
@@ -1100,7 +1191,7 @@ and label_declaration =
      ld_name: string loc;
      ld_uid: Uid.t;
      ld_mutable: Types.mutability;
-     ld_modalities: Mode.Modality.Value.Const.t;
+     ld_modalities: modalities;
      ld_type: core_type;
      ld_loc: Location.t;
      ld_attributes: attributes;
@@ -1120,7 +1211,7 @@ and constructor_declaration =
 
 and constructor_argument =
   {
-    ca_modalities: Mode.Modality.Value.Const.t;
+    ca_modalities: modalities;
     ca_type: core_type;
     ca_loc: Location.t;
   }
@@ -1296,8 +1387,11 @@ val exists_general_pattern: pattern_predicate -> 'k general_pattern -> bool
 val exists_pattern: (pattern -> bool) -> pattern -> bool
 
 val let_bound_idents: value_binding list -> Ident.t list
+val let_bound_idents_with_sorts:
+    value_binding list -> (Ident.t * Jkind.Sort.t) list
 val let_bound_idents_full:
-    value_binding list -> (Ident.t * string loc * Types.type_expr * Uid.t) list
+    value_binding list ->
+    (Ident.t * string loc * Types.type_expr * Jkind.Sort.t * Uid.t) list
 
 (* [let_bound_idents_with_modes_sorts_and_checks] finds all the idents in the
    let bindings and computes their modes, sorts, and whether they have any check
@@ -1348,3 +1442,7 @@ val min_mode_with_locks : mode_with_locks
 
 (** Get the mode, asserting no held locks. *)
 val mode_without_locks_exn : mode_with_locks -> Mode.Value.l
+
+(** Fold over the antiquotations in an expression. This function defines the
+    evaluation order of antiquotations. *)
+val fold_antiquote_exp : ('a -> expression -> 'a) -> 'a -> expression -> 'a

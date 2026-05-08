@@ -348,7 +348,8 @@ module Preferences : sig
   val src : string -> File.t
   val build : string -> File.t
 
-  val is_preferred : string -> bool
+  val is_preferred_source : string -> bool
+  val is_preferred_build_or_source : string -> bool
 end = struct
   let prioritize_impl = ref true
 
@@ -361,11 +362,17 @@ end = struct
   let src file = if !prioritize_impl then File.ml file else File.mli file
   let build file = if !prioritize_impl then File.cms file else File.cmsi file
 
-  let is_preferred fn =
+  let is_preferred_source fn =
     match File.of_filename fn with
     | Some (ML _) -> !prioritize_impl
     | Some (MLI _) -> not !prioritize_impl
     | _ -> false
+
+  let is_preferred_build_or_source fn =
+    match File.of_filename fn with
+    | Some (ML _ | CMS _ | CMT _) -> !prioritize_impl
+    | Some (MLI _ | CMSI _ | CMTI _) -> not !prioritize_impl
+    | Some (MLL _) | None -> false
 end
 
 module File_switching : sig
@@ -469,10 +476,30 @@ module Utils = struct
           try Some (Misc.find_in_path_normalized ?fallback path fname)
           with Not_found -> None
         in
-        match try_one file with
-        | Some _ as f -> f
-        | None -> Option.bind ~f:try_one (File.to_legacy file)
+        (* Prefer files first by whether they're preferred and then by their legacy-ness.
+           (legacy = cmt/cmti, nonlegacy = cms/cmsi). Be as lazy as possible about finding
+           files, since this may involve looking through a lot of directories. *)
+        let rec find_first_preferred ~first_found_file files_to_try =
+          match files_to_try with
+          | file_to_try :: rest_files_to_try -> (
+            match try_one file_to_try with
+            | Some found_file as found_file_opt ->
+              if Preferences.is_preferred_build_or_source found_file then
+                found_file_opt
+              else
+                let first_found_file =
+                  match first_found_file with
+                  | Some _ as first_found_file -> first_found_file
+                  | None -> found_file_opt
+                in
+                find_first_preferred ~first_found_file rest_files_to_try
+            | None -> find_first_preferred ~first_found_file rest_files_to_try)
+          | [] -> first_found_file
+        in
+        find_first_preferred ~first_found_file:None
+          ([ Some file; File.to_legacy file ] |> List.filter_map ~f:(fun x -> x))
       in
+
       try
         Some (List.find_map Mconfig.(config.merlin.suffixes) ~f:attempt_search)
       with Not_found -> None
@@ -653,7 +680,7 @@ let find_source ~config loc =
             let path' = String.reverse path in
             let priority =
               (String.common_prefix_len rev path' * 2)
-              + if Preferences.is_preferred path then 1 else 0
+              + if Preferences.is_preferred_source path then 1 else 0
             in
             (priority, path))
       in
@@ -880,8 +907,8 @@ let get_linked_uids ~config ~comp_unit decl_uid =
 let find_definition_uid ~config ~env ~(decl : Env_lookup.item) path =
   let namespace = decl.namespace in
   let module Reduce = Shape_reduce.Make (struct
-    let fuel = 10
-    let read_unit_shape ~unit_name =
+    let fuel () = Misc_stdlib.Maybe_bounded.of_int 10
+    let read_unit_shape ~diagnostics:_ ~unit_name =
       log ~title:"read_unit_shape" "inspecting %s" unit_name;
       match
         load_cmt
@@ -895,6 +922,12 @@ let find_definition_uid ~config ~env ~(decl : Env_lookup.item) path =
       | Error () ->
         log ~title:"read_unit_shape" "failed to find %s" unit_name;
         None
+
+    let projection_rules_for_merlin_enabled = true
+    let fuel_for_compilation_units () : Misc_stdlib.Maybe_bounded.t = Unbounded
+    let max_shape_reduce_steps_per_variable () : Misc_stdlib.Maybe_bounded.t =
+      Unbounded
+    let max_compilation_unit_depth () : Misc_stdlib.Maybe_bounded.t = Unbounded
   end) in
   let shape = Env.shape_of_path ~namespace env path in
   log ~title:"shape_of_path" "initial: %a" Logger.fmt

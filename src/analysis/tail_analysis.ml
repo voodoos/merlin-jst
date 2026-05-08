@@ -41,6 +41,7 @@ let tail_operator = function
               _
             },
             _,
+            _,
             _ );
       _
     } -> true
@@ -91,7 +92,10 @@ let expr_tail_positions = function
   | Texp_setmutvar _
   | Texp_idx _
   | Texp_atomic_loc _
-  | Texp_hole _ -> []
+  | Texp_hole _
+  | Texp_quotation _
+  | Texp_antiquotation _
+  | Texp_eval _ -> []
   | Texp_match (_, _, cs, _) -> List.map cs ~f:(fun c -> Case c)
   | Texp_try (_, cs) -> List.map cs ~f:(fun c -> Case c)
   | Texp_letmodule (_, _, _, _, e)

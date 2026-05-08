@@ -103,9 +103,9 @@ let prepare_query env query =
 
 let directories ~global_modules env =
   let rec explore lident env =
-    let add_module name _ md l =
-      match md.Types.md_type with
-      | Types.Mty_alias _ -> l
+    let add_module name _ (md : Subst.Lazy.module_declaration) l =
+      match md.md_type with
+      | Mty_alias _ -> l
       | _ ->
         let lident = Longident.Ldot (lident, name) in
         Trie (name, lident, lazy (explore lident env)) :: l
@@ -115,7 +115,7 @@ let directories ~global_modules env =
   List.fold_left
     ~f:(fun l name ->
       let lident = Longident.Lident name in
-      match Env.find_module_by_name lident env with
+      match Env.find_module_by_name_lazy lident env with
       | exception _ -> l
       | _ -> Trie (name, lident, lazy (explore lident env)) :: l)
     ~init:[] global_modules
@@ -138,7 +138,7 @@ let execute_query query env dirs =
   in
   let rec recurse acc (Trie (_, dir, children)) =
     match
-      ignore (Env.find_module_by_name dir env);
+      ignore (Env.find_module_by_name_lazy dir env);
       Lazy.force children
     with
     | children ->

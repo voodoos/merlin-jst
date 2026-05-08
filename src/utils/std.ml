@@ -262,6 +262,10 @@ module List = struct
         | Some a' -> Cons (a', lazy (filter_map ~f (Lazy.force tl))))
   end
 
+  let hd_opt = function
+    | [] -> None
+    | x :: _ -> Some x
+
   let rec last = function
     | [] -> None
     | [ x ] -> Some x
@@ -344,6 +348,8 @@ module Option = struct
     let return x = Some x
     let ( >>= ) x f = bind x ~f
     let ( >>| ) x f = map x ~f
+    let ( let* ) opt f = bind opt ~f
+    let ( let+ ) opt f = map opt ~f
   end
 
   include Infix

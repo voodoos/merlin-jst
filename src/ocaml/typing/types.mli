@@ -83,81 +83,12 @@ val mutable_mode : ('l * 'r) Mode.Value.Comonadic.t -> ('l * 'r) Mode.Value.t
     Note on mutability: TBD.
  *)
 
-(** The mod-bounds of a jkind *)
-module Jkind_mod_bounds : sig
-  module Areality = Mode.Regionality.Const
-  module Linearity = Mode.Linearity.Const
-  module Uniqueness = Mode.Uniqueness.Const_op
-  module Portability = Mode.Portability.Const
-  module Contention = Mode.Contention.Const_op
-  module Yielding = Mode.Yielding.Const
-  module Statefulness = Mode.Statefulness.Const
-  module Visibility = Mode.Visibility.Const_op
-  module Externality = Jkind_axis.Externality
-  module Nullability = Jkind_axis.Nullability
-  module Separability = Jkind_axis.Separability
-
-  type t
-
-  val create :
-    areality:Areality.t ->
-    linearity:Linearity.t ->
-    uniqueness:Uniqueness.t ->
-    portability:Portability.t ->
-    contention:Contention.t ->
-    yielding:Yielding.t ->
-    statefulness:Statefulness.t ->
-    visibility:Visibility.t ->
-    externality:Externality.t ->
-    nullability:Nullability.t ->
-    separability:Separability.t ->
-    t
-
-  val areality : t -> Areality.t
-  val linearity : t -> Linearity.t
-  val uniqueness : t -> Uniqueness.t
-  val portability : t -> Portability.t
-  val contention : t -> Contention.t
-  val yielding : t -> Yielding.t
-  val statefulness : t -> Statefulness.t
-  val visibility : t -> Visibility.t
-  val externality : t -> Externality.t
-  val nullability : t -> Nullability.t
-  val separability : t -> Separability.t
-
-  val set_areality : Areality.t -> t -> t
-  val set_linearity : Linearity.t -> t -> t
-  val set_uniqueness : Uniqueness.t -> t -> t
-  val set_portability : Portability.t -> t -> t
-  val set_contention : Contention.t -> t -> t
-  val set_yielding : Yielding.t -> t -> t
-  val set_statefulness : Statefulness.t -> t -> t
-  val set_visibility : Visibility.t -> t -> t
-  val set_externality : Externality.t -> t -> t
-  val set_nullability : Nullability.t -> t -> t
-  val set_separability : Separability.t -> t -> t
-
-  (** [set_max_in_set bounds axes] sets all the axes in [axes] to their [max] within
-      [bounds] *)
-  val set_max_in_set : t -> Jkind_axis.Axis_set.t -> t
-
-  (** [set_min_in_set bounds axes] sets all the axes in [axes] to their [min] within
-      [bounds] *)
-  val set_min_in_set : t -> Jkind_axis.Axis_set.t -> t
-
-  (** [is_max_within_set bounds axes] returns whether or not all the axes in [axes] are
-      [max] within [bounds] *)
-  val is_max_within_set : t -> Jkind_axis.Axis_set.t -> bool
-  val is_max : t -> bool
-
-  val debug_print : Format.formatter -> t -> unit
-end
-
-
 (** Information tracked about an individual type within the with-bounds for a jkind *)
 module With_bounds_type_info : sig
   (** The axes that the with-bound applies to *)
   type t = { relevant_axes : Jkind_axis.Axis_set.t } [@@unboxed]
+
+  val join : t -> t -> t
 end
 
 type type_expr
@@ -222,6 +153,12 @@ and type_desc =
 
   | Tfield of string * field_kind * type_expr * type_expr
   (** [Tfield ("foo", field_public, t, ts)] ==> [<...; foo : t; ts>] *)
+
+  | Tquote of type_expr
+  (** [Tquote t] ==> [<[ t ]>] *)
+
+  | Tsplice of type_expr
+  (** [Tsplice t] ==> [$t] *)
 
   | Tnil
   (** [Tnil] ==> [<...; >] *)
@@ -357,6 +294,14 @@ and jkind_history =
 (** The types within the with-bounds of a jkind *)
 and with_bounds_types
 
+(** The mod bounds of a jkind *)
+and mod_bounds =
+  { crossing : Mode.Crossing.t;
+    externality: Jkind_axis.Externality.t;
+    nullability: Jkind_axis.Nullability.t;
+    separability: Jkind_axis.Separability.t;
+  }
+
 and 'd with_bounds =
   | No_with_bounds : ('l * 'r) with_bounds
   | With_bounds
@@ -365,7 +310,7 @@ and 'd with_bounds =
 
 and ('layout, 'd) layout_and_axes =
   { layout : 'layout;
-    mod_bounds : Jkind_mod_bounds.t;
+    mod_bounds : mod_bounds;
     with_bounds : 'd with_bounds
   }
   constraint 'd = 'l * 'r
@@ -469,18 +414,36 @@ val get_level: type_expr -> int
 val get_scope: type_expr -> int
 val get_id: type_expr -> int
 
+(** Access to marks. They are stored in the scope field. *)
+type type_mark
+val with_type_mark: (type_mark -> 'a) -> 'a
+        (* run a computation using exclusively an available type mark *)
+
+val not_marked_node: type_mark -> type_expr -> bool
+        (* Return true if a type node is not yet marked *)
+
+val try_mark_node: type_mark -> type_expr -> bool
+        (* Mark a type node if it is not yet marked.
+           Marks will be automatically removed when leaving the
+           scope of [with_type_mark].
+
+           Return false if it was already marked *)
+
 (** Transient [type_expr].
     Should only be used immediately after [Transient_expr.repr] *)
 type transient_expr = private
       { mutable desc: type_desc;
         mutable level: int;
-        mutable scope: int;
+        mutable scope: scope_field;
         id: int }
+and scope_field (* abstract *)
 
 module Transient_expr : sig
   (** Operations on [transient_expr] *)
 
   val create: type_desc -> level: int -> scope: int -> id: int -> transient_expr
+  val get_scope: transient_expr -> int
+  val get_marks: transient_expr -> int
   val set_desc: transient_expr -> type_desc -> unit
   val set_level: transient_expr -> int -> unit
   val set_scope: transient_expr -> int -> unit
@@ -492,6 +455,8 @@ module Transient_expr : sig
   val set_stub_desc: type_expr -> type_desc -> unit
       (** Instantiate a not yet instantiated stub.
           Fail if already instantiated. *)
+
+  val try_mark_node: type_mark -> transient_expr -> bool
 end
 
 val create_expr: type_desc -> level: int -> scope: int -> id: int -> type_expr
@@ -512,6 +477,8 @@ module TransientTypeOps : sig
   val equal : t -> t -> bool
   val hash : t -> int
 end
+
+module TransientTypeHash : Hashtbl.S with type key = transient_expr
 
 (** Comparisons for [type_expr]; cannot be used for functors *)
 
@@ -663,7 +630,7 @@ module Vars  : Map.S with type key = string
 (* Value descriptions *)
 
 type value_kind =
-    Val_reg                             (* Regular value *)
+    Val_reg of Jkind_types.Sort.t       (* Regular value *)
   | Val_mut of Mode.Value.Comonadic.lr * Jkind_types.Sort.t
                                         (* Mutable variable *)
   | Val_prim of Primitive.description   (* Primitive *)
@@ -793,6 +760,7 @@ type type_declaration =
           itself has [type_unboxed_version = None].
        2. the Uid of the unboxed version is [Uid.unboxed_version <uid of boxed>]
     *)
+    type_discourse: Discourse_types.t;
   }
 
 and type_decl_kind = (label_declaration, label_declaration, constructor_declaration) type_kind
@@ -859,6 +827,8 @@ and type_origin =
   | Rec_check_regularity       (* See Typedecl.transl_type_decl *)
   | Existential of string
 
+and module_representation = Jkind_types.Sort.t array
+
 and record_representation =
   | Record_unboxed
   | Record_inlined of tag * constructor_representation * variant_representation
@@ -915,7 +885,7 @@ and label_declaration =
   {
     ld_id: Ident.t;
     ld_mutable: mutability;
-    ld_modalities: Mode.Modality.Value.Const.t;
+    ld_modalities: Mode.Modality.Const.t;
     ld_type: type_expr;
     ld_sort: Jkind_types.Sort.Const.t;
     ld_loc: Location.t;
@@ -931,11 +901,14 @@ and constructor_declaration =
     cd_loc: Location.t;
     cd_attributes: Parsetree.attributes;
     cd_uid: Uid.t;
+    cd_discourse : Discourse_types.t;
+    (* TODO remove this, it seems sufficient to store the discourse in
+       constructor_representation. *)
   }
 
 and constructor_argument =
   {
-    ca_modalities: Mode.Modality.Value.Const.t;
+    ca_modalities: Mode.Modality.Const.t;
     ca_type: type_expr;
     ca_sort: Jkind_types.Sort.Const.t;
     ca_loc: Location.t;
@@ -948,7 +921,8 @@ and constructor_arguments =
 val tys_of_constr_args : constructor_arguments -> type_expr list
 
 (* Returns the inner type and its modalities, if unboxed. *)
-val find_unboxed_type : type_declaration -> (type_expr * Mode.Modality.Value.Const.t) option
+val find_unboxed_type : type_declaration ->
+  (type_expr * Mode.Modality.Const.t) option
 
 type extension_constructor =
   {
@@ -985,6 +959,7 @@ type class_declaration =
     cty_loc: Location.t;
     cty_attributes: Parsetree.attributes;
     cty_uid: Uid.t;
+    cty_discourse: Discourse_types.t;
   }
 
 type class_type_declaration =
@@ -996,6 +971,7 @@ type class_type_declaration =
     clty_loc: Location.t;
     clty_attributes: Parsetree.attributes;
     clty_uid: Uid.t;
+    clty_discourse: Discourse_types.t;
   }
 
 (* Type expressions for the module language *)
@@ -1036,18 +1012,27 @@ module type Wrapped = sig
 
   type value_description =
     { val_type: type_expr wrapped;                (* Type of the value *)
-      val_modalities: Mode.Modality.Value.t;      (* Modalities on the value *)
+      val_modalities: Mode.Modality.t;
+   (** The modalities on the value in a signature. It is [undefined] in several
+      cases:
+    - The value is not in a structure, so there is no modalities
+      to talk about. For example, adding [let x = ... in] to the environment
+      will have [val_modalities] set to [undefined].
+    - The value was from a structure, but the original modalities
+      have been applied and we have the real mode of the value. The original
+      modalities shouldn't be looked again and is replaced by [undefined]. *)
       val_kind: value_kind;
       val_loc: Location.t;
       val_zero_alloc: Zero_alloc.t;
       val_attributes: Parsetree.attributes;
       val_uid: Uid.t;
+      val_discourse: Discourse_types.t;
     }
 
   type module_type =
     Mty_ident of Path.t
   | Mty_signature of signature
-  | Mty_functor of functor_parameter * module_type
+  | Mty_functor of functor_parameter * module_type * Mode.Alloc.lr
   | Mty_alias of Path.t
   | Mty_strengthen of module_type * Path.t * Aliasability.t
       (* See comments about the aliasability of strengthening in mtype.ml *)
@@ -1055,7 +1040,7 @@ module type Wrapped = sig
 
   and functor_parameter =
   | Unit
-  | Named of Ident.t option * module_type
+  | Named of Ident.t option * module_type * Mode.Alloc.lr
 
   and signature = signature_item list wrapped
 
@@ -1072,10 +1057,20 @@ module type Wrapped = sig
   and module_declaration =
   {
     md_type: module_type;
-    md_modalities : Mode.Modality.Value.t;
+    md_modalities : Mode.Modality.t;
+    (** Similiar to [val_modalities]; see comments there. *)
     md_attributes: Parsetree.attributes;
     md_loc: Location.t;
     md_uid: Uid.t;
+    md_discourse: Discourse_types.t;
+    (** [md_discourse] stores the user written paths used in the description  of
+      the module. They will be added to the Discourse if the module is used.  *)
+    md_discourse_alias: (Longident.t loc * Discourse_types.Item.t) option;
+    (** If the user wrote a module alias [module Foo = Bar] with no signature
+        then [md_discourse_alias] is the path [Bar]. When Foo is used, this path
+        is added to the set of Used paths, not directly into the Discourse.
+        When the user wrothe module M = P.Q both items of Q and P should be
+        considered part of the domain of discourse, not only Q.  *)
   }
 
   and modtype_declaration =
@@ -1084,7 +1079,12 @@ module type Wrapped = sig
     mtd_attributes: Parsetree.attributes;
     mtd_loc: Location.t;
     mtd_uid: Uid.t;
+    mtd_discourse: Discourse_types.t;
   }
+
+  (* Returns [None] for items that have no runtime representation (see
+     [Includemod.is_runtime_component]). *)
+  val sort_of_signature_item : signature_item -> Jkind_types.Sort.t option
 end
 
 module Make_wrapped(Wrap : Wrap) : Wrapped with type 'a wrapped = 'a Wrap.t
@@ -1135,6 +1135,7 @@ type constructor_description =
     cstr_inlined: type_declaration option;
       (* [Some decl] here iff the cstr has an inline record (which is decl) *)
     cstr_uid: Uid.t;
+    cstr_discourse: Discourse_types.t;
    }
 
 (* Constructors are the same *)
@@ -1163,7 +1164,7 @@ type 'a gen_label_description =
     lbl_res: type_expr;                 (* Type of the result *)
     lbl_arg: type_expr;                 (* Type of the argument *)
     lbl_mut: mutability;                (* Is this a mutable field? *)
-    lbl_modalities: Mode.Modality.Value.Const.t;
+    lbl_modalities: Mode.Modality.Const.t;
                                         (* Modalities on the field *)
     lbl_sort: Jkind_types.Sort.Const.t; (* Sort of the argument *)
     lbl_pos: int;                       (* Position in type *)
@@ -1173,6 +1174,7 @@ type 'a gen_label_description =
     lbl_loc: Location.t;
     lbl_attributes: Parsetree.attributes;
     lbl_uid: Uid.t;
+    lbl_discourse: Discourse_types.t;
   }
 
 type label_description = record_representation gen_label_description
@@ -1196,11 +1198,18 @@ type record_form_packed =
 
 val record_form_to_string : _ record_form -> string
 
+val mixed_block_element_of_const_sort :
+  Jkind_types.Sort.Const.t -> mixed_block_element
+
 (** Extracts the list of "value" identifiers bound by a signature.
     "Value" identifiers are identifiers for signature components that
     correspond to a run-time value: values, extensions, modules, classes.
     Note: manifest primitives do not correspond to a run-time value! *)
 val bound_value_identifiers: signature -> Ident.t list
+
+(** Like [bound_value_identifiers], but also return sorts *)
+val bound_value_identifiers_and_sorts :
+  signature -> (Ident.t * Jkind_types.Sort.t) list
 
 val signature_item_id : signature_item -> Ident.t
 
@@ -1259,9 +1268,6 @@ val link_kind: inside:field_kind -> field_kind -> unit
 val link_commu: inside:commutable -> commutable -> unit
 val set_commu_ok: commutable -> unit
 
-val functor_param_mode : Mode.Alloc.lr
-val functor_res_mode : Mode.Alloc.lr
-
 (* Merlin specific *)
 
 (** check if a snapshot has been invalidated *)
@@ -1273,5 +1279,3 @@ val on_backtrack: (unit -> unit) -> unit
 (** Number of unification variables that have been linked so far.
    Used to estimate the "cost" of unification. *)
 val linked_variables: unit -> int
-
-val unpack_functor : module_type -> functor_parameter * module_type

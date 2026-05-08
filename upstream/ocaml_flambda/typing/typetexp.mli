@@ -31,14 +31,16 @@ module TyVarEnv : sig
   (** Evaluate in a narrowed type-variable scope *)
 
   type poly_univars
-  val make_poly_univars : string Location.loc list -> poly_univars
+  val make_poly_univars :
+    Env.t -> (string Location.loc * Env.stage) list -> poly_univars
     (** A variant of [make_poly_univars_jkinds] that gets variables
         without jkind annotations *)
 
   val make_poly_univars_jkinds :
+    Env.t ->
     context:(string -> Jkind.History.annotation_context_lr) ->
-    (string Location.loc * Parsetree.jkind_annotation option) list ->
-    poly_univars
+    (string Location.loc * Parsetree.jkind_annotation option * Env.stage) list
+    -> poly_univars
     (** remember that a list of strings connotes univars; this must
         always be paired with a [check_poly_univars]. *)
 
@@ -181,6 +183,12 @@ type error =
   | Bad_jkind_annot of type_expr * Jkind.Violation.t
   | Did_you_mean_unboxed of Longident.t
   | Invalid_label_for_call_pos of Parsetree.arg_label
+  | Invalid_variable_stage of
+      {name : string;
+       intro_stage : Env.stage;
+       usage_stage : Env.stage}
+  | Mismatched_jkind_annotation of
+    { name : string; explicit_jkind : jkind_lr; implicit_jkind : jkind_lr }
 
 exception Error of Location.t * Env.t * error
 

@@ -37,8 +37,8 @@ let { Logger.log } = Logger.for_section "Completion"
 
 type raw_info =
   [ `Constructor of Types.constructor_description
-  | `Modtype of Types.module_type
-  | `Modtype_declaration of Ident.t * Types.modtype_declaration
+  | `Modtype of Subst.Lazy.module_type
+  | `Modtype_declaration of Ident.t * Subst.Lazy.modtype_declaration
   | `None
   | `String of string
   | `Type_declaration of Ident.t * Types.type_declaration
@@ -47,8 +47,11 @@ type raw_info =
 
 let raw_info_printer : raw_info -> _ = function
   | `Constructor c -> `Print (Out_type (Browse_misc.print_constructor c))
-  | `Modtype mt -> `Print (Out_module_type (Printtyp.tree_of_modtype mt))
+  | `Modtype mt ->
+    let mt = Subst.Lazy.force_modtype mt in
+    `Print (Out_module_type (Printtyp.tree_of_modtype mt))
   | `Modtype_declaration (id, mtd) ->
+    let mtd = Subst.Lazy.force_modtype_decl mtd in
     `Print (Out_sig_item (Printtyp.tree_of_modtype_declaration id mtd))
   | `None -> `String ""
   | `String s -> `String s
@@ -133,6 +136,15 @@ let classify_node = function
   | Open_declaration _ -> `Module
   | Include_declaration _ -> `Module
   | Include_description _ -> `Module
+  | Mode _ | Modality _ | Mod_bound _ ->
+    (* CR-someday: Have proper completion for modes and modalities *)
+    `Expression
+  | Jkind_annotation _ ->
+    (* CR-someday: Have proper completion for jkinds *)
+    `Type
+  | Attribute _ ->
+    (* CR-someday: Have proper completion for attributes *)
+    `Expression
 
 open Query_protocol.Compl
 
@@ -235,10 +247,17 @@ let make_candidate ~get_doc ~attrs ~exact ~prefix_path name ?loc ?path ty =
       | _, _ -> `None)
   in
   let deprecated = Type_utils.is_deprecated attrs in
-  { name; kind; desc; info; deprecated }
+  let ppx_template_generated = Type_utils.is_ppx_template_generated attrs in
+  { name; kind; desc; info; deprecated; ppx_template_generated }
 
 let item_for_global_module name =
-  { name; kind = `Module; desc = `None; info = `None; deprecated = false }
+  { name;
+    kind = `Module;
+    desc = `None;
+    info = `None;
+    deprecated = false;
+    ppx_template_generated = false
+  }
 
 let fold_variant_constructors ~env ~init ~f =
   let rec aux acc t =
@@ -299,8 +318,8 @@ let get_candidates ?get_doc ?target_type ?prefix_path ~prefix kind ~validate env
   let val_attributes v = v.Subst.Lazy.val_attributes in
   let type_attributes t = t.Types.type_attributes in
   let lbl_attributes l = l.Types.lbl_attributes in
-  let mtd_attributes t = t.Types.mtd_attributes in
-  let md_attributes t = t.Types.md_attributes in
+  let mtd_attributes t = t.Subst.Lazy.mtd_attributes in
+  let md_attributes t = t.Subst.Lazy.md_attributes in
   let make_candidate ~attrs ~exact name ?loc ?path ty =
     make_candidate ~get_doc ~prefix_path ~attrs ~exact name ?loc ?path ty
   in
@@ -446,7 +465,7 @@ let get_candidates ?get_doc ?target_type ?prefix_path ~prefix kind ~validate env
         Env.fold_modules
           (fun name path v candidates ->
             let attrs = md_attributes v in
-            let v = v.Types.md_type in
+            let v = v.Subst.Lazy.md_type in
             if not @@ validate `Uident `Mod name then candidates
             else
               make_weighted_candidate ~exact:(name = prefix) name ~path (`Mod v)
@@ -528,7 +547,8 @@ let complete_methods ~env ~prefix obj =
         kind = `MethodCall;
         desc = `Type_scheme ty;
         info;
-        deprecated = false
+        deprecated = false;
+        ppx_template_generated = false
       })
 
 type is_label =
@@ -630,7 +650,8 @@ let complete_prefix ?get_doc ?target_type ?(kinds = []) ~keywords ~prefix
                   kind = `Keyword;
                   desc = `None;
                   info = `None;
-                  deprecated = false
+                  deprecated = false;
+                  ppx_template_generated = false
                 }
                 :: candidates
               else candidates)
@@ -645,7 +666,8 @@ let complete_prefix ?get_doc ?target_type ?(kinds = []) ~keywords ~prefix
                 kind = `Module;
                 desc = `None;
                 info = `None;
-                deprecated = false
+                deprecated = false;
+                ppx_template_generated = false
               }
             in
             if name = prefix && uniq (`Mod, name) then
@@ -664,8 +686,8 @@ let complete_prefix ?get_doc ?target_type ?(kinds = []) ~keywords ~prefix
   with Not_found -> []
 
 (* Propose completion from a particular node *)
-let branch_complete buffer ?get_doc ?target_type ?kinds ~keywords prefix =
-  function
+let branch_complete buffer ?get_doc ?target_type ?kinds ~keywords prefix :
+    _ -> raw_info raw_entry list = function
   | [] -> []
   | (env, node) :: branch -> (
     match node with

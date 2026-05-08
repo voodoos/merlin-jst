@@ -35,7 +35,8 @@ by inspecting the returned mode. *)
 
 val type_module:
         Env.t -> ?expected_mode:Mode.Value.r -> Parsetree.module_expr ->
-        Typedtree.module_expr * Shape.t
+        Typedtree.module_expr * Shape.t * Discourse_types.t *
+        (Longident.t Location.loc * Discourse_types.Item.t) option
 val type_structure:
   Env.t -> ?expected_mode:Mode.Value.r -> Parsetree.structure ->
   Typedtree.structure * Types.signature * Mode.Value.lr * Signature_names.t *
@@ -122,12 +123,6 @@ type functor_dependency_error =
 type legacy_module =
   | Compilation_unit
   | Toplevel
-  | Functor_body
-
-(** Places where modes annotations are not supported *)
-type unsupported_modal_module =
-  | Functor_param
-  | Functor_res
 
 type error =
     Cannot_apply of module_type
@@ -167,8 +162,6 @@ type error =
   | Invalid_type_subst_rhs
   | Non_packable_local_modtype_subst of Path.t
   | With_cannot_remove_packed_modtype of Path.t * module_type
-  | Toplevel_nonvalue of string * Jkind.sort
-  | Toplevel_unnamed_nonvalue of Jkind.sort
   | Strengthening_mismatch of Longident.t * Includemod.explanation
   | Cannot_pack_parameter
   | Compiling_as_parameterised_parameter
@@ -184,7 +177,6 @@ type error =
   | Duplicate_parameter_name of Global_module.Parameter_name.t
   | Submode_failed of Mode.Value.error
   | Item_weaker_than_structure of Mode.Value.error
-  | Unsupported_modal_module of unsupported_modal_module
   | Legacy_module of legacy_module * Mode.Value.error
 
 exception Error of Location.t * Env.t * error

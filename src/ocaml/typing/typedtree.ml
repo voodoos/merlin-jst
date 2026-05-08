@@ -22,19 +22,35 @@ open Mode
 type constant =
     Const_int of int
   | Const_char of char
+  | Const_untagged_char of char
   | Const_string of string * Location.t * string option
   | Const_float of string
   | Const_float32 of string
   | Const_unboxed_float of string
   | Const_unboxed_float32 of string
+  | Const_int8 of int
+  | Const_int16 of int
   | Const_int32 of int32
   | Const_int64 of int64
   | Const_nativeint of nativeint
+  | Const_untagged_int of int
+  | Const_untagged_int8 of int
+  | Const_untagged_int16 of int
   | Const_unboxed_int32 of int32
   | Const_unboxed_int64 of int64
   | Const_unboxed_nativeint of nativeint
 
 module Uid = Shape.Uid
+
+type 'a modes = 'a Typemode.modes =
+  { mode_modes : 'a;
+    mode_desc : Mode.Alloc.atom Location.loc list
+  }
+
+type modalities = Typemode.modalities =
+  { moda_modalities : Mode.Modality.Const.t;
+    moda_desc : Mode.Modality.atom Location.loc list
+  }
 
 (* Value expressions for the core language *)
 
@@ -112,10 +128,7 @@ let print_unique_use ppf (u,l) =
     (Mode.Uniqueness.print ()) u
     (Mode.Linearity.print ()) l
 
-type alloc_mode = {
-  mode : Mode.Alloc.r;
-  locality_context : Env.locality_context option;
-}
+type alloc_mode = Mode.Alloc.r
 
 type texp_field_boxing =
   | Boxing of alloc_mode * unique_use
@@ -124,6 +137,19 @@ type texp_field_boxing =
 let aliased_many_use =
   ( Mode.Uniqueness.disallow_left Mode.Uniqueness.aliased,
     Mode.Linearity.disallow_right Mode.Linearity.many )
+
+type label_ambiguity =
+  | Ambiguous of { path: Path.t; arity : int }
+  | Unambiguous
+
+type _ type_inspection =
+  | Label_disambiguation : label_ambiguity -> [< `pat | `exp ] type_inspection
+  | Polymorphic_parameter : 'a poly_param -> 'a type_inspection
+
+and _ poly_param =
+  | Param : type_expr -> [`pat] poly_param
+  | Arrow : (arg_label * type_expr option) list -> [`exp] poly_param
+  | Method : string loc * type_expr -> [`exp] poly_param
 
 type pattern = value general_pattern
 and 'k general_pattern = 'k pattern_desc pattern_data
@@ -139,10 +165,11 @@ and 'a pattern_data =
    }
 
 and pat_extra =
-  | Tpat_constraint of core_type
+  | Tpat_constraint of core_type * Mode.Alloc.Const.t modes
   | Tpat_type of Path.t * Longident.t loc
   | Tpat_open of Path.t * Longident.t loc * Env.t
   | Tpat_unpack
+  | Tpat_inspected_type of [ `pat ] type_inspection
 
 and 'k pattern_desc =
   (* value patterns *)
@@ -204,7 +231,8 @@ and exp_extra =
   | Texp_newtype of Ident.t * string loc *
                     Parsetree.jkind_annotation option * Uid.t
   | Texp_stack
-  | Texp_mode of Mode.Alloc.Const.Option.t
+  | Texp_mode of Mode.Alloc.Const.Option.t modes
+  | Texp_inspected_type of [ `exp ] type_inspection
 
 and arg_label = Types.arg_label =
   | Nolabel
@@ -214,14 +242,15 @@ and arg_label = Types.arg_label =
 
 and expression_desc =
     Texp_ident of
-      Path.t * Longident.t loc * Types.value_description * ident_kind * unique_use
+      Path.t * Longident.t loc * Types.value_description * ident_kind *
+        unique_use * Mode.Value.l
   | Texp_constant of constant
   | Texp_let of rec_flag * value_binding list * expression
   | Texp_letmutable of value_binding * expression
   | Texp_function of
       { params : function_param list;
         body : function_body;
-        ret_mode : Mode.Alloc.l;
+        ret_mode : Mode.Alloc.l modes;
         ret_sort : Jkind.sort;
         alloc_mode : alloc_mode;
         zero_alloc : Zero_alloc.t;
@@ -315,6 +344,9 @@ and expression_desc =
   | Texp_src_pos
   | Texp_overwrite of expression * expression
   | Texp_hole of unique_use
+  | Texp_quotation of expression
+  | Texp_antiquotation of expression
+  | Texp_eval of core_type * Jkind.sort
   | Texp_typed_hole
 
 and ident_kind =
@@ -388,7 +420,7 @@ and function_param =
     fp_partial: partial;
     fp_kind: function_param_kind;
     fp_sort: Jkind.sort;
-    fp_mode: Mode.Alloc.l;
+    fp_mode: Mode.Alloc.l modes;
     fp_curry: function_curry;
     fp_newtypes: (Ident.t * string loc *
                   Parsetree.jkind_annotation option * Uid.t) list;
@@ -413,7 +445,7 @@ and function_cases =
     fc_param: Ident.t;
     fc_param_debug_uid: Shape.Uid.t;
     fc_loc: Location.t;
-    fc_exp_extra: exp_extra option;
+    fc_exp_extra: exp_extra list;
     fc_attributes: attributes;
   }
 
@@ -523,11 +555,12 @@ and module_expr =
 
 and module_type_constraint =
   Tmodtype_implicit
-| Tmodtype_explicit of module_type
+| Tmodtype_explicit of module_type * Mode.Value.lr modes
 
 and functor_parameter =
   | Unit
-  | Named of Ident.t option * string option loc * module_type
+  | Named of Ident.t option * string option loc * module_type *
+             Mode.Alloc.Const.t modes
 
 and module_expr_desc =
     Tmod_ident of Path.t * Longident.t loc
@@ -591,8 +624,12 @@ and value_binding =
 
 and module_coercion =
     Tcoerce_none
-  | Tcoerce_structure of (int * module_coercion) list *
-                         (Ident.t * int * module_coercion) list
+  | Tcoerce_structure of
+      { input_repr : Types.module_representation
+      ; output_repr : Types.module_representation
+      ; pos_cc_list : (int * module_coercion) list
+      ; id_pos_list : (Ident.t * int * module_coercion) list
+      }
   | Tcoerce_functor of module_coercion * module_coercion
   | Tcoerce_primitive of primitive_coercion
   | Tcoerce_alias of Env.t * Path.t * module_coercion
@@ -608,7 +645,7 @@ and module_type =
 and module_type_desc =
     Tmty_ident of Path.t * Longident.t loc
   | Tmty_signature of signature
-  | Tmty_functor of functor_parameter * module_type
+  | Tmty_functor of functor_parameter * module_type * Mode.Alloc.Const.t modes
   | Tmty_with of module_type * (Path.t * Longident.t loc * with_constraint) list
   | Tmty_typeof of module_expr
   | Tmty_alias of Path.t * Longident.t loc
@@ -627,7 +664,7 @@ and primitive_coercion =
 
 and signature = {
   sig_items : signature_item list;
-  sig_modalities : Mode.Modality.Value.Const.t;
+  sig_modalities : modalities;
   sig_type : Types.signature;
   sig_final_env : Env.t;
   sig_sloc : Location.t;
@@ -650,7 +687,7 @@ and signature_item_desc =
   | Tsig_modtype of module_type_declaration
   | Tsig_modtypesubst of module_type_declaration
   | Tsig_open of open_description
-  | Tsig_include of include_description * Mode.Modality.Value.Const.t
+  | Tsig_include of include_description * modalities
   | Tsig_class of class_description list
   | Tsig_class_type of class_type_declaration list
   | Tsig_attribute of attribute
@@ -662,7 +699,7 @@ and module_declaration =
      md_uid: Uid.t;
      md_presence: module_presence;
      md_type: module_type;
-     md_modalities: Mode.Modality.Value.t;
+     md_modalities: modalities;
      md_attributes: attribute list;
      md_loc: Location.t;
     }
@@ -692,6 +729,7 @@ and 'a open_infos =
     {
      open_expr: 'a;
      open_bound_items: Types.signature;
+     open_items_repr: Types.module_representation;
      open_override: override_flag;
      open_env: Env.t;
      open_loc: Location.t;
@@ -704,13 +742,20 @@ and open_declaration = module_expr open_infos
 
 and include_kind =
   | Tincl_structure
-  | Tincl_functor of (Ident.t * module_coercion) list
-  | Tincl_gen_functor of (Ident.t * module_coercion) list
+  | Tincl_functor of
+      { input_coercion : (Ident.t * module_coercion) list
+      ; input_repr : Types.module_representation
+      }
+  | Tincl_gen_functor of
+      { input_coercion : (Ident.t * module_coercion) list
+      ; input_repr : Types.module_representation
+      }
 
 and 'a include_infos =
     {
      incl_mod: 'a;
      incl_type: Types.signature;
+     incl_repr: Types.module_representation;
      incl_loc: Location.t;
      incl_kind: include_kind;
      incl_attributes: attribute list;
@@ -740,7 +785,8 @@ and core_type =
 
 and core_type_desc =
   | Ttyp_var of string option * Parsetree.jkind_annotation option
-  | Ttyp_arrow of arg_label * core_type * core_type
+  | Ttyp_arrow of arg_label * core_type * Mode.Alloc.Const.t modes *
+                  core_type * Mode.Alloc.Const.t modes
   | Ttyp_tuple of (string option * core_type) list
   | Ttyp_unboxed_tuple of (string option * core_type) list
   | Ttyp_constr of Path.t * Longident.t loc * core_type list
@@ -752,6 +798,8 @@ and core_type_desc =
   | Ttyp_poly of (string * Parsetree.jkind_annotation option) list * core_type
   | Ttyp_package of package_type
   | Ttyp_open of Path.t * Longident.t loc * core_type
+  | Ttyp_quote of core_type
+  | Ttyp_splice of core_type
   | Ttyp_of_kind of Parsetree.jkind_annotation
   | Ttyp_call_pos
 
@@ -782,11 +830,16 @@ and object_field_desc =
   | OTtag of string loc * core_type
   | OTinherit of core_type
 
+and value_description_modal_info =
+  | Valmi_sig_value of modalities
+  | Valmi_str_primitive of Mode.Alloc.Const.Option.t modes
+
 and value_description =
   { val_id: Ident.t;
     val_name: string loc;
     val_desc: core_type;
     val_val: Types.value_description;
+    val_modal_info: value_description_modal_info;
     val_prim: string list;
     val_loc: Location.t;
     val_attributes: attribute list;
@@ -819,7 +872,7 @@ and label_declaration =
      ld_name: string loc;
      ld_uid: Uid.t;
      ld_mutable: mutability;
-     ld_modalities: Modality.Value.Const.t;
+     ld_modalities: modalities;
      ld_type: core_type;
      ld_loc: Location.t;
      ld_attributes: attribute list;
@@ -839,7 +892,7 @@ and constructor_declaration =
 
 and constructor_argument =
   {
-    ca_modalities: Modality.Value.Const.t;
+    ca_modalities: modalities;
     ca_type: core_type;
     ca_loc: Location.t;
   }
@@ -1110,11 +1163,11 @@ let rec iter_bound_idents
   : type k . _ -> k general_pattern -> _
   = fun f pat ->
   match pat.pat_desc with
-  | Tpat_var (id, s, uid, _sort, _mode) ->
-     f (id,s,pat.pat_type, uid)
-  | Tpat_alias(p, id, s, uid, _sort, _mode, ty) ->
+  | Tpat_var (id, s, uid, sort, _mode) ->
+      f (id, s, pat.pat_type, sort, uid)
+  | Tpat_alias(p, id, s, uid, sort, _mode, ty) ->
       iter_bound_idents f p;
-      f (id, s, ty, uid)
+      f (id, s, ty, sort, uid)
   | Tpat_or(p1, _, _) ->
       (* Invariant : both arguments bind the same variables *)
       iter_bound_idents f p1
@@ -1245,7 +1298,7 @@ let let_bound_idents_with_modes_sorts_and_checks bindings =
     ) Ident.Map.empty bindings
   in
   List.rev_map
-    (fun (id, _, _, _) ->
+    (fun (id, _, _, _, _) ->
        let zero_alloc =
          Option.value (Ident.Map.find_opt id checks) ~default:Zero_alloc.default
        in
@@ -1254,8 +1307,13 @@ let let_bound_idents_with_modes_sorts_and_checks bindings =
 
 let let_bound_idents_full bindings =
   List.rev (rev_let_bound_idents_full bindings)
+
+let let_bound_idents_with_sorts pat =
+  List.rev_map (fun (id,_,_,sort,_) -> (id, sort))
+    (rev_let_bound_idents_full pat)
+
 let let_bound_idents pat =
-  List.rev_map (fun (id,_,_,_) -> id) (rev_let_bound_idents_full pat)
+  List.rev_map (fun (id,_,_,_,_) -> id) (rev_let_bound_idents_full pat)
 
 let alpha_var env id = List.assoc id env
 
@@ -1340,7 +1398,7 @@ let loc_of_decl ~uid =
   | Value_binding vb ->
     let bound_idents = let_bound_idents_full [vb] in
     let name = ListLabels.find_map
-      ~f:(fun (_, name, _, uid') -> if uid = uid' then Some name else None)
+      ~f:(fun (_, name, _, _, uid') -> if uid = uid' then Some name else None)
       bound_idents in
     (match name with
     | Some name -> name
@@ -1368,12 +1426,172 @@ let mode_without_locks_exn = function
 
 (* Merlin specific *)
 
-let unpack_functor_me me =
-  match me.mod_desc with
-  | Tmod_functor (fp, mty) -> fp, mty
-  | _ -> invalid_arg "Typedtree.unpack_functor_me (merlin)"
+let rec fold_antiquote_exp f  acc exp =
+  match exp.exp_desc with
+  | Texp_ident _ | Texp_constant _ -> acc
+  | Texp_let (_, vbs, exp) ->
+      let acc = fold_antiquote_value_bindings f acc vbs in
+      fold_antiquote_exp f acc exp
+  | Texp_function { params; body; _ } ->
+      let acc = fold_antiquote_fun_params f acc params in
+      fold_antiquote_function_body f acc body
+  | Texp_apply (exp, list, _, _, _) ->
+      let acc = fold_antiquote_exp f acc exp in
+      fold_antiquote_args f acc list
+  | Texp_match (exp, _, cases, _) ->
+      let acc = fold_antiquote_exp f acc exp in
+      fold_antiquote_cases f acc cases
+  | Texp_try (exp, cases) ->
+      let acc = fold_antiquote_exp f acc exp in
+      fold_antiquote_cases f acc cases
+  | Texp_tuple (list, _) ->
+      List.fold_left (fun acc (_, e) -> fold_antiquote_exp f acc e) acc list
+  | Texp_unboxed_tuple list ->
+      List.fold_left (fun acc (_, e, _) -> fold_antiquote_exp f acc e) acc list
+  | Texp_construct (_, _, args, _) ->
+      fold_antiquote_exps f acc args
+  | Texp_variant (_, expo) ->
+      Option.fold
+        ~none:acc
+        ~some:(fun (e, _) -> fold_antiquote_exp f acc e)
+        expo
+  | Texp_record { fields; extended_expression; _} ->
+      let acc = Array.fold_left (fold_antiquote_field f) acc fields in
+      Option.fold
+        ~none:acc
+        ~some:(fun (e, _, _) -> fold_antiquote_exp f acc e)
+        extended_expression
+  | Texp_record_unboxed_product { fields; extended_expression; _} ->
+      let acc = Array.fold_left (fold_antiquote_field f) acc fields in
+      Option.fold
+        ~none:acc
+        ~some:(fun (e, _) -> fold_antiquote_exp f acc e)
+        extended_expression
+  | Texp_field (exp, _, _, _, _, _) ->
+      fold_antiquote_exp f acc exp
+  | Texp_unboxed_field (exp, _, _, _, _) ->
+      fold_antiquote_exp f acc exp
+  | Texp_setfield (exp1, _, _, _, exp2) ->
+      let acc = fold_antiquote_exp f acc exp1 in
+      fold_antiquote_exp f acc exp2
+  | Texp_array (_, _, list, _) ->
+      fold_antiquote_exps f acc list
+  | Texp_list_comprehension { comp_body; comp_clauses }
+  | Texp_array_comprehension (_, _, { comp_body; comp_clauses }) ->
+      let acc = fold_antiquote_exp f acc comp_body in
+      fold_antiquote_comprehension_clauses f acc comp_clauses
+  | Texp_ifthenelse (exp1, exp2, expo) ->
+      let acc = fold_antiquote_exp f acc exp1 in
+      let acc = fold_antiquote_exp f acc exp2 in
+      fold_antiquote_exp_opt f acc expo
+  | Texp_sequence (exp1, _, exp2) ->
+      let acc = fold_antiquote_exp f acc exp1 in
+      fold_antiquote_exp f acc exp2
+  | Texp_while { wh_cond; wh_body } ->
+      let acc = fold_antiquote_exp f acc wh_cond in
+      fold_antiquote_exp f acc wh_body
+  | Texp_for {for_from; for_to; for_body} ->
+      let acc = fold_antiquote_exp f acc for_from in
+      let acc = fold_antiquote_exp f acc for_to in
+      fold_antiquote_exp f acc for_body
+  | Texp_send (exp, _, _) -> fold_antiquote_exp f acc exp
+  | Texp_new (_, _, _, _) -> acc
+  | Texp_instvar (_, _, _) -> acc
+  | Texp_setinstvar (_, _, _, exp) -> fold_antiquote_exp f acc exp
+  | Texp_override (_, list) ->
+      List.fold_left (fun acc (_, _, e) -> fold_antiquote_exp f acc e) acc list
+  | Texp_letmodule (_, _, _, _, exp) -> fold_antiquote_exp f acc exp
+  | Texp_letexception (_, exp) -> fold_antiquote_exp f acc exp
+  | Texp_assert (exp, _) -> fold_antiquote_exp f acc exp
+  | Texp_lazy exp -> fold_antiquote_exp f acc exp
+  | Texp_object (_, _) -> acc
+  | Texp_pack _ -> acc
+  | Texp_letop {let_ = l; ands; body; _} ->
+      let acc = fold_antiquote_binding_op f acc l in
+      let acc = List.fold_left (fold_antiquote_binding_op f) acc ands in
+      fold_antiquote_case f acc body
+  | Texp_unreachable -> acc
+  | Texp_extension_constructor (_, _) -> acc
+  | Texp_open (_, e) -> fold_antiquote_exp f acc e
+  | Texp_probe {handler;_} -> fold_antiquote_exp f acc handler
+  | Texp_probe_is_enabled _ -> acc
+  | Texp_exclave exp -> fold_antiquote_exp f acc exp
+  | Texp_src_pos -> acc
+  | Texp_overwrite (exp1, exp2) ->
+      let acc = fold_antiquote_exp f acc exp1 in
+      fold_antiquote_exp f acc exp2
+  | Texp_hole _ -> acc
+  | Texp_letmutable (_, exp) -> fold_antiquote_exp f acc exp
+  | Texp_mutvar _ -> acc
+  | Texp_setmutvar (_, _, exp) -> fold_antiquote_exp f acc exp
+  | Texp_atomic_loc (exp, _, _, _, _) -> fold_antiquote_exp f acc exp
+  | Texp_idx (_, _) -> acc
+  | Texp_quotation exp ->
+      fold_antiquote_exp (fold_antiquote_exp f) acc exp
+  | Texp_antiquotation exp -> f acc exp
+  | Texp_eval _ -> acc
+  | Texp_typed_hole -> acc
 
-let unpack_functor_mty mty =
-  match mty.mty_desc with
-  | Tmty_functor (fp, mty) -> fp, mty
-  | _ -> invalid_arg "Typedtree.unpack_functor_mty (merlin)"
+and fold_antiquote_exp_opt f acc = function
+  | None -> acc
+  | Some exp -> fold_antiquote_exp f acc exp
+
+and fold_antiquote_exps f acc exps =
+  List.fold_left (fold_antiquote_exp f) acc exps
+
+and fold_antiquote_value_bindings f acc vbs =
+  List.fold_left (fun acc vb -> fold_antiquote_exp f acc vb.vb_expr) acc vbs
+
+and fold_antiquote_fun_param f acc fp =
+  match fp.fp_kind with
+  | Tparam_pat _ -> acc
+  | Tparam_optional_default(_, exp, _) -> fold_antiquote_exp f acc exp
+
+and fold_antiquote_fun_params f acc fps =
+  List.fold_left (fold_antiquote_fun_param f) acc fps
+
+and fold_antiquote_function_body f acc = function
+  | Tfunction_body exp -> fold_antiquote_exp f acc exp
+  | Tfunction_cases fc -> fold_antiquote_cases f acc fc.fc_cases
+
+and fold_antiquote_case : 'k. _ -> _ -> 'k case -> _ =
+  fun f acc c ->
+    let acc = fold_antiquote_exp_opt f acc c.c_guard in
+    fold_antiquote_exp f acc c.c_rhs
+
+and fold_antiquote_cases : 'k. _ -> _ -> 'k case list -> _ =
+  fun f acc cases ->
+    List.fold_left (fold_antiquote_case f) acc cases
+
+and fold_antiquote_arg f acc (_, arg) =
+  match arg with
+  | Omitted _ -> acc
+  | Arg (exp, _) -> fold_antiquote_exp f acc exp
+
+and fold_antiquote_args f acc args =
+  List.fold_left (fold_antiquote_arg f) acc args
+
+and fold_antiquote_field : 'l. _ -> _ -> 'l * _ -> _ =
+  fun f acc -> function
+  | _, Kept _ -> acc
+  | _, Overridden (_, exp) -> fold_antiquote_exp f acc exp
+
+and fold_antiquote_comprehension_clause f acc = function
+  | Texp_comp_for bindings ->
+      List.fold_left
+        (fun acc { comp_cb_iterator; _ } ->
+          match comp_cb_iterator with
+          | Texp_comp_range { ident = _; start; stop; direction = _ } ->
+              let acc = fold_antiquote_exp f acc start in
+              fold_antiquote_exp f acc stop
+          | Texp_comp_in { pattern = _; sequence } ->
+              fold_antiquote_exp f acc sequence)
+        acc bindings
+  | Texp_comp_when exp ->
+      fold_antiquote_exp f acc exp
+
+and fold_antiquote_comprehension_clauses f acc ccs =
+  List.fold_left (fold_antiquote_comprehension_clause f) acc ccs
+
+and fold_antiquote_binding_op f acc op =
+  fold_antiquote_exp f acc op.bop_exp
